@@ -246,6 +246,12 @@ type Settings struct {
 	DefaultCalendar  string     `json:"defaultCalendar"`
 	Accent           string     `json:"accent"`
 	MenuBarStyle     string     `json:"menuBarStyle"`
+	BarTitle         string     `json:"barTitle"`
+	BarAhead         string     `json:"barAhead"`
+	BarEmoji         bool       `json:"barEmoji"`
+	BarTime          string     `json:"barTime"`
+	BarHideInMeeting bool       `json:"barHideInMeeting"`
+	BarDot           string     `json:"barDot"`
 	AlertMode        string     `json:"alertMode"`
 	LaunchAtLogin    bool       `json:"launchAtLogin"`
 	ShowHolidayRows  bool       `json:"showHolidayRows"`
@@ -282,7 +288,8 @@ func (s *CalService) GetSettings() Settings {
 	return Settings{OpenAIKeyHint: hint, OpenAIModel: c.OpenAIModel, Use24h: c.Use24h,
 		ConfirmBeforeAdd: c.ConfirmBeforeAdd, DaysAhead: c.DaysAhead,
 		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent,
-		MenuBarStyle: c.MenuBarStyle, AlertMode: c.AlertMode, LaunchAtLogin: s.loginEnabled(),
+		MenuBarStyle: c.MenuBarStyle, BarTitle: c.BarTitle, BarAhead: c.BarAhead, BarEmoji: !c.BarNoEmoji,
+		BarTime: c.BarTime, BarHideInMeeting: c.BarHideInMeeting, BarDot: c.BarDot, AlertMode: c.AlertMode, LaunchAtLogin: s.loginEnabled(),
 		ShowHolidayRows: c.ShowHolidayRows, Region: c.Region, WeekStart: c.WeekStart, WeekendDays: c.WeekendDays,
 		Playful: !c.NoPlayful, Confetti: !c.NoConfetti, Sounds: c.Sounds, Voice: c.Voice, Name: c.Name,
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
@@ -308,10 +315,15 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	if validHex(in.Accent) {
 		c.Accent = strings.ToUpper(in.Accent)
 	}
-	switch in.MenuBarStyle {
-	case "emoji", "next", "soon", "date", "icon":
+	if validBarStyle(in.MenuBarStyle) {
 		c.MenuBarStyle = in.MenuBarStyle
 	}
+	c.BarTitle = oneOf(in.BarTitle, c.BarTitle, "none", "word", "short", "full")
+	c.BarAhead = oneOf(in.BarAhead, c.BarAhead, "hour", "today", "any")
+	c.BarTime = oneOf(in.BarTime, c.BarTime, "countdown", "clock")
+	c.BarDot = oneOf(in.BarDot, c.BarDot, "off", "5", "10", "15")
+	c.BarNoEmoji = !in.BarEmoji
+	c.BarHideInMeeting = in.BarHideInMeeting
 	switch in.AlertMode {
 	case "off", "0", "1", "5", "10":
 		c.AlertMode = in.AlertMode

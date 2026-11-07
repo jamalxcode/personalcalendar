@@ -18,7 +18,14 @@ type Config struct {
 	HiddenCalendars  []string `json:"hidden_calendars"` // calendar IDs not shown
 	DefaultCalendar  string   `json:"default_calendar"` // calendar ID for new events ("" = primary)
 	Accent           string   `json:"accent"`           // highlight colour, #RRGGBB
-	MenuBarStyle     string   `json:"menubar_style"`    // emoji | next | soon | date | icon
+	MenuBarStyle     string   `json:"menubar_style"`    // compact | minimal | countdown | time | full | today | lasthour | date | datecompact | icon
+	BarTitle         string   `json:"bar_title"`        // none | word | short | full
+	BarAhead         string   `json:"bar_ahead"`        // hour | today | any
+	BarNoEmoji       bool     `json:"bar_no_emoji"`
+	BarTime          string   `json:"bar_time"`         // countdown | clock
+	BarHideInMeeting bool     `json:"bar_hide_in_meeting"`
+	BarDot           string   `json:"bar_dot"`          // minutes before a meeting for the orange dot: off | 5 | 10 | 15
+	BarSet           bool     `json:"bar_set"`          // v1.9 menu bar options migrated
 	AlertMode        string   `json:"alert_mode"`       // minutes before a meeting to notify: off | 0 | 1 | 5 | 10
 	LaunchAtLogin    bool     `json:"launch_at_login"`
 	LoginConfigured  bool     `json:"login_configured"`  // first-run default applied
@@ -92,11 +99,29 @@ func loadConfig() *Config {
 		}
 		c.EmojiBarSet = true
 	}
-	switch c.MenuBarStyle {
-	case "emoji", "next", "soon", "date", "icon":
-	default:
-		c.MenuBarStyle = "next"
+	if !c.BarSet { // v1.9: old style names → new ones, with matching fine-tune values
+		switch c.MenuBarStyle {
+		case "next":
+			c.MenuBarStyle = "full"
+		case "soon":
+			c.MenuBarStyle = "lasthour"
+		case "date", "icon":
+		default:
+			c.MenuBarStyle = "compact"
+		}
+		c.BarTitle, c.BarAhead, c.BarTime, c.BarDot = "word", "any", "countdown", "5"
+		if c.MenuBarStyle == "lasthour" {
+			c.BarAhead = "hour"
+		}
+		c.BarSet = true
 	}
+	if !validBarStyle(c.MenuBarStyle) {
+		c.MenuBarStyle = "compact"
+	}
+	c.BarTitle = oneOf(c.BarTitle, "word", "none", "word", "short", "full")
+	c.BarAhead = oneOf(c.BarAhead, "any", "hour", "today", "any")
+	c.BarTime = oneOf(c.BarTime, "countdown", "countdown", "clock")
+	c.BarDot = oneOf(c.BarDot, "5", "off", "5", "10", "15")
 	switch c.AlertMode {
 	case "off", "0", "1", "5", "10":
 	default:
@@ -191,4 +216,22 @@ func (c *Config) WeekendText() string {
 		}
 	}
 	return strings.Join(n, " and ")
+}
+
+func validBarStyle(s string) bool {
+	switch s {
+	case "compact", "minimal", "countdown", "time", "full", "today", "lasthour", "date", "datecompact", "icon":
+		return true
+	}
+	return false
+}
+
+// oneOf returns v if it is one of allowed, else def.
+func oneOf(v, def string, allowed ...string) string {
+	for _, a := range allowed {
+		if v == a {
+			return v
+		}
+	}
+	return def
 }

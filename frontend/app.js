@@ -2179,7 +2179,7 @@ async function openSettings() {
   $("s24").checked = settingsCache.use24h;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
-  $("sMenuBar").value = settingsCache.menuBarStyle || "emoji";
+  loadMenuBarSettings(settingsCache);
   $("sAlert").value = settingsCache.alertMode || "1";
   $("sLogin").checked = !!settingsCache.launchAtLogin;
   $("sHolRows").checked = !!settingsCache.showHolidayRows;
@@ -2314,7 +2314,7 @@ async function saveSettings() {
     hiddenCalendars: hidden,
     defaultCalendar: def,
     accent: pendingAccent || S.accent || "#4169E1",
-    menuBarStyle: $("sMenuBar").value,
+    ...menuBarValues(),
     alertMode: $("sAlert").value,
     launchAtLogin: $("sLogin").checked,
     showHolidayRows: $("sHolRows").checked,
@@ -2516,3 +2516,125 @@ function pushLabelEmojis() {
 }
 setInterval(pushLabelEmojis, 20000);
 setTimeout(pushLabelEmojis, 1500);
+
+// ======================= Menu bar settings =======================
+const MB_STYLES = [
+  ["compact", "Compact", "emoji · countdown · word"], ["minimal", "Minimal", "emoji · countdown"],
+  ["countdown", "Countdown + title", ""], ["time", "Time + title", ""], ["full", "Full", "the original style"],
+  ["today", "Today only", "nothing for tomorrow+"], ["lasthour", "Last hour only", "icon until 60 min before"],
+  ["date", "Date", ""], ["datecompact", "Date + compact", ""], ["icon", "Icon only", "dot before meetings"],
+];
+let mb = { menuBarStyle: "compact", barTitle: "word", barAhead: "any", barTime: "countdown", barEmoji: true, barHideInMeeting: false, barDot: "5" };
+
+function loadMenuBarSettings(c) {
+  const legacy = { emoji: "compact", next: "full", soon: "lasthour" };
+  mb = { menuBarStyle: legacy[c.menuBarStyle] || c.menuBarStyle || "compact", barTitle: c.barTitle || "word", barAhead: c.barAhead || "any",
+    barTime: c.barTime || "countdown", barEmoji: c.barEmoji !== false, barHideInMeeting: !!c.barHideInMeeting, barDot: c.barDot || "5" };
+  renderMenuBarSettings();
+}
+function menuBarValues() { return { ...mb }; }
+
+const mbClock = (d) => {
+  if (S.use24h) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  let h = d.getHours(); const m = d.getMinutes(), ap = h >= 12 ? "p" : "a";
+  h = h % 12 || 12;
+  return m ? `${h}:${String(m).padStart(2, "0")}${ap}` : `${h}${ap}`;
+};
+function mbShortWord(t) {
+  const skip = new Set(["the", "a", "an", "my", "with", "to", "at", "and", "&", "-", "·"]);
+  const ws = t.split(/\s+/);
+  for (let i = 0; i < ws.length; i++) {
+    const w = ws[i].replace(/^[.,:;!?()[\]"']+|[.,:;!?()[\]"']+$/g, "");
+    if (!w || skip.has(w.toLowerCase())) continue;
+    if (w.length === 2 && w === w.toUpperCase() && /^\d{1,4}$/.test(ws[i + 1] || "")) return w + ws[i + 1];
+    const r = [...w];
+    if (r[0].codePointAt(0) > 0x2000 && r.length <= 2) continue;
+    return r.length > 8 ? r.slice(0, 7).join("") + "…" : w;
+  }
+  return "";
+}
+const mbTrunc = (s, n) => ([...s].length > n ? [...s].slice(0, n - 1).join("") + "…" : s);
+
+// mirrors App.barLabel in main.go
+function barLabel(c, e, now) {
+  const dateL = now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+  if (c.menuBarStyle === "icon") return "";
+  if (c.menuBarStyle === "date") return dateL;
+  if (c.menuBarStyle === "full") {
+    if (!e) return dateL;
+    const t = mbTrunc(e.title, 22), d = e.s - now;
+    if (d <= 0) return c.barHideInMeeting ? "" : `● ${t} · ${dur(e.e - now)} left`;
+    if (d <= 36e5) return `${t} in ${dur(d)}`;
+    if (sameDay(e.s, now)) return `${fmtTime(e.s)} · ${t}`;
+    const day = sameDay(e.s, addDays(now, 1)) ? "Tomorrow" : e.s.toLocaleDateString("en-GB", { weekday: "short" });
+    return `${day} ${fmtTime(e.s)} · ${t}`;
+  }
+  let part = "";
+  if (e) {
+    let ahead = c.barAhead;
+    if (c.menuBarStyle === "today") ahead = "today";
+    if (c.menuBarStyle === "lasthour") ahead = "hour";
+    const d = e.s - now;
+    const ok = ahead === "hour" ? d <= 36e5 : ahead === "today" ? (d <= 0 || sameDay(e.s, now)) : true;
+    if (ok && !(c.barHideInMeeting && d <= 0)) {
+      let title = c.barTitle, mode = c.barTime, emoji = c.barEmoji;
+      if (c.menuBarStyle === "minimal") title = "none";
+      if (c.menuBarStyle === "countdown") { emoji = false; mode = "countdown"; if (title === "word") title = "full"; }
+      if (c.menuBarStyle === "time") { emoji = false; mode = "clock"; if (title === "word") title = "full"; }
+      const p = [];
+      if (emoji) p.push(emojiFor(e) || (flightOf(e.title, e.location) ? "✈️" : "") || "📅");
+      let when;
+      if (d <= 0) when = "now";
+      else if (!sameDay(e.s, now) && d >= 12 * 36e5) when = e.s.toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 2) + " " + mbClock(e.s);
+      else if (mode === "clock") when = mbClock(e.s);
+      else if (d < 36e5) when = Math.round(d / 6e4) + "m";
+      else if (d < 3 * 36e5 && Math.floor(d / 6e4) % 60 >= 30) when = Math.floor(d / 36e5) + "h½";
+      else when = Math.floor(d / 36e5) + "h";
+      p.push(when);
+      if (title === "word") { const w = mbShortWord(e.title); if (w) p.push(w); }
+      else if (title === "short") p.push(mbTrunc(e.title, 15));
+      else if (title === "full") p.push(mbTrunc(e.title, 30));
+      part = p.join(" ");
+    }
+  }
+  if (c.menuBarStyle === "datecompact") return part ? now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" }).replace(",", "") + " · " + part : dateL;
+  return part;
+}
+
+function mbBar(label, dark) {
+  const b = el("div", "mb-bar" + (dark ? " dark" : ""));
+  if (!label) { const i = el("img"); i.src = "icon.png"; b.append(i); } else b.append(label);
+  return b;
+}
+
+function renderMenuBarSettings() {
+  if (!$("mbOpts")) return;
+  const now = new Date();
+  const real = evs().find((e) => !e.allDay && !e.holiday && e.e > now);
+  const title = real ? real.title : "Meet friends", loc = real ? real.location : "";
+  const sample = (ms, len = 36e5) => { const s = new Date(+now + ms); return { title, location: loc, s, e: new Date(+s + len), allDay: false }; };
+  const tomorrow10 = (() => { const t = addDays(startOfDay(now), 1); t.setHours(10); return { title, location: loc, s: t, e: new Date(+t + 36e5) }; })();
+  const states = [["Tomorrow", tomorrow10], ["In 2 hours", sample(2 * 36e5)], ["In 25 min", sample(25 * 6e4)], ["Started", sample(-10 * 6e4)]];
+  const name = (MB_STYLES.find((x) => x[0] === mb.menuBarStyle) || MB_STYLES[0])[1];
+  $("mbCap").textContent = `Live preview · ${name}${real ? "" : " · sample event"}`;
+  const st = $("mbStates"); st.innerHTML = "";
+  for (const [k, ev] of states) st.append(el("span", "k", k), mbBar(barLabel(mb, ev, now), k === "Started"));
+  const opts = $("mbOpts"); opts.innerHTML = "";
+  for (const [id, label, sub] of MB_STYLES) {
+    const o = el("button", "mb-opt" + (mb.menuBarStyle === id ? " sel" : ""));
+    const nm = el("span", "mb-name", label);
+    if (sub) nm.append(el("small", "", sub));
+    o.append(el("span", "mb-radio"), nm, mbBar(barLabel({ ...mb, menuBarStyle: id }, states[1][1], now)));
+    o.onclick = () => { mb.menuBarStyle = id; renderMenuBarSettings(); };
+    opts.append(o);
+  }
+  document.querySelectorAll(".seg[data-k]").forEach((g) => {
+    g.querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("on", mb[g.dataset.k] === b.dataset.v);
+      b.onclick = () => { mb[g.dataset.k] = b.dataset.v; renderMenuBarSettings(); };
+    });
+  });
+  $("mbEmoji").checked = mb.barEmoji; $("mbEmoji").onchange = () => { mb.barEmoji = $("mbEmoji").checked; renderMenuBarSettings(); };
+  $("mbHide").checked = mb.barHideInMeeting; $("mbHide").onchange = () => { mb.barHideInMeeting = $("mbHide").checked; renderMenuBarSettings(); };
+  $("mbDot").value = mb.barDot; $("mbDot").onchange = () => { mb.barDot = $("mbDot").value; };
+}

@@ -4,7 +4,7 @@
 
 A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and uses **OpenAI or OpenRouter** to understand plain-English event entry.
 
-- **Menu bar** shows the next event (`Mon 09:00 · Follow up`, `Standup in 12m`, `● Lunch · 25m left`) — or just the date, or icon only.
+- **Menu bar** shows the next event compactly — `👥 2h Meet`, `🦷 25m Dentist`, `✈️ Su 8a KU101` — with no icon while there is text. Ten styles plus fine-tune options in Settings → Menu bar.
 - **Panel** (click the icon or press **⌃⌥C**, configurable): the AI box on top, then Year / Month / Week / Day views with highlighted event days (any month, weekends shaded, holiday days underlined), the AI box, an *Up next* card with countdown + **Join**, and your upcoming events by day. Holidays show as small tags.
 - **Click a day** for that day's agenda; **click an event** for its card — time, place (opens Maps), notes, attendees, Join — with **Edit / Duplicate / Delete / Open in Calendar**.
 - **AI box** (OpenRouter): add (`dinner with Sara Thursday 8pm at Mais Alghanim`), ask (`what's on Thursday?`, `am I free tomorrow afternoon?`) or change (`move lunch to 3pm`, `cancel Friday's dentist`) — changes show a before/after preview first. Simple lines work offline without a key.
@@ -18,6 +18,8 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
 - Keys: `⌃⌥C` toggle · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` back/close.
+
+Design decisions and the conversations behind them: [DESIGN.md](DESIGN.md).
 
 ## Build (on your Mac)
 

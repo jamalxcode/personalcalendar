@@ -45,3 +45,5 @@
 - **One AI call, six intents** (add/answer/update/delete/slots/todo). Images go in as an `image_url` data URL; shrink screenshots to ~1600px JPEG first.
 - **Free slots are computed in Go, not by the model** — the AI only extracts the duration and window; the code checks real busy times.
 - **Pop-out windows in Wails v3:** a second hidden window with its own HTML page; closing hides it; share data via `Event.Emit("state")`.
+- **Hiding the status-item icon in Wails v3:** there's no API; find the `NSStatusBarButton` in the app's `NSStatusBarWindow` and set `imagePosition = NSNoImage`. Queue it a few main-queue hops deep so it lands after Wails' own (nested) icon updates.
+- **Keep the label logic in Go and mirror it in JS** for the settings live preview; a unit test pins the Go helpers.

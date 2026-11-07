@@ -98,7 +98,7 @@
         <span style="width:58px"></span>
       </header>
       <div class="tabs" id="tabs">
-        <button data-tab="calendar" class="on">Calendar</button><button data-tab="ai">AI</button><button data-tab="look">Look</button><button data-tab="alerts">Alerts</button><button data-tab="about">About</button>
+        <button data-tab="calendar" class="on">Calendar</button><button data-tab="ai">AI</button><button data-tab="look">Look</button><button data-tab="menubar">Menu bar</button><button data-tab="alerts">Alerts</button><button data-tab="about">About</button>
       </div>
       <div class="scroll settings-body">
         <div data-tab="calendar" class="connected-line hidden" id="connectedLine">
@@ -194,16 +194,24 @@
           </div>
         </div>
 
+        <div data-tab="menubar" class="group">
+          <div class="group-title">Menu bar</div>
+          <div class="mb-live"><div class="mb-cap" id="mbCap">Live preview</div><div class="mb-states" id="mbStates"></div></div>
+          <div id="mbOpts" class="mb-opts"></div>
+        </div>
+        <div data-tab="menubar" class="group">
+          <div class="group-title">Fine-tune</div>
+          <div class="mb-row"><span>Title length</span><div class="seg" id="mbTitle" data-k="barTitle"><button data-v="none">None</button><button data-v="word">1 word</button><button data-v="short">Short</button><button data-v="full">Full</button></div></div>
+          <div class="mb-row"><span>How far ahead<small>Further events show just the icon</small></span><div class="seg" id="mbAhead" data-k="barAhead"><button data-v="hour">1 hour</button><button data-v="today">Today</button><button data-v="any">Any day</button></div></div>
+          <div class="mb-row"><span>Time as</span><div class="seg" id="mbTime" data-k="barTime"><button data-v="countdown">Countdown 2h</button><button data-v="clock">Clock 10a</button></div></div>
+          <div class="mb-row"><span>Show emoji</span><input type="checkbox" class="switch" id="mbEmoji"></div>
+          <div class="mb-row"><span>Hide during a meeting<small>Instead of “now” (shows the icon)</small></span><input type="checkbox" class="switch" id="mbHide"></div>
+          <div class="mb-row"><span>Orange dot before meetings</span><select id="mbDot"><option value="off">Off</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option></select></div>
+          <div class="muted small">With text showing, the app icon is hidden to save space; it comes back when there's nothing to show.</div>
+        </div>
+
         <div data-tab="alerts" class="group">
-          <div class="group-title">Menu bar &amp; alerts</div>
-          <label class="field"><span>Menu bar</span>
-            <select id="sMenuBar">
-              <option value="emoji">Compact (e.g. “👥 2h Meet”)</option>
-              <option value="next">Next event (e.g. “Mon 09:00 · Follow up”)</option>
-              <option value="soon">Next event only when within the hour</option>
-              <option value="date">Today’s date</option>
-              <option value="icon">Icon only</option>
-            </select></label>
+          <div class="group-title">Alerts</div>
           <label class="field"><span>Meeting alert</span>
             <select id="sAlert">
               <option value="1">1 minute before</option>

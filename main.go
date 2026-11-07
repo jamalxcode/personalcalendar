@@ -498,35 +498,145 @@ func nextEvent(evs []Event, now time.Time) (Event, bool) {
 func (a *App) updateLabel() {
 	evs, _ := a.snapshot()
 	now := time.Now()
-	if a.cfg.MenuBarStyle == "emoji" {
-		a.setTray(a.emojiLabel(evs, now), evs, now)
-		return
+	a.setTray(a.barLabel(evs, now), evs, now)
+}
+
+// barLabel builds the menu bar text for the chosen style and fine-tune settings.
+// Styles: compact "👥 2h Meet" · minimal "👥 2h" · countdown "2h Meet friends" · time "10:00 Meet friends" ·
+// full "Tomorrow 10:00 · Meet friends" · today / lasthour (compact, limited) · date "Sat 7 Nov" ·
+// datecompact "Sat 7 · 👥 2h Meet" · icon "".
+func (a *App) barLabel(evs []Event, now time.Time) string {
+	c := a.cfg
+	switch c.MenuBarStyle {
+	case "icon":
+		return ""
+	case "date":
+		return now.Format("Mon 2 Jan")
+	case "full":
+		return a.fullLabel(evs, now)
 	}
-	date := now.Format("Mon 2 Jan")
-	label := date
-	style := a.cfg.MenuBarStyle
-	if style == "icon" {
-		a.setTray("", evs, now)
-		return
-	}
-	if e, ok := nextEvent(evs, now); ok && style != "date" {
-		t := truncate(e.Title, 22)
-		switch {
-		case !e.Start.After(now):
-			label = fmt.Sprintf("● %s · %s left", t, shortDur(e.End.Sub(now)))
-		case e.Start.Sub(now) <= time.Hour:
-			label = fmt.Sprintf("%s in %s", t, shortDur(e.Start.Sub(now)))
-		case sameDay(e.Start, now):
-			label = fmt.Sprintf("%s · %s", a.fmtTime(e.Start), t)
-		case style == "next" && e.Start.Sub(now) < 7*24*time.Hour:
-			day := e.Start.Format("Mon")
-			if sameDay(e.Start, now.AddDate(0, 0, 1)) {
-				day = "Tomorrow"
-			}
-			label = fmt.Sprintf("%s %s · %s", day, a.fmtTime(e.Start), t)
+	part := ""
+	if e, ok := nextEvent(evs, now); ok && a.withinAhead(e, now) {
+		if !(c.BarHideInMeeting && !e.Start.After(now)) {
+			part = a.composeLabel(e, now)
 		}
 	}
-	a.setTray(label, evs, now)
+	if c.MenuBarStyle == "datecompact" {
+		if part == "" {
+			return now.Format("Mon 2 Jan")
+		}
+		return now.Format("Mon 2") + " · " + part
+	}
+	return part
+}
+
+func (a *App) withinAhead(e Event, now time.Time) bool {
+	ahead := a.cfg.BarAhead
+	switch a.cfg.MenuBarStyle { // these styles carry their own limit
+	case "today":
+		ahead = "today"
+	case "lasthour":
+		ahead = "hour"
+	}
+	switch ahead {
+	case "hour":
+		return e.Start.Sub(now) <= time.Hour
+	case "today":
+		return !e.Start.After(now) || sameDay(e.Start, now)
+	}
+	return true
+}
+
+func (a *App) composeLabel(e Event, now time.Time) string {
+	c := a.cfg
+	title, timeMode, emoji := c.BarTitle, c.BarTime, !c.BarNoEmoji
+	switch c.MenuBarStyle { // the style decides what the parts are
+	case "minimal":
+		title = "none"
+	case "countdown":
+		emoji, timeMode = false, "countdown"
+		if title == "word" {
+			title = "full"
+		}
+	case "time":
+		emoji, timeMode = false, "clock"
+		if title == "word" {
+			title = "full"
+		}
+	}
+	var parts []string
+	if emoji {
+		a.mu.Lock()
+		em := a.labelEmoji[e.Title]
+		a.mu.Unlock()
+		if em == "" {
+			em = "📅"
+		}
+		parts = append(parts, em)
+	}
+	parts = append(parts, a.barWhen(e, now, timeMode))
+	switch title {
+	case "word":
+		if w := shortWord(e.Title); w != "" {
+			parts = append(parts, w)
+		}
+	case "short":
+		parts = append(parts, truncate(e.Title, 15))
+	case "full":
+		parts = append(parts, truncate(e.Title, 30))
+	}
+	return strings.Join(parts, " ")
+}
+
+// barWhen: "now", "25m", "2h½", "5h" (countdown) or "10a"/"10:00" (clock); other days "Su 10a".
+func (a *App) barWhen(e Event, now time.Time, mode string) string {
+	d := e.Start.Sub(now)
+	clock := compactClock(e.Start)
+	if a.cfg.Use24h {
+		clock = e.Start.Format("15:04")
+	}
+	switch {
+	case d <= 0:
+		return "now"
+	case !sameDay(e.Start, now) && d >= 12*time.Hour:
+		return e.Start.Format("Mon")[:2] + " " + clock
+	case mode == "clock":
+		return clock
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Round(time.Minute).Minutes()))
+	case d < 3*time.Hour && int(d.Minutes())%60 >= 30:
+		return fmt.Sprintf("%dh½", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+}
+
+// fullLabel is the original long style.
+func (a *App) fullLabel(evs []Event, now time.Time) string {
+	label := now.Format("Mon 2 Jan")
+	e, ok := nextEvent(evs, now)
+	if !ok {
+		return label
+	}
+	t := truncate(e.Title, 22)
+	switch {
+	case !e.Start.After(now):
+		if a.cfg.BarHideInMeeting {
+			return ""
+		}
+		return fmt.Sprintf("● %s · %s left", t, shortDur(e.End.Sub(now)))
+	case e.Start.Sub(now) <= time.Hour:
+		return fmt.Sprintf("%s in %s", t, shortDur(e.Start.Sub(now)))
+	case sameDay(e.Start, now):
+		return fmt.Sprintf("%s · %s", a.fmtTime(e.Start), t)
+	case e.Start.Sub(now) < 7*24*time.Hour:
+		day := e.Start.Format("Mon")
+		if sameDay(e.Start, now.AddDate(0, 0, 1)) {
+			day = "Tomorrow"
+		}
+		return fmt.Sprintf("%s %s · %s", day, a.fmtTime(e.Start), t)
+	}
+	return label
 }
 
 // setTray shows the label with no icon (saves menu bar space); the icon comes back only when
@@ -543,9 +653,13 @@ func (a *App) setTray(label string, evs []Event, now time.Time) {
 }
 
 func (a *App) meetingSoon(evs []Event, now time.Time) bool {
-	if e, ok := nextEvent(evs, now); ok && !a.cfg.NoPlayful {
+	mins, err := strconv.Atoi(a.cfg.BarDot)
+	if err != nil || mins <= 0 {
+		return false
+	}
+	if e, ok := nextEvent(evs, now); ok {
 		d := e.Start.Sub(now)
-		return d > 0 && d <= 5*time.Minute
+		return d > 0 && d <= time.Duration(mins)*time.Minute
 	}
 	return false
 }
@@ -605,41 +719,6 @@ func sameDay(a, b time.Time) bool {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()
 	return ay == by && am == bm && ad == bd
-}
-
-// emojiLabel is the compact menu bar text: "👥 2h Meet", "🦷 25m Dentist", "👥 now Meet", "✈️ Su 8a KU101".
-func (a *App) emojiLabel(evs []Event, now time.Time) string {
-	e, ok := nextEvent(evs, now)
-	if !ok {
-		return ""
-	}
-	a.mu.Lock()
-	em := a.labelEmoji[e.Title]
-	a.mu.Unlock()
-	if em == "" {
-		em = "📅"
-	}
-	var when string
-	d := e.Start.Sub(now)
-	switch {
-	case d <= 0:
-		when = "now"
-	case d < time.Hour:
-		when = fmt.Sprintf("%dm", int(d.Round(time.Minute).Minutes()))
-	case d < 24*time.Hour:
-		h := int(d.Hours())
-		if h < 3 && int(d.Minutes())%60 >= 30 {
-			when = fmt.Sprintf("%dh½", h)
-		} else {
-			when = fmt.Sprintf("%dh", h)
-		}
-	default:
-		when = e.Start.Format("Mon")[:2] + " " + compactClock(e.Start)
-	}
-	if w := shortWord(e.Title); w != "" {
-		return em + " " + when + " " + w
-	}
-	return em + " " + when
 }
 
 // compactClock: 10:00 → "10a", 13:30 → "1:30p".

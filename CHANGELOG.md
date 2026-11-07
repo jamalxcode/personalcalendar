@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.9.0
+
+- **Menu bar choices:** a new Menu bar tab in Settings with a live preview and 10 styles, each shown as it will look — Compact, Minimal, Countdown + title, Time + title, Full, Today only, Last hour only, Date, Date + compact, Icon only
+- **Fine-tune:** title length, how far ahead, countdown or clock, emoji on/off, hide during meetings, and when the orange dot appears
+- Your current choice carries over
+
 ## v1.8.8
 
 - The menu bar shows just the text ("👥 2h Meet") — the app icon is hidden to save space, and comes back only when there's nothing coming up
