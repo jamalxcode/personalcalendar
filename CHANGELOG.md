@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.2
+
+- Fixed: "Allow" for calendar access could do nothing after an update. Smart Cal now clears macOS's stale answer and asks again, shows "Waiting for macOS…", and opens the right Settings page if the prompt still doesn't appear
+- Permissions now survive future updates (the app keeps a stable signature), so macOS shouldn't ask again after each update
+- The banner explains why access is needed
+
 ## v1.8.1
 
 - The drop-down panel is taller (fits the AI box, calendar and list), up to your screen's height

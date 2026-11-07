@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -131,16 +132,28 @@ func (s *CalService) AllowAccess() (State, error) {
 	case "full":
 		return s.a.doRefresh(), nil
 	case "notDetermined":
+		t0 := time.Now()
 		ok := s.a.cal.RequestAccess()
-		s.a.tray.ShowWindow() // the system prompt takes focus away from the popover
-		if !ok {
-			return s.a.doRefresh(), fmt.Errorf("calendar access wasn't allowed")
+		if !ok && time.Since(t0) < 2*time.Second {
+			// refused instantly without a prompt: macOS is holding an old answer for a previous build.
+			// Clear it for this app only and ask again.
+			resetCalendarPermission()
+			ok = s.a.cal.RequestAccess()
 		}
-		return s.a.doRefresh(), nil
+		s.a.tray.ShowWindow() // the system prompt takes focus away from the popover
+		if ok {
+			return s.a.doRefresh(), nil
+		}
 	default:
-		openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
-		return s.a.state(), fmt.Errorf("turn on “Smart Cal” under Calendars in the window that just opened, then come back")
+		// refused earlier (often for an older build): clear that answer and ask again
+		resetCalendarPermission()
+		if s.a.cal.Access() == "notDetermined" && s.a.cal.RequestAccess() {
+			s.a.tray.ShowWindow()
+			return s.a.doRefresh(), nil
+		}
 	}
+	openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
+	return s.a.state(), fmt.Errorf("macOS didn't show its prompt. In the System Settings window that just opened, turn on “Smart Cal” under Calendars, then come back")
 }
 
 // AddGoogleAccount is setup step 2: opens System Settings → Internet Accounts.
@@ -668,16 +681,16 @@ func (s *CalService) Search(q string) ([]Event, error) {
 func (s *CalService) AllowReminders() (State, error) {
 	switch s.a.cal.RemindersAccess() {
 	case "full":
-	case "notDetermined":
+	default:
+		if s.a.cal.RemindersAccess() != "notDetermined" {
+			_ = exec.Command("/usr/bin/tccutil", "reset", "Reminders", "company.sala.personalcalendar").Run()
+		}
 		ok := s.a.cal.RequestReminders()
 		s.a.tray.ShowWindow()
 		if !ok {
-			return s.a.doRefresh(), fmt.Errorf("Reminders access wasn't allowed")
+			openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
+			return s.a.state(), fmt.Errorf("macOS didn't show its prompt. Turn on “Smart Cal” under Reminders in the window that just opened")
 		}
-	default:
-		openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
-		return s.a.state(), fmt.Errorf("turn on “Smart Cal” under Reminders in the window that just opened")
-	}
 	return s.a.doRefresh(), nil
 }
 
@@ -730,4 +743,10 @@ func (s *CalService) DeleteTodo(id string) (State, error) {
 func (s *CalService) OpenWeek() {
 	s.a.win.Hide()
 	s.a.showWeek()
+}
+
+// resetCalendarPermission clears macOS's stored calendar answer for this app only,
+// so the next request shows the system prompt again.
+func resetCalendarPermission() {
+	_ = exec.Command("/usr/bin/tccutil", "reset", "Calendar", "company.sala.personalcalendar").Run()
 }

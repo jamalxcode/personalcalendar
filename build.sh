@@ -60,7 +60,11 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 
-codesign --force --deep -s - "build/$APP" >/dev/null 2>&1 || true
+# Ad-hoc signature with a fixed designated requirement (the bundle ID), so macOS keeps the
+# Calendar/Reminders permission across updates instead of asking again after every build.
+codesign --force --deep -s - -r='designated => identifier "company.sala.personalcalendar"' "build/$APP" >/dev/null 2>&1 \
+  || codesign --force --deep -s - "build/$APP" >/dev/null 2>&1 || true
+codesign -d -r- "build/$APP" 2>&1 | grep -i designated || true
 
 if [ "$MODE" = "--ci" ]; then
   ZIP="build/SmartCal-$VERSION-macos-arm64.zip"

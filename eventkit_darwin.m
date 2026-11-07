@@ -74,6 +74,8 @@ int ek_status(void) {
 
 int ek_request(void) {
     ek_init();
+    // bring us forward so macOS shows its permission prompt on top
+    dispatch_async(dispatch_get_main_queue(), ^{ [NSApp activateIgnoringOtherApps:YES]; });
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
     __block BOOL ok = NO;
     if (@available(macOS 14.0, *)) {
@@ -90,7 +92,7 @@ int ek_request(void) {
         }];
 #pragma clang diagnostic pop
     }
-    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(180 * NSEC_PER_SEC)));
+    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60 * NSEC_PER_SEC)));
     if (ok) {
         [store reset];
         [store refreshSourcesIfNecessary];

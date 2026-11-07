@@ -927,7 +927,7 @@ function kbOpen() {
 function renderBanner() {
   const b = $("setupBanner");
   if (!S.connected) {
-    b.innerHTML = `<b>One click to start:</b> let Smart Cal read your calendars. <button class="btn primary" id="bannerAllow">Allow</button>`;
+    b.innerHTML = `<b>Calendar access needed.</b> Smart Cal shows and adds events using your Mac's calendars (your Google calendar comes through them). macOS asks you to allow this once. <button class="btn primary" id="bannerAllow">Allow</button>`;
     b.classList.remove("hidden");
     $("bannerAllow").onclick = allowAccess;
     return;
@@ -1904,10 +1904,13 @@ function flashDay(d) {
 
 // ---------- setup ----------
 async function allowAccess() {
+  const btn = $("bannerAllow");
+  if (btn) { btn.disabled = true; btn.textContent = "Waiting for macOS…"; }
+  toast("Look for the macOS prompt and click Allow");
   try {
     applyState(await go("AllowAccess"));
     if (S.connected) toast(S.hasGoogle ? "Connected — your calendars are in" : "Allowed — now add your Google account");
-  } catch (err) { toast(errMsg(err), true); }
+  } catch (err) { toast(errMsg(err), true); renderBanner(); }
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
 }
 
