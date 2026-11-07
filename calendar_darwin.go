@@ -21,6 +21,7 @@ char *ek_reminders(void);
 char *ek_rem_save(const char *json);
 char *ek_rem_delete(const char *rid);
 char *clip_read(void);
+void tray_show_image(int show);
 double ek_eta(const char *from, const char *eventId, double start);
 */
 import "C"
@@ -490,4 +491,13 @@ func (c *Cal) RefreshSources() {
 	c.mu.Lock()
 	C.ek_refresh()
 	c.mu.Unlock()
+}
+
+// trayShowImage hides or shows the app icon in the menu bar item (the text stays).
+func trayShowImage(show bool) {
+	v := 0
+	if show {
+		v = 1
+	}
+	C.tray_show_image(C.int(v))
 }

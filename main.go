@@ -499,15 +499,14 @@ func (a *App) updateLabel() {
 	evs, _ := a.snapshot()
 	now := time.Now()
 	if a.cfg.MenuBarStyle == "emoji" {
-		a.tray.SetLabel(a.emojiLabel(evs, now))
-		a.badge(evs, now)
+		a.setTray(a.emojiLabel(evs, now), evs, now)
 		return
 	}
 	date := now.Format("Mon 2 Jan")
 	label := date
 	style := a.cfg.MenuBarStyle
 	if style == "icon" {
-		a.tray.SetLabel("")
+		a.setTray("", evs, now)
 		return
 	}
 	if e, ok := nextEvent(evs, now); ok && style != "date" {
@@ -527,18 +526,32 @@ func (a *App) updateLabel() {
 			label = fmt.Sprintf("%s %s · %s", day, a.fmtTime(e.Start), t)
 		}
 	}
-	a.tray.SetLabel(label)
-
-	a.badge(evs, now)
+	a.setTray(label, evs, now)
 }
 
-// badge the menu bar icon in the 5 minutes before a meeting
-func (a *App) badge(evs []Event, now time.Time) {
-	soon := false
+// setTray shows the label with no icon (saves menu bar space); the icon comes back only when
+// there's no text to show. In the 5 minutes before a meeting the label gets an orange dot
+// (or, icon-only, the icon gets its orange badge).
+func (a *App) setTray(label string, evs []Event, now time.Time) {
+	soon := a.meetingSoon(evs, now)
+	if label != "" && soon {
+		label = "🟠 " + label
+	}
+	a.tray.SetLabel(label)
+	a.badge(soon && label == "")
+	trayShowImage(label == "")
+}
+
+func (a *App) meetingSoon(evs []Event, now time.Time) bool {
 	if e, ok := nextEvent(evs, now); ok && !a.cfg.NoPlayful {
 		d := e.Start.Sub(now)
-		soon = d > 0 && d <= 5*time.Minute
+		return d > 0 && d <= 5*time.Minute
 	}
+	return false
+}
+
+// badge the menu bar icon (orange dot) when a meeting is about to start
+func (a *App) badge(soon bool) {
 	if soon != a.badged {
 		a.badged = soon
 		if soon {

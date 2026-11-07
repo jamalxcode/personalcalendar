@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.8
+
+- The menu bar shows just the text ("👥 2h Meet") — the app icon is hidden to save space, and comes back only when there's nothing coming up
+- In the 5 minutes before a meeting the text gets an orange dot (🟠 👥 4m Meet)
+
 ## v1.8.7
 
 - **Compact menu bar** (now the default): emoji + countdown + one word — "👥 2h Meet", "🦷 25m Dentist", "👥 now Meet", and for later days "✈️ Su 8a KU101". Takes about a third of the space, leaving room for your other menu bar apps. The old styles are still in Settings → Alerts

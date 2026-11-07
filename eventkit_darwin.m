@@ -600,3 +600,22 @@ double ek_eta(const char *from, const char *eventId, double start) {
     dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(20 * NSEC_PER_SEC)));
     return secs;
 }
+
+// ---- menu bar item: hide the icon while there's text ----
+static NSButton *findStatusButton(NSView *v) {
+    if ([NSStringFromClass([v class]) containsString:@"StatusBarButton"]) return (NSButton *)v;
+    for (NSView *s in v.subviews) { NSButton *b = findStatusButton(s); if (b) return b; }
+    return nil;
+}
+
+void tray_show_image(int show) {
+    // queued a few hops deep so it lands after any icon change Wails has queued
+    dispatch_async(dispatch_get_main_queue(), ^{ dispatch_async(dispatch_get_main_queue(), ^{ dispatch_async(dispatch_get_main_queue(), ^{
+        for (NSWindow *w in [NSApp windows]) {
+            if (![NSStringFromClass([w class]) containsString:@"StatusBar"]) continue;
+            NSButton *b = findStatusButton(w.contentView);
+            if (!b && [w.contentView isKindOfClass:[NSButton class]]) b = (NSButton *)w.contentView;
+            if (b) b.imagePosition = show ? NSImageLeft : NSNoImage;
+        }
+    }); }); });
+}
