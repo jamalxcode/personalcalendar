@@ -691,6 +691,7 @@ func (s *CalService) AllowReminders() (State, error) {
 			openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
 			return s.a.state(), fmt.Errorf("macOS didn't show its prompt. Turn on “Smart Cal” under Reminders in the window that just opened")
 		}
+	}
 	return s.a.doRefresh(), nil
 }
 
