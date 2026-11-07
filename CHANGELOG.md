@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.3.1
+
+- Fixed: Settings buttons overlapping text when scrolled to the bottom
+- Cleaner release notes in the Update panel
+
 ## v1.3.0
 
 - Settings: AI quick add (OpenRouter) moves to the top and is highlighted until a key is saved

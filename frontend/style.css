@@ -314,9 +314,12 @@ a:hover { text-decoration: underline; }
 .update-pill:hover { filter: brightness(1.08); }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .upd-notes {
-  font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 120px; overflow-y: auto;
-  background: var(--input); border-radius: 8px; padding: 8px 10px; -webkit-user-select: text; user-select: text;
+  font-size: 12px; line-height: 1.45; max-height: 130px; overflow-y: auto;
+  background: rgba(var(--accent-rgb), .07); border-radius: 8px; padding: 8px 10px 8px 24px;
+  -webkit-user-select: text; user-select: text; margin: 0;
 }
+.upd-notes li { margin: 2px 0; }
+.upd-notes li::marker { color: var(--accent); }
 #installUpdBtn { align-self: flex-start; }
 
 /* ---------- appearance ---------- */

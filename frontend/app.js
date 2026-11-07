@@ -488,7 +488,12 @@ function renderUpdate(info, statusMsg) {
   $("installUpdBtn").classList.toggle("hidden", !avail);
   if (avail) $("installUpdBtn").textContent = `Update to v${U.latest} now`;
   $("updNotes").classList.toggle("hidden", !(avail && U.notes));
-  if (avail) $("updNotes").textContent = U.notes || "";
+  if (avail) {
+    const ul = $("updNotes");
+    ul.innerHTML = "";
+    (U.notes || "").split("\n").map((l) => l.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean)
+      .forEach((l) => ul.append(el("li", "", l)));
+  }
   let st = statusMsg;
   if (!st && U && U.checked && !U.checked.startsWith("0001")) {
     st = avail ? `v${U.latest} is available.` : `You're up to date · checked ${fmtTime(new Date(U.checked))}`;
