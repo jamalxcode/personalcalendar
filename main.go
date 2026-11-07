@@ -10,11 +10,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 //go:embed all:frontend
@@ -30,16 +32,19 @@ var buildStamp = "dev"
 const hotkey = "Ctrl+Alt+C"
 
 type App struct {
-	wa     *application.App
-	tray   *application.SystemTray
-	win    *application.WebviewWindow
-	cfg    *Config
-	cal    *Cal
-	mu     sync.Mutex
-	events []Event
-	err    error
-	kick   chan struct{}
-	update UpdateInfo // latest release check (guarded by mu)
+	wa      *application.App
+	tray    *application.SystemTray
+	win     *application.WebviewWindow
+	cfg     *Config
+	cal     *Cal
+	mu      sync.Mutex
+	events  []Event
+	err     error
+	kick    chan struct{}
+	update  UpdateInfo // latest release check (guarded by mu)
+	notif   *notifications.NotificationService
+	notifOK bool
+	alerted map[string]bool // event+start already notified
 }
 
 func main() {
@@ -51,7 +56,8 @@ func main() {
 		return
 	}
 
-	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1)}
+	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1), alerted: map[string]bool{}}
+	a.notif = notifications.New()
 	a.cal.Init()
 	storeChanged = a.RequestRefresh // macOS tells us when any calendar changes
 
@@ -59,7 +65,7 @@ func main() {
 	a.wa = application.New(application.Options{
 		Name:        "Personal Calendar",
 		Description: "Menu bar calendar with AI quick add",
-		Services:    []application.Service{application.NewService(&CalService{a: a})},
+		Services:    []application.Service{application.NewService(&CalService{a: a}), application.NewService(a.notif)},
 		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Mac: application.MacOptions{
 			ActivationPolicy: application.ActivationPolicyAccessory, // no Dock icon
@@ -105,8 +111,21 @@ func main() {
 		log.Printf("hotkey %s not registered: %v", hotkey, err)
 	}
 
+	a.notif.OnNotificationResponse(func(r notifications.NotificationResult) {
+		if r.Error != nil {
+			return
+		}
+		meet, _ := r.Response.UserInfo["meet"].(string)
+		if r.Response.ActionIdentifier == "join" && meet != "" {
+			openURL(meet)
+			return
+		}
+		a.tray.ShowWindow()
+	})
+
 	go a.loop()
 	go a.updateLoop()
+	go a.alertLoop()
 	if err := a.wa.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -133,6 +152,13 @@ func (a *App) buildMenu() *application.Menu {
 
 func (a *App) loop() {
 	time.Sleep(time.Second)
+	if !a.cfg.LoginConfigured { // first run: start at login by default
+		if err := a.wa.Autostart.Enable(); err == nil {
+			a.cfg.LaunchAtLogin = true
+		}
+		a.cfg.LoginConfigured = true
+		_ = a.cfg.Save()
+	}
 	if a.cal.Access() == "notDetermined" {
 		a.cal.RequestAccess() // first launch: macOS asks "allow access to Calendars?"
 	}
@@ -152,6 +178,74 @@ func (a *App) loop() {
 		case <-tick.C:
 			a.updateLabel()
 		}
+	}
+}
+
+// alertLoop posts a notification shortly before each timed meeting (with Join when there's a link).
+func (a *App) alertLoop() {
+	time.Sleep(3 * time.Second)
+	if ok, err := a.notif.RequestNotificationAuthorization(); err == nil && ok {
+		a.notifOK = true
+		_ = a.notif.RegisterNotificationCategory(notifications.NotificationCategory{
+			ID:      "meeting",
+			Actions: []notifications.NotificationAction{{ID: "join", Title: "Join"}},
+		})
+	}
+	t := time.NewTicker(15 * time.Second)
+	for range t.C {
+		a.checkAlerts()
+	}
+}
+
+func (a *App) checkAlerts() {
+	mode := a.cfg.AlertMode
+	if mode == "off" {
+		return
+	}
+	lead, _ := strconv.Atoi(mode)
+	evs, _ := a.snapshot()
+	now := time.Now()
+	for _, e := range evs {
+		if e.AllDay || e.Holiday {
+			continue
+		}
+		fire := e.Start.Add(-time.Duration(lead) * time.Minute)
+		if now.Before(fire) || now.After(e.Start.Add(2*time.Minute)) {
+			continue
+		}
+		key := e.ID + e.Start.Format(time.RFC3339)
+		if a.alerted[key] {
+			continue
+		}
+		a.alerted[key] = true
+		when := "Starting now"
+		if d := e.Start.Sub(now); d > 30*time.Second {
+			when = "In " + shortDur(d)
+		}
+		body := when + " · " + a.fmtTime(e.Start) + "–" + a.fmtTime(e.End)
+		if e.Location != "" {
+			body += " · " + e.Location
+		}
+		sent := false
+		if a.notifOK {
+			opts := notifications.NotificationOptions{
+				ID: "meet-" + key, Title: e.Title, Body: body,
+				Data: map[string]interface{}{"meet": e.MeetLink, "eventId": e.ID},
+			}
+			var err error
+			if e.MeetLink != "" {
+				opts.CategoryID = "meeting"
+				err = a.notif.SendNotificationWithActions(opts)
+			} else {
+				err = a.notif.SendNotification(opts)
+			}
+			sent = err == nil
+		}
+		if !sent { // notifications not allowed: drop the panel down instead
+			a.tray.ShowWindow()
+		}
+		a.wa.Event.Emit("alert", map[string]any{"title": e.Title, "body": body, "meet": e.MeetLink,
+			"id": e.ID, "start": e.Start})
 	}
 }
 
@@ -240,8 +334,14 @@ func nextEvent(evs []Event, now time.Time) (Event, bool) {
 func (a *App) updateLabel() {
 	evs, _ := a.snapshot()
 	now := time.Now()
-	label := now.Format("Mon 2 Jan")
-	if e, ok := nextEvent(evs, now); ok {
+	date := now.Format("Mon 2 Jan")
+	label := date
+	style := a.cfg.MenuBarStyle
+	if style == "icon" {
+		a.tray.SetLabel("")
+		return
+	}
+	if e, ok := nextEvent(evs, now); ok && style != "date" {
 		t := truncate(e.Title, 22)
 		switch {
 		case !e.Start.After(now):
@@ -250,6 +350,12 @@ func (a *App) updateLabel() {
 			label = fmt.Sprintf("%s in %s", t, shortDur(e.Start.Sub(now)))
 		case sameDay(e.Start, now):
 			label = fmt.Sprintf("%s · %s", a.fmtTime(e.Start), t)
+		case style == "next" && e.Start.Sub(now) < 7*24*time.Hour:
+			day := e.Start.Format("Mon")
+			if sameDay(e.Start, now.AddDate(0, 0, 1)) {
+				day = "Tomorrow"
+			}
+			label = fmt.Sprintf("%s %s · %s", day, a.fmtTime(e.Start), t)
 		}
 	}
 	a.tray.SetLabel(label)

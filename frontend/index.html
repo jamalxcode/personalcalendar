@@ -22,11 +22,19 @@
           <button class="icon-btn" id="prevMonth" title="Previous month">‹</button>
           <button class="pill-btn" id="todayBtn" title="Back to today">Today</button>
           <button class="icon-btn" id="nextMonth" title="Next month">›</button>
+          <button class="icon-btn search-btn" id="searchBtn" title="Search (⌘F)">
+            <svg viewBox="0 0 20 20"><path d="M8.5 3a5.5 5.5 0 0 1 4.38 8.83l3.65 3.64-1.06 1.06-3.64-3.65A5.5 5.5 0 1 1 8.5 3Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>
+          </button>
           <button class="icon-btn gear" id="openSettings" title="Settings (⌘,)">
             <svg viewBox="0 0 20 20"><path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm7.4 4.6-1.6-.3a6 6 0 0 1-.6 1.5l.9 1.4-1.4 1.4-1.4-.9a6 6 0 0 1-1.5.6l-.3 1.6h-2l-.3-1.6a6 6 0 0 1-1.5-.6l-1.4.9-1.4-1.4.9-1.4a6 6 0 0 1-.6-1.5l-1.6-.3v-2l1.6-.3a6 6 0 0 1 .6-1.5l-.9-1.4 1.4-1.4 1.4.9a6 6 0 0 1 1.5-.6l.3-1.6h2l.3 1.6a6 6 0 0 1 1.5.6l1.4-.9 1.4 1.4-.9 1.4a6 6 0 0 1 .6 1.5l1.6.3v2Z"/></svg>
           </button>
         </div>
       </header>
+
+      <div class="search-bar hidden" id="searchBar">
+        <input id="searchInput" type="text" placeholder="Search events…" spellcheck="false">
+        <button class="icon-btn small" id="searchClose" title="Close search">✕</button>
+      </div>
 
       <div class="minical">
         <div class="dow" id="dow"></div>
@@ -43,7 +51,7 @@
           </svg>
         </span>
         <textarea id="quick" rows="2" spellcheck="false"
-                  placeholder="Type an event in plain English…&#10;e.g. Lunch with Ali tomorrow 1pm"></textarea>
+                  placeholder="Add, ask or change anything…&#10;“lunch Fri 1pm” · “what’s on today?”"></textarea>
         <kbd class="enter-hint">↩</kbd>
       </form>
 
@@ -126,9 +134,30 @@
         </div>
 
         <div class="group">
+          <div class="group-title">Menu bar &amp; alerts</div>
+          <label class="field"><span>Menu bar</span>
+            <select id="sMenuBar">
+              <option value="next">Next event (e.g. “Mon 09:00 · Follow up”)</option>
+              <option value="soon">Next event only when within the hour</option>
+              <option value="date">Today’s date</option>
+              <option value="icon">Icon only</option>
+            </select></label>
+          <label class="field"><span>Meeting alert</span>
+            <select id="sAlert">
+              <option value="1">1 minute before</option>
+              <option value="5">5 minutes before</option>
+              <option value="10">10 minutes before</option>
+              <option value="0">When it starts</option>
+              <option value="off">Off</option>
+            </select></label>
+          <label class="check"><input type="checkbox" id="sLogin"> Start Personal Calendar at login</label>
+        </div>
+
+        <div class="group">
           <div class="group-title">Display</div>
           <label class="check"><input type="checkbox" id="s24"> 24-hour clock</label>
           <label class="check"><input type="checkbox" id="sConfirm"> Preview before adding</label>
+          <label class="check"><input type="checkbox" id="sHolRows"> Show holidays as full rows (instead of small tags)</label>
           <label class="field"><span>Show next</span>
             <select id="sDays"><option value="7">7 days</option><option value="14">14 days</option>
               <option value="30">30 days</option><option value="60">60 days</option></select></label>
@@ -157,6 +186,7 @@
       </div>
     </section>
 
+    <div id="sheet" class="sheet hidden"></div>
     <div id="toast" class="toast hidden"></div>
     <div id="confirm" class="confirm hidden">
       <div class="confirm-card">

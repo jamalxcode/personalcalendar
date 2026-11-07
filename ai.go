@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Draft is an event the AI parsed from free text, waiting to be added.
+// Draft is an event the AI parsed from free text, waiting to be added (or an edited version of one).
 type Draft struct {
 	Title           string    `json:"title"`
 	Start           time.Time `json:"start"`
@@ -21,6 +21,17 @@ type Draft struct {
 	Notes           string    `json:"notes"`
 	CalendarID      string    `json:"calendarId"`
 	ReminderMinutes int       `json:"reminderMinutes"`
+}
+
+// AskResult is what one line typed in the AI box turns into.
+type AskResult struct {
+	Kind    string  `json:"kind"`    // add | answer | update | delete
+	Answer  string  `json:"answer"`  // for answer (and a one-line summary for the others)
+	Drafts  []Draft `json:"drafts"`  // add
+	Target  *Event  `json:"target"`  // update / delete
+	Draft   *Draft  `json:"draft"`   // update: the event after the change
+	Refs    []Event `json:"refs"`    // answer: events the answer is about
+	Offline bool    `json:"offline"` // parsed without AI
 }
 
 type aiEvent struct {
@@ -34,35 +45,53 @@ type aiEvent struct {
 	ReminderMinutes int    `json:"reminder_minutes"`
 }
 
-var parseSchema = map[string]any{
+type aiReply struct {
+	Kind    string    `json:"kind"`
+	Answer  string    `json:"answer"`
+	Events  []aiEvent `json:"events"`
+	Target  int       `json:"target"`
+	Refs    []int     `json:"refs"`
+	Changes aiEvent   `json:"changes"`
+}
+
+func str(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
+
+var eventProps = map[string]any{
+	"title":            str("Short, clean event title (no date/time words). For changes: new title or empty to keep"),
+	"start":            str("RFC3339 with offset, e.g. 2026-11-08T13:00:00+03:00. All-day: YYYY-MM-DD. For changes: empty to keep"),
+	"end":              str("RFC3339 with offset. All-day: YYYY-MM-DD of the day AFTER the last day. For changes: empty to keep"),
+	"all_day":          map[string]any{"type": "boolean"},
+	"location":         str("Place, or empty string"),
+	"notes":            str("Extra details, or empty string"),
+	"calendar":         str("Exact name of one of the user's calendars if named or clearly implied, else empty"),
+	"reminder_minutes": map[string]any{"type": "integer", "description": "Minutes before start for a reminder if asked, else 0"},
+}
+var eventReq = []string{"title", "start", "end", "all_day", "location", "notes", "calendar", "reminder_minutes"}
+
+func eventSchema() map[string]any {
+	return map[string]any{"type": "object", "properties": eventProps, "required": eventReq, "additionalProperties": false}
+}
+
+var askSchema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
-		"events": map[string]any{
-			"type": "array",
-			"items": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"title":            map[string]any{"type": "string", "description": "Short, clean event title (no date/time words)"},
-					"start":            map[string]any{"type": "string", "description": "RFC3339 with offset, e.g. 2026-11-08T13:00:00+03:00. For all-day: YYYY-MM-DD"},
-					"end":              map[string]any{"type": "string", "description": "RFC3339 with offset. For all-day: YYYY-MM-DD of the day AFTER the last day (exclusive)"},
-					"all_day":          map[string]any{"type": "boolean"},
-					"location":         map[string]any{"type": "string", "description": "Place, or empty string"},
-					"notes":            map[string]any{"type": "string", "description": "Extra details, or empty string"},
-					"calendar":         map[string]any{"type": "string", "description": "Exact name of one of the user's calendars if they named or clearly implied one, else empty string"},
-					"reminder_minutes": map[string]any{"type": "integer", "description": "Minutes before start for a reminder if the user asked for one, else 0"},
-				},
-				"required":             []string{"title", "start", "end", "all_day", "location", "notes", "calendar", "reminder_minutes"},
-				"additionalProperties": false,
-			},
-		},
+		"kind": map[string]any{"type": "string", "enum": []string{"add", "answer", "update", "delete"},
+			"description": "add = create new events; answer = a question about the schedule; update = change one existing event; delete = remove one existing event"},
+		"answer":  str("For answer: a short, friendly, direct answer (times in the user's format). For add/update/delete: a one-line summary of what will happen"),
+		"events":  map[string]any{"type": "array", "items": eventSchema(), "description": "For add: the new events. Otherwise empty"},
+		"target":  map[string]any{"type": "integer", "description": "For update/delete: the [n] number of the existing event. Otherwise -1"},
+		"refs":    map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "For answer: [n] numbers of the events the answer mentions (max 8). Otherwise empty"},
+		"changes": eventSchema(),
 	},
-	"required":             []string{"events"},
+	"required":             []string{"kind", "answer", "events", "target", "refs", "changes"},
 	"additionalProperties": false,
 }
 
-func parseEvents(ctx context.Context, cfg *Config, text string, cals []CalendarInfo) ([]Draft, error) {
+// askAI routes one line of text: add events, answer a question, or change/delete an existing event.
+// known is the list of nearby events the model may refer to by index.
+func askAI(ctx context.Context, cfg *Config, text string, cals []CalendarInfo, known []Event) (AskResult, error) {
 	if strings.TrimSpace(cfg.OpenAIKey) == "" {
-		return nil, fmt.Errorf("add your OpenRouter key in Settings first")
+		return AskResult{}, errNoKey
 	}
 	now := time.Now()
 	var names []string
@@ -71,87 +100,147 @@ func parseEvents(ctx context.Context, cfg *Config, text string, cals []CalendarI
 			names = append(names, c.Name)
 		}
 	}
-	sys := fmt.Sprintf(`You turn a short natural-language note into calendar events, like Fantastical.
+	timeFmt := "3:04 PM"
+	if cfg.Use24h {
+		timeFmt = "15:04"
+	}
+	var list strings.Builder
+	for i, e := range known {
+		when := e.Start.Format("Mon 2 Jan")
+		if e.AllDay {
+			when += " (all day)"
+		} else {
+			when += " " + e.Start.Format(timeFmt) + "–" + e.End.Format(timeFmt)
+		}
+		fmt.Fprintf(&list, "[%d] %s | %s | %s", i, when, e.Title, e.Calendar)
+		if e.Location != "" {
+			fmt.Fprintf(&list, " | at %s", e.Location)
+		}
+		if e.Holiday {
+			list.WriteString(" | holiday")
+		}
+		list.WriteString("\n")
+	}
+	sys := fmt.Sprintf(`You are the assistant inside a Fantastical-style calendar app.
 Now is %s (%s), timezone %s (UTC%s). Interpret relative dates ("tomorrow", "next Tue", "this weekend") from now.
-Rules:
-- Default duration 1 hour if no end/duration given. "for 30m"/"2 hours" sets duration.
-- A time with no date means the next occurrence of that time (today if still ahead, else tomorrow).
-- A weekday with no "next" means the next upcoming one (not today unless the time is still ahead today).
-- No time at all (e.g. "Ali's birthday Friday") → all-day event.
-- "at <place>" or "@ <place>" → location. Keep the title short and natural (e.g. "Lunch with Ali").
-- Kuwait weekend is Friday–Saturday; "weekend" means Fri–Sat.
-- If several separate events are described, return each.
-- User's calendars: %s.
-Always use the offset %s in times.`,
-		now.Format("Monday 2 January 2006 15:04"), now.Format("2006-01-02T15:04:05Z07:00"),
-		now.Location().String(), now.Format("-07:00"), strings.Join(names, ", "), now.Format("-07:00"))
 
-	// OpenRouter keys (sk-or-…) work too: same API shape, different host, vendor-prefixed model names.
-	key := strings.TrimSpace(cfg.OpenAIKey)
-	base, model, provider := "https://api.openai.com/v1", cfg.OpenAIModel, "OpenAI"
-	if strings.HasPrefix(key, "sk-or-") {
-		base, provider = "https://openrouter.ai/api/v1", "OpenRouter"
-		if !strings.Contains(model, "/") {
-			model = "openai/" + model
-		}
-	}
-	body := map[string]any{
-		"model": model,
-		"messages": []map[string]string{
-			{"role": "system", "content": sys},
-			{"role": "user", "content": text},
-		},
-		"response_format": map[string]any{
-			"type":        "json_schema",
-			"json_schema": map[string]any{"name": "calendar_events", "strict": true, "schema": parseSchema},
-		},
-	}
-	b, _ := json.Marshal(body)
-	req, _ := http.NewRequestWithContext(ctx, "POST", base+"/chat/completions", bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("X-Title", "Personal Calendar")
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
+Decide what the user wants:
+- "add": they describe new event(s) ("lunch with Ali tomorrow 1pm"). Default duration 1 hour; a time with no date = next occurrence; a weekday = the next upcoming one; no time at all = all-day; "at/@ <place>" = location; several events → several items.
+- "answer": a question about their schedule ("what's on Thursday?", "am I free tomorrow afternoon?", "when is my next dentist?"). Answer briefly and concretely from the event list below; list items with times; say plainly when something isn't there. Put the [n] of mentioned events in refs.
+- "update": change ONE existing event ("move dentist to 5pm", "rename lunch to team lunch", "make Friday's meeting 2 hours"). Set target to its [n]; in changes fill only what changes (others empty strings, all_day false unless switching to all-day, reminder 0). When moving, keep the original duration unless told otherwise and give both start and end.
+- "delete": remove ONE existing event ("cancel lunch on Friday"). Set target.
+If the request is ambiguous between several events, use "answer" to ask which one.
+
+Kuwait weekend is Friday–Saturday. Always use the offset %s in times. Writable calendars: %s.
+
+The user's events (past week to next two months):
+%s`,
+		now.Format("Monday 2 January 2006 15:04"), now.Format("2006-01-02T15:04:05Z07:00"),
+		now.Location().String(), now.Format("-07:00"), now.Format("-07:00"), strings.Join(names, ", "), list.String())
+
+	content, err := callAI(ctx, cfg, sys, text, "calendar_action", askSchema)
 	if err != nil {
-		return nil, err
+		return AskResult{}, err
 	}
-	defer resp.Body.Close()
-	rb, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		var e struct {
-			Error struct{ Message string } `json:"error"`
+	var r aiReply
+	if err := json.Unmarshal(content, &r); err != nil {
+		return AskResult{}, fmt.Errorf("couldn't read the AI reply: %v", err)
+	}
+	res := AskResult{Kind: r.Kind, Answer: r.Answer}
+	pick := func(i int) *Event {
+		if i >= 0 && i < len(known) {
+			e := known[i]
+			return &e
 		}
-		_ = json.Unmarshal(rb, &e)
-		if e.Error.Message == "" {
-			e.Error.Message = string(rb)
+		return nil
+	}
+	switch r.Kind {
+	case "add":
+		ds, err := aiToDrafts(r.Events, cals)
+		if err != nil {
+			return res, err
 		}
-		return nil, fmt.Errorf("%s (%d): %s", provider, resp.StatusCode, e.Error.Message)
+		if len(ds) == 0 {
+			return res, fmt.Errorf("couldn't find an event in that — try e.g. “Lunch with Ali tomorrow 1pm”")
+		}
+		res.Drafts = ds
+	case "answer":
+		for _, i := range r.Refs {
+			if e := pick(i); e != nil {
+				res.Refs = append(res.Refs, *e)
+			}
+		}
+	case "update", "delete":
+		t := pick(r.Target)
+		if t == nil {
+			return AskResult{Kind: "answer", Answer: "I couldn't tell which event you mean — try including its name or day."}, nil
+		}
+		res.Target = t
+		if r.Kind == "update" {
+			d, err := applyChanges(*t, r.Changes, cals)
+			if err != nil {
+				return res, err
+			}
+			res.Draft = &d
+		}
+	default:
+		return res, fmt.Errorf("the AI gave an unexpected answer — try rephrasing")
 	}
-	var cr struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-				Refusal string `json:"refusal"`
-			} `json:"message"`
-		} `json:"choices"`
+	return res, nil
+}
+
+// applyChanges merges the AI's partial changes into an existing event.
+func applyChanges(t Event, c aiEvent, cals []CalendarInfo) (Draft, error) {
+	d := Draft{Title: t.Title, Start: t.Start, End: t.End, AllDay: t.AllDay, Location: t.Location, CalendarID: t.CalendarID}
+	if strings.TrimSpace(c.Title) != "" {
+		d.Title = strings.TrimSpace(c.Title)
 	}
-	if err := json.Unmarshal(rb, &cr); err != nil || len(cr.Choices) == 0 {
-		return nil, fmt.Errorf("unexpected %s response", provider)
+	if c.Location != "" {
+		d.Location = c.Location
 	}
-	if r := cr.Choices[0].Message.Refusal; r != "" {
-		return nil, fmt.Errorf("%s", r)
+	if c.Notes != "" {
+		d.Notes = c.Notes
 	}
-	var parsed struct {
-		Events []aiEvent `json:"events"`
+	for _, cal := range cals {
+		if c.Calendar != "" && strings.EqualFold(cal.Name, c.Calendar) && cal.Writable {
+			d.CalendarID = cal.ID
+		}
 	}
-	if err := json.Unmarshal([]byte(cr.Choices[0].Message.Content), &parsed); err != nil {
-		return nil, fmt.Errorf("couldn't read the parsed event: %v", err)
+	dur := t.End.Sub(t.Start)
+	if c.AllDay && !t.AllDay {
+		d.AllDay = true
 	}
-	if len(parsed.Events) == 0 {
-		return nil, fmt.Errorf("couldn't find an event in that — try e.g. “Lunch with Ali tomorrow 1pm”")
+	if c.Start != "" {
+		if d.AllDay {
+			s, err := parseDay(c.Start)
+			if err != nil {
+				return d, fmt.Errorf("bad date %q", c.Start)
+			}
+			d.Start, d.End = s, s.AddDate(0, 0, 1)
+		} else {
+			s, err := time.Parse(time.RFC3339, c.Start)
+			if err != nil {
+				return d, fmt.Errorf("bad time %q", c.Start)
+			}
+			d.Start = s.Local()
+			d.End = d.Start.Add(dur)
+		}
 	}
+	if c.End != "" {
+		if d.AllDay {
+			if e, err := parseDay(c.End); err == nil && e.After(d.Start) {
+				d.End = e
+			}
+		} else if e, err := time.Parse(time.RFC3339, c.End); err == nil && e.After(d.Start) {
+			d.End = e.Local()
+		}
+	}
+	return d, nil
+}
+
+func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {
 	var out []Draft
-	for _, e := range parsed.Events {
+	for _, e := range evs {
 		d := Draft{Title: e.Title, AllDay: e.AllDay, Location: e.Location, Notes: e.Notes, ReminderMinutes: e.ReminderMinutes}
 		for _, c := range cals {
 			if e.Calendar != "" && strings.EqualFold(c.Name, e.Calendar) && c.Writable {
@@ -182,6 +271,70 @@ Always use the offset %s in times.`,
 		out = append(out, d)
 	}
 	return out, nil
+}
+
+var errNoKey = fmt.Errorf("add your OpenRouter key in Settings to use AI")
+
+// callAI sends one structured-output chat request to OpenRouter (sk-or-… keys) or OpenAI.
+func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, schema map[string]any) ([]byte, error) {
+	key := strings.TrimSpace(cfg.OpenAIKey)
+	base, model, provider := "https://api.openai.com/v1", cfg.OpenAIModel, "OpenAI"
+	if strings.HasPrefix(key, "sk-or-") {
+		base, provider = "https://openrouter.ai/api/v1", "OpenRouter"
+		if !strings.Contains(model, "/") {
+			model = "openai/" + model
+		}
+	}
+	body := map[string]any{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": sys},
+			{"role": "user", "content": user},
+		},
+		"response_format": map[string]any{
+			"type":        "json_schema",
+			"json_schema": map[string]any{"name": schemaName, "strict": true, "schema": schema},
+		},
+	}
+	b, _ := json.Marshal(body)
+	req, _ := http.NewRequestWithContext(ctx, "POST", base+"/chat/completions", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Title", "Personal Calendar")
+	req.Header.Set("HTTP-Referer", "https://go.sala.company")
+	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s unreachable: %w", provider, err)
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		var e struct {
+			Error struct{ Message string } `json:"error"`
+		}
+		_ = json.Unmarshal(rb, &e)
+		if e.Error.Message == "" {
+			e.Error.Message = string(rb)
+		}
+		return nil, fmt.Errorf("%s (%d): %s", provider, resp.StatusCode, e.Error.Message)
+	}
+	var cr struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+				Refusal string `json:"refusal"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(rb, &cr); err != nil || len(cr.Choices) == 0 {
+		return nil, fmt.Errorf("unexpected %s response", provider)
+	}
+	if r := cr.Choices[0].Message.Refusal; r != "" {
+		return nil, fmt.Errorf("%s", r)
+	}
+	c := strings.TrimSpace(cr.Choices[0].Message.Content)
+	c = strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(c, "```json"), "```"), "```")
+	return []byte(c), nil
 }
 
 func parseDay(s string) (time.Time, error) {

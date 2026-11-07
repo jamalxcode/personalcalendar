@@ -201,10 +201,8 @@ char *ek_add(const char *title, const char *location, const char *notes, const c
     return cstr(@"");
 }
 
-// Deletes one occurrence (the one starting nearest `start`). Returns "" on success.
-char *ek_delete(const char *eventId, double start) {
-    ek_init();
-    NSString *ident = str(eventId);
+// Finds the occurrence of a (possibly recurring) event that starts nearest `start`.
+static EKEvent *findOccurrence(NSString *ident, double start) {
     NSDate *s = [NSDate dateWithTimeIntervalSince1970:start];
     NSPredicate *p = [store predicateForEventsWithStartDate:[s dateByAddingTimeInterval:-2 * 86400]
                                                     endDate:[s dateByAddingTimeInterval:2 * 86400]
@@ -217,6 +215,94 @@ char *ek_delete(const char *eventId, double start) {
         if (d < best) { best = d; target = e; }
     }
     if (!target) target = [store eventWithIdentifier:ident];
+    return target;
+}
+
+static NSString *statusName(EKParticipantStatus st) {
+    switch (st) {
+        case EKParticipantStatusAccepted: return @"accepted";
+        case EKParticipantStatusDeclined: return @"declined";
+        case EKParticipantStatusTentative: return @"maybe";
+        case EKParticipantStatusPending: return @"pending";
+        default: return @"unknown";
+    }
+}
+
+// Full details for the event card: notes, attendees, organizer, recurrence.
+char *ek_detail(const char *eventId, double start) {
+    ek_init();
+    EKEvent *e = findOccurrence(str(eventId), start);
+    if (!e) return cstr(@"{\"error\":\"Event not found\"}");
+    NSMutableArray *people = [NSMutableArray array];
+    for (EKParticipant *pp in e.attendees) {
+        NSString *email = @"";
+        NSString *u = pp.URL.absoluteString ?: @"";
+        if ([u hasPrefix:@"mailto:"]) email = [u substringFromIndex:7];
+        [people addObject:@{
+            @"name": pp.name ?: @"",
+            @"email": email,
+            @"status": statusName(pp.participantStatus),
+            @"me": pp.isCurrentUser ? @YES : @NO,
+        }];
+    }
+    NSString *org = @"";
+    if (e.organizer) org = e.organizer.name ?: @"";
+    NSCalendar *greg = [NSCalendar currentCalendar];
+    NSDate *s = e.startDate, *en = e.endDate;
+    if (e.allDay) {
+        s = [greg startOfDayForDate:e.startDate];
+        NSDate *lastDay = [greg startOfDayForDate:[e.endDate dateByAddingTimeInterval:-1]];
+        if ([lastDay compare:s] == NSOrderedAscending) lastDay = s;
+        en = [greg dateByAddingUnit:NSCalendarUnitDay value:1 toDate:lastDay options:0];
+    }
+    NSDictionary *d = @{
+        @"id": e.eventIdentifier ?: @"",
+        @"calendarId": e.calendar.calendarIdentifier ?: @"",
+        @"calendar": e.calendar.title ?: @"",
+        @"color": hexColor(e.calendar.CGColor),
+        @"title": e.title ?: @"",
+        @"location": e.location ?: @"",
+        @"notes": e.notes ?: @"",
+        @"url": e.URL.absoluteString ?: @"",
+        @"start": @(s.timeIntervalSince1970),
+        @"end": @(en.timeIntervalSince1970),
+        @"allDay": e.allDay ? @YES : @NO,
+        @"recurring": e.hasRecurrenceRules ? @YES : @NO,
+        @"writable": e.calendar.allowsContentModifications ? @YES : @NO,
+        @"organizer": org,
+        @"attendees": people,
+    };
+    return cstr(toJSON(d));
+}
+
+// Edits one occurrence. end is exclusive for all-day events. Returns "" on success.
+char *ek_update(const char *eventId, double origStart, const char *title, const char *location,
+                const char *notes, const char *calendarId, double start, double end, int allDay) {
+    ek_init();
+    EKEvent *e = findOccurrence(str(eventId), origStart);
+    if (!e) return cstr(@"Event not found — it may already be gone");
+    if (!e.calendar.allowsContentModifications) return cstr(@"That calendar is read-only");
+    e.title = str(title);
+    e.location = str(location);
+    e.notes = str(notes);
+    if (calendarId && calendarId[0] && ![str(calendarId) isEqualToString:e.calendar.calendarIdentifier]) {
+        EKCalendar *cal = [store calendarWithIdentifier:str(calendarId)];
+        if (cal && cal.allowsContentModifications) e.calendar = cal;
+    }
+    e.allDay = allDay ? YES : NO;
+    e.startDate = [NSDate dateWithTimeIntervalSince1970:start];
+    e.endDate = [NSDate dateWithTimeIntervalSince1970:(allDay ? fmax(start, end - 1) : end)];
+    NSError *err = nil;
+    if (![store saveEvent:e span:EKSpanThisEvent commit:YES error:&err]) {
+        return cstr(err.localizedDescription ?: @"Couldn't save the change");
+    }
+    return cstr(@"");
+}
+
+// Deletes one occurrence (the one starting nearest `start`). Returns "" on success.
+char *ek_delete(const char *eventId, double start) {
+    ek_init();
+    EKEvent *target = findOccurrence(str(eventId), start);
     if (!target) return cstr(@"Event not found — it may already be gone");
     if (!target.calendar.allowsContentModifications) return cstr(@"That calendar is read-only");
     NSError *err = nil;

@@ -86,6 +86,26 @@ function confirmBox(html) {
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // ---------- mini calendar ----------
+// ---------- month grid ----------
+const monthCache = new Map(); // "y-m" → events (with s/e dates) for months other than the loaded range
+const mkey = (d) => `${d.getFullYear()}-${d.getMonth()}`;
+const withDates = (list) => list.map((e) => ({ ...e, s: new Date(e.start), e: new Date(e.end) }));
+
+async function loadMonth(m, force = false) {
+  const k = mkey(m);
+  if (monthCache.has(k) && !force) return;
+  const from = addDays(m, -7), to = addDays(new Date(m.getFullYear(), m.getMonth() + 1, 1), 7);
+  try {
+    monthCache.set(k, withDates(await go("EventsBetween", from.toISOString(), to.toISOString())));
+    if (mkey(viewMonth) === k) renderMiniCal();
+  } catch (_) { /* keep dots from the loaded range */ }
+}
+
+function monthEvents() {
+  const cached = monthCache.get(mkey(viewMonth));
+  return cached || evs();
+}
+
 function renderMiniCal() {
   const now = new Date();
   $("monthName").textContent = viewMonth.toLocaleDateString("en-GB", { month: "long" });
@@ -94,19 +114,16 @@ function renderMiniCal() {
 
   const dow = $("dow");
   if (!dow.childElementCount) {
-    ["S", "M", "T", "W", "T", "F", "S"].forEach((d, i) => {
-      dow.append(el("span", i === 5 || i === 6 ? "wknd" : "", d));
-    });
+    ["S", "M", "T", "W", "T", "F", "S"].forEach((d, i) => dow.append(el("span", i === 5 || i === 6 ? "wknd" : "", d)));
   }
 
-  // colour dots per day from loaded events
-  const dots = new Map();
-  const counts = new Map();
-  for (const e of evs()) {
+  const dots = new Map(), counts = new Map(), hols = new Map();
+  for (const e of monthEvents()) {
     let d = startOfDay(e.s);
     const last = e.allDay ? addDays(startOfDay(e.e), -1) : startOfDay(e.e);
     for (let i = 0; d <= last && i < 31; i++, d = addDays(d, 1)) {
       const k = dayKey(d);
+      if (e.holiday && !S.showHolidayRows) { hols.set(k, [...(hols.get(k) || []), e.title]); continue; }
       counts.set(k, (counts.get(k) || 0) + 1);
       if (!dots.has(k)) dots.set(k, []);
       const arr = dots.get(k);
@@ -121,27 +138,30 @@ function renderMiniCal() {
   const weeks = Math.ceil((first.getDay() + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
   for (let i = 0; i < weeks * 7; i++) {
     const d = addDays(start, i);
+    const k = dayKey(d);
     const cell = el("div", "day");
     if (d.getMonth() !== first.getMonth()) cell.classList.add("out");
     if (d.getDay() === 5 || d.getDay() === 6) cell.classList.add("wknd");
     if (sameDay(d, now)) cell.classList.add("today");
     if (selectedDay && sameDay(d, selectedDay)) cell.classList.add("sel");
     cell.append(el("span", "num", d.getDate()));
-    const ds = dots.get(dayKey(d));
-    const n = counts.get(dayKey(d)) || 0;
+    const n = counts.get(k) || 0;
+    const tips = [];
     if (n) {
       cell.classList.add("has");
       if (n >= 3) cell.classList.add("busy");
-      cell.title = `${n} event${n > 1 ? "s" : ""}`;
+      tips.push(`${n} event${n > 1 ? "s" : ""}`);
     }
+    if (hols.has(k)) { cell.classList.add("holiday"); tips.push(...hols.get(k)); }
+    if (tips.length) cell.title = tips.join("\n");
+    const ds = dots.get(k);
     if (ds) {
       const w = el("span", "dots");
-      ds.forEach((c) => { const i = el("i"); i.style.background = c || "var(--accent)"; w.append(i); });
+      ds.forEach((c) => { const x = el("i"); x.style.background = c || "var(--accent)"; w.append(x); });
       cell.append(w);
     }
-    cell.onclick = () => jumpToDay(d);
+    cell.onclick = () => openDay(d);
     cell.ondblclick = () => {
-      // double-click a day: pre-fill quick add with that date
       const q = $("quick");
       q.value = `${q.value ? q.value + " " : ""}on ${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} `;
       q.focus();
@@ -150,26 +170,42 @@ function renderMiniCal() {
   }
 }
 
-function jumpToDay(d) {
-  selectedDay = sameDay(d, new Date()) ? null : d;
+// ---------- list modes: upcoming | day | search ----------
+let listMode = "upcoming";
+let dayView = null;      // { d, events }
+let searchResults = [];
+let searchQ = "";
+
+async function openDay(d) {
+  if (sameDay(d, new Date()) && listMode === "day" && dayView && sameDay(dayView.d, d)) { closeDay(); return; }
+  selectedDay = d;
+  if (d.getMonth() !== viewMonth.getMonth() || d.getFullYear() !== viewMonth.getFullYear()) viewMonth = startOfMonth(d);
   renderMiniCal();
-  const target = document.querySelector(`[data-day="${dayKey(d)}"]`);
-  const scroll = $("scroll");
-  if (target) {
-    scroll.scrollTo({ top: target.offsetTop - scroll.offsetTop, behavior: "smooth" });
-  } else if (sameDay(d, new Date())) {
-    scroll.scrollTo({ top: 0, behavior: "smooth" });
-  } else {
-    toast(`Nothing on ${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} — double-click a day to add`);
-  }
+  listMode = "day";
+  dayView = { d, events: null };
+  renderList();
+  try {
+    const list = withDates(await go("EventsBetween", startOfDay(d).toISOString(), addDays(startOfDay(d), 1).toISOString()));
+    if (dayView && sameDay(dayView.d, d)) { dayView.events = list; renderList(); }
+  } catch (err) { toast(errMsg(err), true); }
 }
 
-// ---------- up next + list ----------
+function closeDay() {
+  listMode = "upcoming";
+  dayView = null;
+  selectedDay = null;
+  renderMiniCal();
+  renderList();
+  $("scroll").scrollTo({ top: 0 });
+}
+
+// ---------- up next ----------
 function renderUpNext() {
   const now = new Date();
   const box = $("upnext");
   box.innerHTML = "";
-  const next = evs().find((e) => !e.allDay && e.e > now);
+  if (listMode !== "upcoming") return;
+  const next = evs().find((e) => !e.allDay && !e.holiday && e.e > now);
   if (!next) return;
   const inProgress = next.s <= now;
   let lbl = inProgress ? `Now · ${dur(next.e - now)} left` : `Up next · in ${dur(next.s - now)}`;
@@ -186,45 +222,94 @@ function renderUpNext() {
     j.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", next.meetLink); };
     card.append(j);
   }
-  card.onclick = () => go("OpenURL", next.link);
+  card.onclick = () => openEvent(next);
   box.append(card);
 }
 
+// ---------- list ----------
 function renderList() {
   const list = $("list");
   list.innerHTML = "";
+  kbIndex = -1;
+  renderUpNext();
   const now = new Date();
-  const all = evs();
 
   if (!S.connected) { list.append(emptyState("📅", "Allow calendar access to see what's coming up.")); return; }
+
+  if (listMode === "search") {
+    const head = el("div", "mode-head");
+    head.append(el("span", "", searchQ.length < 2 ? "Search" : `${searchResults.length} result${searchResults.length === 1 ? "" : "s"} for “${searchQ}”`));
+    list.append(head);
+    if (searchQ.length >= 2 && !searchResults.length) list.append(emptyState("🔍", "Nothing found in the past month or the next year."));
+    renderGroups(list, searchResults, { now, showPast: true, spread: false });
+    return;
+  }
+
+  if (listMode === "day" && dayView) {
+    const d = dayView.d;
+    const head = el("div", "mode-head");
+    const ttl = el("span", "", d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }));
+    const back = el("button", "pill-btn", "Upcoming ›");
+    back.onclick = closeDay;
+    head.append(ttl, back);
+    list.append(head);
+    if (!dayView.events) { list.append(emptyState("⏳", "Loading…")); return; }
+    const evsDay = dayView.events;
+    if (!evsDay.filter((e) => S.showHolidayRows || !e.holiday).length) {
+      const hol = evsDay.filter((e) => e.holiday);
+      if (hol.length) list.append(holidayTags(hol));
+      const em = emptyState("☀️", "Nothing planned.");
+      const add = el("button", "btn", "Add something this day");
+      add.onclick = () => { const q = $("quick"); q.value = `on ${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
+      em.append(add);
+      list.append(em);
+      return;
+    }
+    renderGroups(list, evsDay, { now, showPast: true, spread: false, dayOnly: d });
+    return;
+  }
+
+  const all = evs();
   if (!all.length) {
     list.append(emptyState("🌴", S.error ? "Couldn't load events." : `Nothing in the next ${S.daysAhead} days.`));
     list.append(syncHint());
     return;
   }
+  renderGroups(list, all, { now, showPast: false, spread: true });
+  if (all.filter((e) => !e.holiday).length < 3) list.append(syncHint());
+}
 
-  // group by day; multi-day all-day events appear on each day they cover (within range)
+// Groups events by day; holidays become small tags on the day header (unless shown as rows).
+function renderGroups(list, events, { now, showPast, spread, dayOnly }) {
   const groups = new Map();
-  const push = (d, e) => { const k = dayKey(d); if (!groups.has(k)) groups.set(k, { d, items: [] }); groups.get(k).items.push(e); };
-  for (const e of all) {
-    if (e.allDay) {
+  const push = (d, e) => { const k = dayKey(d); if (!groups.has(k)) groups.set(k, { d, items: [], hols: [] }); (e.holiday && !S.showHolidayRows ? groups.get(k).hols : groups.get(k).items).push(e); };
+  for (const e of events) {
+    if (dayOnly) { push(dayOnly, e); continue; }
+    if (e.allDay && spread) {
       let d = startOfDay(e.s) < startOfDay(now) ? startOfDay(now) : startOfDay(e.s);
       for (let i = 0; d < startOfDay(e.e) && i < 14; i++, d = addDays(d, 1)) push(d, e);
     } else {
-      push(startOfDay(e.s < now ? now : e.s), e);
+      push(startOfDay(!showPast && e.s < now ? now : e.s), e);
     }
   }
   const keys = [...groups.values()].sort((a, b) => a.d - b.d);
   for (const g of keys) {
+    if (!g.items.length && !g.hols.length) continue;
     g.items.sort((a, b) => (b.allDay - a.allDay) || (a.s - b.s));
     const head = el("div", "day-head" + (sameDay(g.d, now) ? " is-today" : ""));
     head.dataset.day = dayKey(g.d);
     const timed = g.items.filter((e) => !e.allDay).length;
     head.append(el("span", "", dayHead(g.d)), el("span", "count", timed ? `${timed} event${timed > 1 ? "s" : ""}` : ""));
     list.append(head);
+    if (g.hols.length) list.append(holidayTags(g.hols));
     for (const e of g.items) list.append(eventRow(e, now));
   }
-  if (all.length < 3) list.append(syncHint());
+}
+
+function holidayTags(hols) {
+  const w = el("div", "hol-tags");
+  [...new Set(hols.map((h) => h.title))].forEach((t) => w.append(el("span", "hol-tag", "🎉 " + t)));
+  return w;
 }
 
 // macOS doesn't tell apps when an account's login has expired, so give a way to check.
@@ -243,40 +328,247 @@ function emptyState(icon, text) {
 
 function eventRow(e, now) {
   const row = el("div", "ev");
+  row.tabIndex = -1;
   if (e.allDay) row.classList.add("allday");
   if (!e.allDay && e.s <= now && e.e > now) row.classList.add("now");
+  if (e.e < now) row.classList.add("past");
   const bar = el("div", "bar");
   bar.style.background = e.color || "var(--accent)";
   const when = el("div", "when");
   if (e.allDay) when.textContent = "all-day";
-  else {
-    when.append(el("div", "", fmtTime(e.s)), el("div", "end", fmtTime(e.e)));
-  }
+  else when.append(el("div", "", fmtTime(e.s)), el("div", "end", fmtTime(e.e)));
   const body = el("div", "body");
   body.append(el("div", "title", e.title));
-  const meta = [e.location, e.meetLink && !e.location ? "Google Meet" : "", S.calendars.length > 1 ? e.calendar : ""].filter(Boolean).join(" · ");
+  const meta = [e.location, e.meetLink && !e.location ? "Online meeting" : "", S.calendars.length > 1 ? e.calendar : ""].filter(Boolean).join(" · ");
   if (meta) body.append(el("div", "meta", meta));
   const tools = el("div", "tools");
   if (e.meetLink) {
     const j = el("button", "", "▶︎");
-    j.title = "Join Google Meet";
+    j.title = "Join";
     j.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", e.meetLink); };
     tools.append(j);
   }
-  const del = el("button", "del", "🗑");
-  del.title = "Delete";
-  del.onclick = async (ev) => {
-    ev.stopPropagation();
-    const ok = await confirmBox(`<b>Delete “${esc(e.title)}”?</b><span class="muted">${esc(whenText(e.start, e.end, e.allDay))}<br>This removes it from your calendar${e.calendar ? " (" + esc(e.calendar) + ")" : ""}.</span>`);
-    if (!ok) return;
-    try { applyState(await go("Delete", e.id, e.start)); toast("Deleted"); }
-    catch (err) { toast(errMsg(err), true); }
-  };
-  tools.append(del);
+  if (e.writable !== false) {
+    const del = el("button", "del", "🗑");
+    del.title = "Delete";
+    del.onclick = (ev) => { ev.stopPropagation(); deleteEvent(e); };
+    tools.append(del);
+  }
   row.append(bar, when, body, tools);
-  row.title = "Open in Calendar";
-  row.onclick = () => go("OpenURL", e.link);
+  row.onclick = () => openEvent(e);
+  row._ev = e;
   return row;
+}
+
+async function deleteEvent(e) {
+  const ok = await confirmBox(`<b>Delete “${esc(e.title)}”?</b><span class="muted">${esc(whenText(e.start, e.end, e.allDay))}<br>This removes it from your calendar${e.calendar ? " (" + esc(e.calendar) + ")" : ""}.</span>`);
+  if (!ok) return false;
+  try {
+    applyState(await go("Delete", e.id, e.start));
+    afterChange();
+    toast("Deleted");
+    return true;
+  } catch (err) { toast(errMsg(err), true); return false; }
+}
+
+// keep day view / search / month dots fresh after any change
+function afterChange() {
+  monthCache.clear();
+  loadMonth(viewMonth);
+  if (listMode === "day" && dayView) openDay(dayView.d);
+  if (listMode === "search") runSearch(searchQ);
+}
+
+// ---------- event card (details / edit / duplicate) ----------
+let sheetEvent = null;
+
+function closeSheet() {
+  $("sheet").classList.add("hidden");
+  sheetEvent = null;
+}
+
+async function openEvent(e) {
+  sheetEvent = e;
+  const sh = $("sheet");
+  sh.classList.remove("hidden");
+  sh.innerHTML = "";
+  sh.append(sheetHeader(e.title, e.color));
+  sh.append(emptyState("⏳", "Loading…"));
+  try {
+    const d = await go("GetEvent", e.id, e.start);
+    if (sheetEvent !== e) return;
+    renderDetail(d);
+  } catch (err) {
+    // fall back to what the list already knows
+    renderDetail({ ...e, notes: "", attendees: [], organizer: "", recurring: false, url: "" });
+  }
+}
+
+function sheetHeader(title, color, backLabel = "‹ Back", onBack = closeSheet) {
+  const h = el("div", "sheet-head");
+  const back = el("button", "pill-btn", backLabel);
+  back.onclick = onBack;
+  const sw = el("span", "sheet-dot");
+  sw.style.background = color || "var(--accent)";
+  h.append(back, sw);
+  return h;
+}
+
+const linkify = (t) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="#" data-open="$1">$1</a>').replace(/\n/g, "<br>");
+
+function renderDetail(d) {
+  const sh = $("sheet");
+  sh.innerHTML = "";
+  const s = new Date(d.start), en = new Date(d.end);
+  sh.append(sheetHeader(d.title, d.color));
+  const body = el("div", "sheet-body");
+  const t = el("div", "sheet-title", d.title);
+  body.append(t);
+  const when = el("div", "sheet-when");
+  when.textContent = whenText(d.start, d.end, d.allDay) + (d.recurring ? "  ·  repeats" : "");
+  body.append(when);
+  if (!d.allDay) body.append(el("div", "muted small", dur(en - s)));
+
+  const rows = el("div", "sheet-rows");
+  const addRow = (icon, html) => { const r = el("div", "sheet-row"); r.innerHTML = `<span class="ico">${icon}</span><div>${html}</div>`; rows.append(r); return r; };
+  addRow("📅", `<span class="cal-chip" style="--c:${esc(d.color)}">${esc(d.calendar)}</span>`);
+  if (d.location) addRow("📍", `<a href="#" data-open="https://maps.apple.com/?q=${encodeURIComponent(d.location)}">${esc(d.location)}</a>`);
+  if (d.meetLink) {
+    const r = addRow("🎥", `<button class="btn primary small-btn" data-open="${esc(d.meetLink)}">Join meeting</button>`);
+    r.classList.add("join-row");
+  }
+  if (d.organizer) addRow("👤", `Organised by ${esc(d.organizer)}`);
+  if (d.attendees && d.attendees.length) {
+    const icon = { accepted: "✅", declined: "❌", maybe: "❔", pending: "⏳", unknown: "·" };
+    addRow("👥", `<div class="people">${d.attendees.map((p) => `<div>${icon[p.status] || "·"} ${esc(p.name || p.email)}${p.me ? " <span class='muted'>(you)</span>" : ""}</div>`).join("")}</div>`);
+  }
+  if (d.notes) addRow("📝", `<div class="notes">${linkify(d.notes)}</div>`);
+  if (d.url && d.url !== d.meetLink) addRow("🔗", `<a href="#" data-open="${esc(d.url)}">${esc(d.url)}</a>`);
+  body.append(rows);
+  sh.append(body);
+
+  const actions = el("div", "sheet-actions");
+  const mk = (label, cls, fn) => { const b = el("button", "btn " + cls, label); b.onclick = fn; actions.append(b); return b; };
+  if (d.writable) mk("Edit", "primary", () => renderEdit(d, "edit"));
+  mk("Duplicate", "", () => renderEdit(d, "duplicate"));
+  mk("Open in Calendar", "", () => go("OpenURL", d.link));
+  if (d.writable) mk("Delete", "danger-ghost", async () => { if (await deleteEvent(d)) closeSheet(); });
+  sh.append(actions);
+  sh.querySelectorAll("[data-open]").forEach((a) => {
+    a.onclick = (ev) => { ev.preventDefault(); go("OpenURL", a.dataset.open); };
+  });
+}
+
+const pad = (n) => String(n).padStart(2, "0");
+const dateVal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const timeVal = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const fromInputs = (date, time) => { const [y, m, dd] = date.split("-").map(Number); const [h, mi] = (time || "00:00").split(":").map(Number); return new Date(y, m - 1, dd, h, mi); };
+
+// mode: edit | duplicate | new
+function renderEdit(d, mode) {
+  const sh = $("sheet");
+  sh.classList.remove("hidden");
+  sh.innerHTML = "";
+  const s = new Date(d.start), en = new Date(d.end);
+  const lastDay = d.allDay ? addDays(en, -1) : en;
+  sh.append(sheetHeader(mode === "edit" ? "Edit" : mode === "duplicate" ? "Duplicate" : "New", d.color, "‹ Cancel",
+    () => (mode === "edit" ? renderDetail(d) : closeSheet())));
+  const f = el("div", "sheet-body edit-form");
+  const writable = S.calendars.filter((c) => c.writable);
+  f.innerHTML = `
+    <div class="sheet-kicker">${mode === "edit" ? "Edit event" : mode === "duplicate" ? "Duplicate event" : "New event"}</div>
+    <input id="fTitle" class="f-title" placeholder="Title">
+    <label class="check"><input type="checkbox" id="fAllDay"> All-day</label>
+    <div class="f-grid">
+      <span>Starts</span><div class="f-pair"><input type="date" id="fSDate"><input type="time" id="fSTime"></div>
+      <span>Ends</span><div class="f-pair"><input type="date" id="fEDate"><input type="time" id="fETime"></div>
+      <span>Location</span><input id="fLoc" placeholder="Add location">
+      <span>Calendar</span><select id="fCal"></select>
+    </div>
+    <textarea id="fNotes" rows="3" placeholder="Notes"></textarea>`;
+  sh.append(f);
+  $("fTitle").value = mode === "duplicate" ? d.title : d.title || "";
+  $("fAllDay").checked = !!d.allDay;
+  $("fSDate").value = dateVal(s); $("fSTime").value = timeVal(s);
+  $("fEDate").value = dateVal(lastDay); $("fETime").value = timeVal(en);
+  $("fLoc").value = d.location || "";
+  $("fNotes").value = d.notes || "";
+  writable.forEach((c) => { const o = el("option", "", c.name); o.value = c.id; if (c.id === d.calendarId) o.selected = true; $("fCal").append(o); });
+  const syncAllDay = () => { const a = $("fAllDay").checked; $("fSTime").classList.toggle("hidden", a); $("fETime").classList.toggle("hidden", a); };
+  $("fAllDay").onchange = syncAllDay; syncAllDay();
+  // moving the start keeps the duration
+  let lastStart = fromInputs($("fSDate").value, $("fSTime").value);
+  const shift = () => {
+    const ns = fromInputs($("fSDate").value, $("fSTime").value);
+    const ne = new Date(fromInputs($("fEDate").value, $("fETime").value).getTime() + (ns - lastStart));
+    $("fEDate").value = dateVal(ne); $("fETime").value = timeVal(ne);
+    lastStart = ns;
+  };
+  $("fSDate").onchange = shift; $("fSTime").onchange = shift;
+
+  const actions = el("div", "sheet-actions");
+  const save = el("button", "btn primary", mode === "edit" ? "Save changes" : "Add event");
+  save.onclick = async () => {
+    const allDay = $("fAllDay").checked;
+    let start = fromInputs($("fSDate").value, allDay ? "00:00" : $("fSTime").value);
+    let end = allDay ? addDays(fromInputs($("fEDate").value, "00:00"), 1) : fromInputs($("fEDate").value, $("fETime").value);
+    if (end <= start) { toast("The end must be after the start", true); return; }
+    const draft = { title: $("fTitle").value.trim(), start: start.toISOString(), end: end.toISOString(), allDay,
+      location: $("fLoc").value.trim(), notes: $("fNotes").value, calendarId: $("fCal").value, reminderMinutes: 0 };
+    if (!draft.title) { toast("Give it a title", true); return; }
+    save.disabled = true;
+    try {
+      if (mode === "edit") applyState(await go("UpdateEvent", d.id, d.start, draft));
+      else applyState(await go("Add", [draft]));
+      afterChange();
+      toast(mode === "edit" ? "Saved" : "Added");
+      closeSheet();
+    } catch (err) { toast(errMsg(err), true); save.disabled = false; }
+  };
+  const cancel = el("button", "btn", "Cancel");
+  cancel.onclick = () => (mode === "edit" ? renderDetail(d) : closeSheet());
+  actions.append(cancel, save);
+  sh.append(actions);
+  setTimeout(() => $("fTitle").focus(), 30);
+}
+
+// ---------- search ----------
+let searchTimer;
+function openSearch() {
+  $("searchBar").classList.remove("hidden");
+  $("searchInput").focus();
+  $("searchInput").select();
+}
+function closeSearch() {
+  $("searchBar").classList.add("hidden");
+  $("searchInput").value = "";
+  searchQ = ""; searchResults = [];
+  if (listMode === "search") { listMode = "upcoming"; renderList(); }
+}
+async function runSearch(q) {
+  searchQ = q.trim();
+  listMode = searchQ ? "search" : "upcoming";
+  if (searchQ.length < 2) { searchResults = []; renderList(); return; }
+  try {
+    const r = withDates(await go("Search", searchQ));
+    if (q.trim() !== searchQ) return;
+    searchResults = r;
+  } catch (err) { toast(errMsg(err), true); }
+  renderList();
+}
+
+// ---------- keyboard navigation ----------
+let kbIndex = -1;
+function kbMove(delta) {
+  const rows = [...document.querySelectorAll("#list .ev")];
+  if (!rows.length) return;
+  kbIndex = Math.max(0, Math.min(rows.length - 1, kbIndex + delta));
+  rows.forEach((r, i) => r.classList.toggle("kb", i === kbIndex));
+  rows[kbIndex].scrollIntoView({ block: "nearest" });
+}
+function kbOpen() {
+  const rows = [...document.querySelectorAll("#list .ev")];
+  if (kbIndex >= 0 && rows[kbIndex]) openEvent(rows[kbIndex]._ev);
 }
 
 // ---------- banner (setup hints) ----------
@@ -290,7 +582,7 @@ function renderBanner() {
   }
   const parts = [];
   if (!S.hasGoogle && !S.calendars.length) parts.push(`No calendars on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
-  if (!S.hasKey) parts.push(`Add your OpenRouter key to use AI quick add — <a href="#" id="bannerGo">Settings</a>`);
+  if (!S.hasKey) parts.push(`Add your OpenRouter key for smarter AI (simple lines work without it) — <a href="#" id="bannerGo">Settings</a>`);
   if (S.error) parts.push(esc(S.error));
   if (!parts.length) { b.classList.add("hidden"); return; }
   b.innerHTML = parts.join("<br>");
@@ -309,37 +601,105 @@ function applyState(st) {
   S = st;
   if (!pendingAccent) applyAccent(S.accent);
   renderMiniCal();
-  renderUpNext();
   renderList();
   renderBanner();
   renderFooter();
   if (drafts.length) renderDrafts();
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
+  if (mkey(viewMonth) !== mkey(new Date())) loadMonth(viewMonth, true);
 }
 
-// ---------- quick add ----------
+// ---------- AI box ----------
 function setBusy(b) {
   busy = b;
   $("spark").classList.toggle("busy", b);
   $("quick").disabled = b;
 }
 
+let aiResult = null;
+
 async function submitQuick() {
   const text = $("quick").value.trim();
   if (busy) return;
-  if (!text) { if (drafts.length) addDrafts(); return; }
+  if (!text) { if (drafts.length) addDrafts(); else if (aiResult) applyAI(); return; }
   setBusy(true);
   try {
-    drafts = await go("Parse", text);
+    const r = await go("Ask", text);
     $("quick").value = "";
-    if (!S.confirmBeforeAdd) { await addDrafts(); return; }
-    renderDrafts();
+    if (r.kind === "add") {
+      aiResult = null;
+      drafts = r.drafts;
+      if (r.offline && r.answer) toast(r.answer);
+      if (!S.confirmBeforeAdd && !r.offline) { await addDrafts(); return; }
+      renderDrafts();
+    } else {
+      drafts = [];
+      aiResult = r;
+      renderAI();
+    }
   } catch (err) {
     toast(errMsg(err), true);
   } finally {
     setBusy(false);
     $("quick").focus();
   }
+}
+
+function renderAI() {
+  const box = $("drafts");
+  box.innerHTML = "";
+  const r = aiResult;
+  if (!r) return;
+  const card = el("div", "ai-card " + r.kind);
+  const head = el("div", "ai-head");
+  head.append(el("span", "ai-badge", r.kind === "answer" ? "✦ Answer" : r.kind === "update" ? "✦ Change" : "✦ Delete"));
+  const x = el("button", "icon-btn small", "✕");
+  x.title = "Dismiss";
+  x.onclick = clearDrafts;
+  head.append(x);
+  card.append(head);
+  if (r.answer) card.append(el("div", "ai-answer", r.answer));
+  if (r.kind === "answer" && r.refs.length) {
+    const refs = el("div", "ai-refs");
+    withDates(r.refs).forEach((e) => refs.append(eventRow(e, new Date())));
+    card.append(refs);
+  }
+  if (r.kind === "update" && r.target && r.draft) {
+    const t = r.target, d = r.draft;
+    const cmp = el("div", "ai-compare");
+    cmp.innerHTML = `<div class="was"><span class="muted small">Now</span><b>${esc(t.title)}</b><div>${esc(whenText(t.start, t.end, t.allDay))}</div>${t.location ? `<div class="muted">📍 ${esc(t.location)}</div>` : ""}</div>
+      <div class="arrow">→</div>
+      <div class="will"><span class="muted small">After</span><b>${esc(d.title)}</b><div>${esc(whenText(d.start, d.end, d.allDay))}</div>${d.location ? `<div class="muted">📍 ${esc(d.location)}</div>` : ""}</div>`;
+    card.append(cmp);
+  }
+  if (r.kind === "delete" && r.target) {
+    card.append(eventRow(withDates([r.target])[0], new Date()));
+  }
+  if (r.kind !== "answer") {
+    const actions = el("div", "draft-actions");
+    const cancel = el("button", "btn", "Cancel");
+    cancel.onclick = clearDrafts;
+    const ok = el("button", "btn " + (r.kind === "delete" ? "danger" : "primary"), r.kind === "delete" ? "Delete ↩" : "Apply ↩");
+    ok.onclick = applyAI;
+    actions.append(cancel, ok);
+    card.append(actions);
+  }
+  box.append(card);
+}
+
+async function applyAI() {
+  const r = aiResult;
+  if (!r || busy || r.kind === "answer") return;
+  setBusy(true);
+  try {
+    if (r.kind === "update") applyState(await go("UpdateEvent", r.target.id, r.target.start, r.draft));
+    if (r.kind === "delete") applyState(await go("Delete", r.target.id, r.target.start));
+    toast(r.kind === "update" ? `Updated “${r.draft.title}”` : `Deleted “${r.target.title}”`);
+    aiResult = null;
+    renderAI();
+    afterChange();
+  } catch (err) { toast(errMsg(err), true); }
+  finally { setBusy(false); $("quick").focus(); }
 }
 
 function renderDrafts() {
@@ -389,7 +749,7 @@ function renderDrafts() {
   box.append(actions);
 }
 
-function clearDrafts() { drafts = []; renderDrafts(); $("quick").focus(); }
+function clearDrafts() { drafts = []; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
 
 async function addDrafts() {
   if (busy || !drafts.length) return;
@@ -400,6 +760,7 @@ async function addDrafts() {
     drafts = [];
     renderDrafts();
     applyState(st);
+    afterChange();
     toast(n === 1 ? `Added “${first.title}”` : `Added ${n} events`);
     flashDay(new Date(first.start));
   } catch (err) {
@@ -533,6 +894,10 @@ async function openSettings() {
   $("s24").checked = settingsCache.use24h;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
+  $("sMenuBar").value = settingsCache.menuBarStyle || "next";
+  $("sAlert").value = settingsCache.alertMode || "1";
+  $("sLogin").checked = !!settingsCache.launchAtLogin;
+  $("sHolRows").checked = !!settingsCache.showHolidayRows;
   pendingAccent = null;
   showSetupDetails = false;
   editingKey = false;
@@ -633,6 +998,10 @@ async function saveSettings() {
     hiddenCalendars: hidden,
     defaultCalendar: def,
     accent: pendingAccent || S.accent || "#4169E1",
+    menuBarStyle: $("sMenuBar").value,
+    alertMode: $("sAlert").value,
+    launchAtLogin: $("sLogin").checked,
+    showHolidayRows: $("sHolRows").checked,
   };
   try {
     pendingAccent = null;
@@ -654,9 +1023,18 @@ function wire() {
   $("quick").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submitQuick(); }
   });
-  $("prevMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderMiniCal(); };
-  $("nextMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderMiniCal(); };
-  $("todayBtn").onclick = () => { viewMonth = startOfMonth(new Date()); jumpToDay(new Date()); };
+  const goMonth = (n) => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1); renderMiniCal(); loadMonth(viewMonth); };
+  $("prevMonth").onclick = () => goMonth(-1);
+  $("nextMonth").onclick = () => goMonth(1);
+  $("todayBtn").onclick = () => { viewMonth = startOfMonth(new Date()); closeDay(); };
+  $("searchBtn").onclick = () => ($("searchBar").classList.contains("hidden") ? openSearch() : closeSearch());
+  $("searchInput").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch($("searchInput").value), 220); });
+  $("searchInput").addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); closeSearch(); $("quick").focus(); }
+    if (ev.key === "ArrowDown") { ev.preventDefault(); $("searchInput").blur(); kbMove(1); }
+    if (ev.key === "Enter") { ev.preventDefault(); $("searchInput").blur(); kbIndex = -1; kbMove(1); kbOpen(); }
+  });
+  $("searchClose").onclick = closeSearch;
   $("openSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("returnBtn").onclick = closeSettings;
@@ -679,14 +1057,38 @@ function wire() {
 
   document.addEventListener("keydown", (ev) => {
     const inSettings = !$("settings").classList.contains("hidden");
+    const sheetOpen = !$("sheet").classList.contains("hidden");
+    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement && document.activeElement.tagName);
     if (ev.key === "Escape") {
       ev.preventDefault();
       if (!$("confirm").classList.contains("hidden")) { $("confirmNo").click(); return; }
+      if (sheetOpen) { closeSheet(); return; }
       if (inSettings) { closeSettings(); return; }
-      if (drafts.length) { clearDrafts(); return; }
+      if (drafts.length || aiResult) { clearDrafts(); return; }
       if ($("quick").value) { $("quick").value = ""; return; }
+      if (!$("searchBar").classList.contains("hidden")) { closeSearch(); return; }
+      if (listMode === "day") { closeDay(); return; }
       go("Hide");
     }
+    if (!inSettings && !sheetOpen) {
+      // arrows move through the list (from the AI box too, when it's empty)
+      const quickEmpty = document.activeElement === $("quick") && !$("quick").value;
+      if ((ev.key === "ArrowDown" || ev.key === "ArrowUp") && (!typing || quickEmpty)) {
+        ev.preventDefault();
+        if (quickEmpty) $("quick").blur();
+        kbMove(ev.key === "ArrowDown" ? 1 : -1);
+        if (kbIndex === 0 && ev.key === "ArrowUp" && quickEmpty) $("quick").focus();
+      }
+      if (ev.key === "Enter" && !typing && kbIndex >= 0) { ev.preventDefault(); kbOpen(); }
+      if ((ev.key === "Backspace" || ev.key === "Delete") && !typing && kbIndex >= 0) {
+        const rows = [...document.querySelectorAll("#list .ev")];
+        if (rows[kbIndex] && rows[kbIndex]._ev.writable !== false) { ev.preventDefault(); deleteEvent(rows[kbIndex]._ev); }
+      }
+      if (!typing && ev.key === "/") { ev.preventDefault(); openSearch(); }
+      if (!typing && ev.key === "ArrowLeft" && !ev.metaKey) { ev.preventDefault(); openDay(addDays(selectedDay || new Date(), -1)); }
+      if (!typing && ev.key === "ArrowRight" && !ev.metaKey) { ev.preventDefault(); openDay(addDays(selectedDay || new Date(), 1)); }
+    }
+    if (ev.metaKey && ev.key.toLowerCase() === "f") { ev.preventDefault(); openSearch(); }
     if (ev.metaKey && ev.key === ",") { ev.preventDefault(); openSettings(); }
     if (ev.metaKey && ev.key.toLowerCase() === "r") { ev.preventDefault(); refresh(); }
     if (ev.metaKey && ev.key.toLowerCase() === "n") { ev.preventDefault(); closeSettings(); }
@@ -702,11 +1104,16 @@ function wire() {
   $("installUpdBtn").onclick = installUpdate;
   $("updatePill").onclick = () => { openSettings().then(() => $("updatesGroup").scrollIntoView({ behavior: "smooth" })); };
   Events.On("ui:settings", () => openSettings());
+  Events.On("alert", (ev) => {
+    const a = ev.data;
+    toast(`⏰ ${a.title} — ${a.body}`);
+  });
   Events.On("popover:shown", () => {
     viewMonth = startOfMonth(new Date());
     selectedDay = null;
+    if (listMode === "day") { listMode = "upcoming"; dayView = null; }
     renderMiniCal();
-    renderUpNext();
+    renderList();
     if ($("settings").classList.contains("hidden")) setTimeout(() => $("quick").focus(), 30);
     go("Refresh").then(applyState).catch(() => {});
   });

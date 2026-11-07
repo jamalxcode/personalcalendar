@@ -1,0 +1,23 @@
+# Compiles every push on a macOS runner (the app can only be built on macOS).
+name: Build check
+
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./...
+      - name: Build app
+        run: ./build.sh --ci

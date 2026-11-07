@@ -26,6 +26,8 @@ type State struct {
 	Error            string         `json:"error"`
 	Hotkey           string         `json:"hotkey"`
 	Accent           string         `json:"accent"`
+	ShowHolidayRows  bool           `json:"showHolidayRows"`
+	AIProvider       string         `json:"aiProvider"` // OpenRouter | OpenAI | ""
 	Now              time.Time      `json:"now"`
 }
 
@@ -43,6 +45,8 @@ func (a *App) state() State {
 		DefaultCalendar:  a.cfg.DefaultCalendar,
 		Hotkey:           hotkey,
 		Accent:           a.cfg.Accent,
+		ShowHolidayRows:  a.cfg.ShowHolidayRows,
+		AIProvider:       aiProvider(a.cfg.OpenAIKey),
 		Now:              time.Now(),
 		GoogleAccounts:   []string{},
 	}
@@ -100,14 +104,35 @@ func (s *CalService) AddGoogleAccount() {
 	s.a.win.Hide()
 }
 
-// Parse turns free text into draft events (not yet saved).
-func (s *CalService) Parse(text string) ([]Draft, error) {
+// Ask handles one line typed in the AI box: add events, answer a question, or edit/delete an event.
+// Without a key (or if the AI can't be reached) simple lines are still understood offline.
+func (s *CalService) Ask(text string) (AskResult, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return AskResult{}, fmt.Errorf("type something first")
+	}
+	cals := s.a.cal.CachedCalendars()
+	now := time.Now()
+	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local).AddDate(0, 0, -7)
+	known, _ := s.a.cal.Range(s.a.cfg, from, from.AddDate(0, 0, 67))
+	if len(known) > 400 {
+		known = known[:400]
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancel()
-	cals := s.a.cal.CachedCalendars()
-	drafts, err := parseEvents(ctx, s.a.cfg, text, cals)
+	res, err := askAI(ctx, s.a.cfg, text, cals, known)
 	if err != nil {
-		return nil, err
+		// offline fallback for simple "thing + day/time" lines
+		if d, ok := localParse(text, now); ok {
+			res = AskResult{Kind: "add", Drafts: []Draft{d}, Offline: true}
+			if err == errNoKey {
+				res.Answer = "Understood without AI — add your OpenRouter key in Settings for smarter results."
+			} else {
+				res.Answer = "AI unavailable (" + err.Error() + ") — understood it offline."
+			}
+		} else {
+			return AskResult{}, err
+		}
 	}
 	def := s.a.cfg.DefaultCalendar
 	if def == "" {
@@ -117,12 +142,87 @@ func (s *CalService) Parse(text string) ([]Draft, error) {
 			}
 		}
 	}
-	for i := range drafts {
-		if drafts[i].CalendarID == "" {
-			drafts[i].CalendarID = def
+	for i := range res.Drafts {
+		if res.Drafts[i].CalendarID == "" {
+			res.Drafts[i].CalendarID = def
 		}
 	}
-	return drafts, nil
+	if res.Drafts == nil {
+		res.Drafts = []Draft{}
+	}
+	if res.Refs == nil {
+		res.Refs = []Event{}
+	}
+	return res, nil
+}
+
+// EventsBetween powers the any-day view and the month dots.
+func (s *CalService) EventsBetween(from, to time.Time) ([]Event, error) {
+	evs, err := s.a.cal.Range(s.a.cfg, from, to)
+	if evs == nil {
+		evs = []Event{}
+	}
+	return evs, err
+}
+
+// GetEvent loads full details (notes, attendees…) for the event card.
+func (s *CalService) GetEvent(id string, start time.Time) (EventDetail, error) {
+	return s.a.cal.Detail(id, start)
+}
+
+// UpdateEvent saves an edited event (one occurrence for repeating events).
+func (s *CalService) UpdateEvent(id string, origStart time.Time, d Draft) (State, error) {
+	if strings.TrimSpace(d.Title) == "" {
+		return s.a.state(), fmt.Errorf("event needs a title")
+	}
+	if !d.End.After(d.Start) {
+		return s.a.state(), fmt.Errorf("the end must be after the start")
+	}
+	if err := s.a.cal.Update(id, origStart, d); err != nil {
+		return s.a.state(), err
+	}
+	return s.a.doRefresh(), nil
+}
+
+// Search looks through the past month and the next year.
+func (s *CalService) Search(q string) ([]Event, error) {
+	q = strings.ToLower(strings.TrimSpace(q))
+	out := []Event{}
+	if len(q) < 2 {
+		return out, nil
+	}
+	now := time.Now()
+	evs, err := s.a.cal.Range(s.a.cfg, now.AddDate(0, -1, 0), now.AddDate(1, 0, 0))
+	if err != nil {
+		return out, err
+	}
+	for _, e := range evs {
+		if strings.Contains(strings.ToLower(e.Title), q) || strings.Contains(strings.ToLower(e.Location), q) ||
+			strings.Contains(strings.ToLower(e.Calendar), q) {
+			out = append(out, e)
+			if len(out) >= 60 {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *CalService) loginEnabled() bool {
+	st, err := s.a.wa.Autostart.Status()
+	return err == nil && st.Enabled
+}
+
+func aiProvider(key string) string {
+	key = strings.TrimSpace(key)
+	switch {
+	case key == "":
+		return ""
+	case strings.HasPrefix(key, "sk-or-"):
+		return "OpenRouter"
+	default:
+		return "OpenAI"
+	}
 }
 
 // Add saves drafts to the calendar and returns fresh state.
@@ -157,6 +257,10 @@ type Settings struct {
 	HiddenCalendars  []string `json:"hiddenCalendars"`
 	DefaultCalendar  string   `json:"defaultCalendar"`
 	Accent           string   `json:"accent"`
+	MenuBarStyle     string   `json:"menuBarStyle"`
+	AlertMode        string   `json:"alertMode"`
+	LaunchAtLogin    bool     `json:"launchAtLogin"`
+	ShowHolidayRows  bool     `json:"showHolidayRows"`
 }
 
 func (s *CalService) GetSettings() Settings {
@@ -171,7 +275,9 @@ func (s *CalService) GetSettings() Settings {
 	}
 	return Settings{OpenAIKeyHint: hint, OpenAIModel: c.OpenAIModel, Use24h: c.Use24h,
 		ConfirmBeforeAdd: c.ConfirmBeforeAdd, DaysAhead: c.DaysAhead,
-		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent}
+		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent,
+		MenuBarStyle: c.MenuBarStyle, AlertMode: c.AlertMode, LaunchAtLogin: s.loginEnabled(),
+		ShowHolidayRows: c.ShowHolidayRows}
 }
 
 func (s *CalService) SaveSettings(in Settings) (State, error) {
@@ -192,6 +298,27 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	if validHex(in.Accent) {
 		c.Accent = strings.ToUpper(in.Accent)
 	}
+	switch in.MenuBarStyle {
+	case "next", "soon", "date", "icon":
+		c.MenuBarStyle = in.MenuBarStyle
+	}
+	switch in.AlertMode {
+	case "off", "0", "1", "5", "10":
+		c.AlertMode = in.AlertMode
+	}
+	c.ShowHolidayRows = in.ShowHolidayRows
+	if in.LaunchAtLogin != s.loginEnabled() {
+		var err error
+		if in.LaunchAtLogin {
+			err = s.a.wa.Autostart.Enable()
+		} else {
+			err = s.a.wa.Autostart.Disable()
+		}
+		if err != nil {
+			return s.a.state(), fmt.Errorf("couldn't change Start at login: %v", err)
+		}
+	}
+	c.LaunchAtLogin = in.LaunchAtLogin
 	if err := c.Save(); err != nil {
 		return s.a.state(), err
 	}

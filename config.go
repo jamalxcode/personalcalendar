@@ -17,6 +17,11 @@ type Config struct {
 	HiddenCalendars  []string `json:"hidden_calendars"` // calendar IDs not shown
 	DefaultCalendar  string   `json:"default_calendar"` // calendar ID for new events ("" = primary)
 	Accent           string   `json:"accent"`           // highlight colour, #RRGGBB
+	MenuBarStyle     string   `json:"menubar_style"`    // next | soon | date | icon
+	AlertMode        string   `json:"alert_mode"`       // minutes before a meeting to notify: off | 0 | 1 | 5 | 10
+	LaunchAtLogin    bool     `json:"launch_at_login"`
+	LoginConfigured  bool     `json:"login_configured"`  // first-run default applied
+	ShowHolidayRows  bool     `json:"show_holiday_rows"` // false = holidays appear as small day tags
 }
 
 var cfgMu sync.Mutex
@@ -43,6 +48,16 @@ func loadConfig() *Config {
 	}
 	if c.OpenAIModel == "" {
 		c.OpenAIModel = "gpt-4o-mini"
+	}
+	switch c.MenuBarStyle {
+	case "next", "soon", "date", "icon":
+	default:
+		c.MenuBarStyle = "next"
+	}
+	switch c.AlertMode {
+	case "off", "0", "1", "5", "10":
+	default:
+		c.AlertMode = "1"
 	}
 	if !validHex(c.Accent) {
 		c.Accent = "#4169E1" // royal blue

@@ -10,6 +10,7 @@
   --faint: rgba(0, 0, 0, .06);
   --line: rgba(0, 0, 0, .08);
   --panel: rgba(250, 250, 252, .78);
+  --sheet: rgb(247, 247, 249);
   --card: rgba(255, 255, 255, .72);
   --card-hover: rgba(255, 255, 255, .95);
   --input: rgba(255, 255, 255, .85);
@@ -23,6 +24,7 @@
     --faint: rgba(255, 255, 255, .06);
     --line: rgba(255, 255, 255, .09);
     --panel: rgba(30, 30, 32, .72);
+    --sheet: rgb(36, 36, 38);
     --card: rgba(255, 255, 255, .06);
     --card-hover: rgba(255, 255, 255, .11);
     --input: rgba(255, 255, 255, .08);
@@ -391,3 +393,95 @@ a:hover { text-decoration: underline; }
 .key-saved .ks-title { font-weight: 700; font-size: 12.5px; }
 .key-saved #keyMasked { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .key-saved code { font: 11.5px ui-monospace, Menlo, monospace; color: var(--fg); }
+
+/* ---------- v1.5: search, day view, holidays, weekends ---------- */
+.search-btn svg { width: 18px; height: 18px; }
+.search-btn { width: 30px; height: 30px; color: var(--fg); }
+.search-bar {
+  display: flex; align-items: center; gap: 6px; margin: 0 12px 6px; padding: 0 6px 0 10px;
+  background: var(--input); border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .5);
+}
+.search-bar input { flex: 1; height: 32px; border: 0; outline: 0; background: transparent; font-size: 13px; }
+.mode-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 2px 4px; font-size: 13px; font-weight: 700;
+}
+.mode-head .pill-btn { font-size: 11.5px; }
+.empty .btn { margin-top: 10px; }
+
+.day.wknd::before {
+  content: ""; position: absolute; inset: 2px 3px; border-radius: 8px; background: rgba(var(--accent-rgb), .04); z-index: -1;
+}
+.day { z-index: 0; }
+.day.holiday .num { box-shadow: inset 0 -2px 0 #2fa36b; border-radius: 50% 50% 40% 40%; }
+.day.today.holiday .num { box-shadow: 0 0 0 2px rgba(47, 163, 107, .6); }
+
+.hol-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: -1px 0 6px; }
+.hol-tag {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+  background: rgba(47, 163, 107, .13); color: #1f8a57;
+}
+@media (prefers-color-scheme: dark) { .hol-tag { color: #5fd39a; } }
+
+.ev.kb { box-shadow: 0 0 0 2px var(--accent); background: var(--card-hover); }
+.ev.past .title { color: var(--muted); }
+.ev { cursor: default; }
+
+/* ---------- event sheet (details / edit) ---------- */
+.sheet {
+  position: absolute; inset: 0; z-index: 15; display: flex; flex-direction: column;
+  background: var(--sheet); animation: slideIn .18s ease-out;
+}
+@keyframes slideIn { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 4px; }
+.sheet-dot { width: 12px; height: 12px; border-radius: 4px; }
+.sheet-body { flex: 1; overflow-y: auto; padding: 4px 16px 12px; }
+.sheet-title { font-size: 20px; font-weight: 750; letter-spacing: -.3px; line-height: 1.2; -webkit-user-select: text; user-select: text; }
+.sheet-when { color: var(--accent); font-weight: 600; margin-top: 6px; }
+.sheet-rows { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+.sheet-row {
+  display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 10px;
+  background: var(--card); box-shadow: inset 0 0 0 .5px var(--line); font-size: 12.5px;
+}
+.sheet-row .ico { width: 18px; text-align: center; flex: none; }
+.sheet-row > div { flex: 1; min-width: 0; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.sheet-row .notes { line-height: 1.45; max-height: 180px; overflow-y: auto; }
+.sheet-row .people { display: flex; flex-direction: column; gap: 3px; }
+.cal-chip::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 6px; }
+.small-btn { padding: 4px 12px; font-size: 12px; }
+.sheet-actions {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 10px 14px 14px;
+  border-top: .5px solid var(--line);
+}
+.sheet-actions .danger-ghost { margin-right: auto; order: -1; }
+.sheet-kicker { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); margin: 4px 0 8px; }
+.edit-form { display: flex; flex-direction: column; gap: 10px; }
+.edit-form input, .edit-form select, .edit-form textarea {
+  border: 0; outline: 0; border-radius: 8px; padding: 6px 9px; background: var(--input);
+  box-shadow: inset 0 0 0 .5px var(--line); font-size: 13px;
+}
+.edit-form input:focus, .edit-form textarea:focus, .edit-form select:focus { box-shadow: 0 0 0 2px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.edit-form .f-title { font-size: 17px; font-weight: 700; padding: 8px 10px; }
+.f-grid { display: grid; grid-template-columns: 70px 1fr; gap: 8px 10px; align-items: center; font-size: 12px; }
+.f-grid > span { color: var(--muted); }
+.f-pair { display: flex; gap: 6px; }
+.f-pair input { flex: 1; min-width: 0; }
+.edit-form textarea { resize: vertical; min-height: 60px; }
+
+/* ---------- AI answer / change cards ---------- */
+.ai-card {
+  border-radius: 12px; padding: 10px 12px 12px; background: rgba(var(--accent-rgb), .08);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .25); animation: pop .18s ease-out;
+  display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;
+}
+.ai-card.delete { background: rgba(217, 48, 54, .07); box-shadow: inset 0 0 0 1px rgba(217, 48, 54, .25); }
+.ai-head { display: flex; justify-content: space-between; align-items: center; }
+.ai-badge { font-size: 11px; font-weight: 800; letter-spacing: .4px; color: var(--accent); text-transform: uppercase; }
+.ai-card.delete .ai-badge { color: #d93036; }
+.ai-answer { font-size: 13px; line-height: 1.5; white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
+.ai-refs .ev { margin-bottom: 3px; }
+.ai-compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; font-size: 12px; }
+.ai-compare > div:not(.arrow) { background: var(--card); border-radius: 9px; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.ai-compare .was { opacity: .7; }
+.ai-compare .will { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.ai-compare .arrow { color: var(--accent); font-weight: 800; }
