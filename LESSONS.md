@@ -26,3 +26,4 @@
 - **Private repos can't serve release downloads without a token** — that's why the repo is public.
 - **`tell application id "…" to quit` launches the app if it isn't running** — guard it with `if application id "…" is running then …`.
 - **Release on VERSION bump:** a workflow filtered on `paths: [VERSION]` that skips if the tag already exists; release notes come from the matching `## vX.Y.Z` section of CHANGELOG.md.
+- **Secrets for personal Mac apps go in a 0600 file in Application Support, not the Keychain** (the Keychain keeps asking for the password for unsigned/ad-hoc builds). That folder survives app updates, so the key is entered once.

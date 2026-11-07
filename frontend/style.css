@@ -264,7 +264,10 @@ a:hover { text-decoration: underline; }
 .cal-row .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .cal-row .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-row input[type=checkbox], .cal-row input[type=radio] { accent-color: var(--accent); }
-.settings-actions { display: flex; justify-content: space-between; align-items: center; padding: 4px 0 8px; position: sticky; bottom: 0; }
+.settings-actions {
+  display: flex; justify-content: space-between; align-items: center; flex: none;
+  padding: 10px 12px 12px; border-top: .5px solid var(--line); background: var(--panel);
+}
 .actions-right { display: flex; gap: 8px; }
 
 /* ---------- toast & confirm ---------- */
@@ -332,3 +335,27 @@ a:hover { text-decoration: underline; }
 .swatch-custom::-webkit-color-swatch { border: 0; border-radius: 50%; opacity: 0; }
 .swatch-custom { background: conic-gradient(#e5484d, #f0c42e, #2fa36b, #12a4a4, #4169e1, #8b5cf6, #e0559a, #e5484d); }
 .accent-name { font-size: 12px; color: var(--muted); }
+
+/* ---------- settings: AI section emphasis ---------- */
+.ai-group { transition: box-shadow .25s, background .25s; }
+.ai-group.attention {
+  background: rgba(var(--accent-rgb), .08);
+  box-shadow: 0 0 0 1.5px var(--accent), 0 4px 16px rgba(var(--accent-rgb), .18);
+}
+.ai-group.flash { animation: aiFlash 1.4s ease-out; }
+@keyframes aiFlash { 0%, 40% { box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .45); } 100% { box-shadow: 0 0 0 1.5px var(--accent); } }
+.ai-group .group-title { color: var(--fg); }
+.ai-group .group-title:first-letter { color: var(--accent); }
+.key-state { float: right; font-size: 11px; font-weight: 600; }
+.key-state.ok { color: #30b35a; }
+.key-state.missing { color: var(--accent); }
+.connected-line {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  padding: 8px 12px; margin-bottom: 10px; border-radius: 10px;
+  background: var(--card); box-shadow: inset 0 0 0 .5px var(--line);
+}
+.connected-line .ok-dot {
+  width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: #30b35a; color: #fff; font-size: 11px; font-weight: 800; flex: none;
+}
+.connected-line #connectedText { flex: 1; min-width: 0; }

@@ -50,6 +50,10 @@ func loadConfig() *Config {
 	if c.DaysAhead <= 0 {
 		c.DaysAhead = 14
 	}
+	// The key lives only in this file (0600) — deliberately not the Keychain, so there are no password prompts.
+	if c.OpenAIKey == "" {
+		c.OpenAIKey = os.Getenv("OPENROUTER_API_KEY")
+	}
 	if c.OpenAIKey == "" {
 		c.OpenAIKey = os.Getenv("OPENAI_API_KEY")
 	}

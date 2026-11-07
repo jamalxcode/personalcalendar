@@ -295,7 +295,7 @@ function renderBanner() {
   if (!parts.length) { b.classList.add("hidden"); return; }
   b.innerHTML = parts.join("<br>");
   b.classList.remove("hidden");
-  if ($("bannerGo")) $("bannerGo").onclick = (ev) => { ev.preventDefault(); openSettings(); };
+  if ($("bannerGo")) $("bannerGo").onclick = (ev) => { ev.preventDefault(); openSettings().then(focusAI); };
   if ($("bannerGoogle")) $("bannerGoogle").onclick = () => go("AddGoogleAccount");
 }
 
@@ -524,17 +524,48 @@ async function openSettings() {
   $("settings").classList.remove("hidden");
   settingsCache = await go("GetSettings");
   $("sKey").value = "";
-  $("sKey").placeholder = settingsCache.openaiKeyHint || "OpenRouter key  sk-or-…";
   $("sModel").value = settingsCache.openaiModel;
   $("s24").checked = settingsCache.use24h;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
   pendingAccent = null;
+  showSetupDetails = false;
   renderSwatches();
   renderGoogleBox();
+  document.querySelector(".settings-body").scrollTop = 0;
+}
+
+let showSetupDetails = false;
+function arrangeSettings() {
+  const body = document.querySelector(".settings-body");
+  const setupDone = S.connected && S.hasGoogle;
+  const compact = setupDone && !showSetupDetails;
+  $("connectedLine").classList.toggle("hidden", !setupDone);
+  $("connectGroup").classList.toggle("hidden", compact);
+  $("connectedText").textContent = setupDone
+    ? `Connected to ${S.googleAccounts.join(", ")} · ${S.calendars.length} calendars` : "";
+  // AI quick add goes right under the status line once the calendar is set up
+  const anchor = setupDone ? $("connectedLine") : $("connectGroup");
+  if (anchor.nextElementSibling !== $("aiGroup")) anchor.after($("aiGroup"));
+  // emphasise it while there's no key
+  $("aiGroup").classList.toggle("attention", !S.hasKey);
+  const ks = $("keyState");
+  ks.textContent = S.hasKey ? "✓ key saved" : "key needed";
+  ks.className = "key-state " + (S.hasKey ? "ok" : "missing");
+  $("aiIntro").classList.toggle("hidden", S.hasKey);
+  const hint = (settingsCache && settingsCache.openaiKeyHint) || "";
+  $("sKey").placeholder = S.hasKey ? `${hint || "Key"} — saved on this Mac` : "Paste your OpenRouter key  sk-or-…";
+}
+
+function focusAI() {
+  const g = $("aiGroup");
+  document.querySelector(".settings-body").scrollTo({ top: g.offsetTop - 70, behavior: "smooth" });
+  g.classList.remove("flash"); void g.offsetWidth; g.classList.add("flash");
+  setTimeout(() => $("sKey").focus(), 250);
 }
 
 function renderGoogleBox() {
+  arrangeSettings();
   $("step1").classList.toggle("done", S.connected);
   $("step1Hint").innerHTML = S.connected ? "Allowed ✓"
     : S.access === "notDetermined" ? "macOS will ask once — click <b>Allow</b>."
@@ -595,9 +626,10 @@ async function saveSettings() {
     pendingAccent = null;
     applyState(await go("SaveSettings", payload));
     settingsCache = await go("GetSettings");
+    const keyJustSaved = !!payload.openaiKey;
     $("sKey").value = "";
-    $("sKey").placeholder = settingsCache.openaiKeyHint || "OpenRouter key  sk-or-…";
-    toast("Saved ✓");
+    arrangeSettings();
+    toast(keyJustSaved ? "Key saved on this Mac ✓ — quick add is ready" : "Saved ✓");
   } catch (err) { toast(errMsg(err), true); }
 }
 
@@ -610,6 +642,13 @@ function wire() {
   $("openSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("returnBtn").onclick = closeSettings;
+  $("showSetup").onclick = (ev) => { ev.preventDefault(); showSetupDetails = !showSetupDetails; arrangeSettings(); $("showSetup").textContent = showSetupDetails ? "hide" : "details"; };
+  $("sKey").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); saveSettings(); } });
+  // paste the key → it's saved immediately; no need to press Save
+  $("sKey").addEventListener("input", () => {
+    const v = $("sKey").value.trim();
+    if (/^sk-[A-Za-z0-9_-]{20,}$/.test(v)) saveSettings();
+  });
   $("saveSettings").onclick = saveSettings;
   $("refreshBtn").onclick = refresh;
   $("quitBtn").onclick = () => go("Quit");

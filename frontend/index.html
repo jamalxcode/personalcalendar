@@ -65,7 +65,12 @@
         <span style="width:58px"></span>
       </header>
       <div class="scroll settings-body">
-        <div class="group">
+        <div class="connected-line hidden" id="connectedLine">
+          <span class="ok-dot">✓</span> <span id="connectedText">Connected</span>
+          <a href="#" id="showSetup" class="small">details</a>
+        </div>
+
+        <div class="group" id="connectGroup">
           <div class="group-title">Connect your calendar</div>
           <div class="setup-step" id="step1">
             <span class="step-num">1</span>
@@ -90,14 +95,14 @@
           <div id="calList" class="cal-list"></div>
         </div>
 
-        <div class="group">
-          <div class="group-title">AI quick add <span class="muted small">powered by OpenRouter</span></div>
-          <div class="small muted">Type events in plain English — the AI turns them into calendar entries. It runs through <b>OpenRouter</b>: paste your OpenRouter key below (an OpenAI key also works).</div>
+        <div class="group ai-group" id="aiGroup">
+          <div class="group-title">✦ AI quick add <span class="muted small">powered by OpenRouter</span> <span class="key-state" id="keyState"></span></div>
+          <div class="small muted" id="aiIntro">Type events in plain English — the AI turns them into calendar entries. It runs through <b>OpenRouter</b>: paste your OpenRouter key below once (an OpenAI key also works).</div>
           <label class="field"><span>Key</span>
             <input id="sKey" type="password" placeholder="OpenRouter key  sk-or-…" spellcheck="false"></label>
           <label class="field"><span>Model</span>
             <input id="sModel" type="text" spellcheck="false"></label>
-          <div class="small muted">Get a key at <a href="#" data-url="https://openrouter.ai/keys">openrouter.ai/keys</a>.</div>
+          <div class="small muted" id="keyNote">Get a key at <a href="#" data-url="https://openrouter.ai/keys">openrouter.ai/keys</a>. It's saved in a file on this Mac — no Keychain, no password prompts, and you won't be asked again.</div>
         </div>
 
         <div class="group">
@@ -127,12 +132,12 @@
           <button class="btn primary hidden" id="installUpdBtn">Update now</button>
         </div>
 
-        <div class="settings-actions">
-          <button class="btn danger-ghost" id="quitBtn">Quit app</button>
-          <div class="actions-right">
-            <button class="btn" id="returnBtn">‹ Return to calendar</button>
-            <button class="btn primary" id="saveSettings">Save</button>
-          </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn danger-ghost" id="quitBtn">Quit app</button>
+        <div class="actions-right">
+          <button class="btn" id="returnBtn">‹ Return to calendar</button>
+          <button class="btn primary" id="saveSettings">Save</button>
         </div>
       </div>
     </section>

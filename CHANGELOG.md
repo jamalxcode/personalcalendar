@@ -2,6 +2,13 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.3.0
+
+- Settings: AI quick add (OpenRouter) moves to the top and is highlighted until a key is saved
+- Paste your OpenRouter key and it saves instantly — stored in a local file, never the Keychain, never asked again
+- Calendar connection collapses to one "✓ Connected" line once set up
+- Save / Return bar no longer overlaps the settings content
+
 ## v1.2.0
 
 - New default highlight colour: royal blue
