@@ -22,3 +22,7 @@
 - **ObjC → JSON booleans:** `@(a && b)` boxes an *int*, so NSJSONSerialization writes `1`/`0` and Go's `bool` unmarshal fails. Use `cond ? @YES : @NO`. (Found via the `.diag/status.json` the dev build writes — worth having when you can't see the app.)
 - **"Calendars listed but no events" = expired account login on the Mac.** Apple Calendar shows "Invalid Credentials. Sign in?"; EventKit still lists the calendars but has no new events. Apps can't detect this, so the UI shows a hint linking to Calendar.app.
 - **device_commit_files can lag/silently not land** on the Mac — verify with md5sum via device_bash, and fall back to editing in place with python in device_bash.
+- **Self-update for an unsigned app:** download the release zip with Go's HTTP client (not a browser) so it has no quarantine flag and Gatekeeper doesn't block it; unzip with `ditto -x -k`; a detached `bash` script (`Setsid`) waits for the app's PID to exit, swaps the bundle, and `open`s the new one.
+- **Private repos can't serve release downloads without a token** — that's why the repo is public.
+- **`tell application id "…" to quit` launches the app if it isn't running** — guard it with `if application id "…" is running then …`.
+- **Release on VERSION bump:** a workflow filtered on `paths: [VERSION]` that skips if the tag already exists; release notes come from the matching `## vX.Y.Z` section of CHANGELOG.md.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"path/filepath"
@@ -38,6 +39,7 @@ type App struct {
 	events []Event
 	err    error
 	kick   chan struct{}
+	update UpdateInfo // latest release check (guarded by mu)
 }
 
 func main() {
@@ -104,6 +106,7 @@ func main() {
 	}
 
 	go a.loop()
+	go a.updateLoop()
 	if err := a.wa.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -120,6 +123,10 @@ func (a *App) buildMenu() *application.Menu {
 	m.Add("Open Calendar App").OnClick(func(*application.Context) { openURL("ical://") })
 	m.Add("Open Google Calendar (web)").OnClick(func(*application.Context) { openURL("https://calendar.google.com") })
 	m.AddSeparator()
+	m.Add("Check for Updates…").OnClick(func(*application.Context) {
+		a.tray.ShowWindow()
+		a.wa.Event.Emit("ui:updates")
+	})
 	m.Add("Quit Personal Calendar").OnClick(func(*application.Context) { a.wa.Quit() })
 	return m
 }
@@ -146,6 +153,28 @@ func (a *App) loop() {
 			a.updateLabel()
 		}
 	}
+}
+
+// updateLoop checks GitHub for a newer release shortly after launch and every 6 hours.
+func (a *App) updateLoop() {
+	time.Sleep(10 * time.Second)
+	for {
+		a.checkForUpdate()
+		time.Sleep(6 * time.Hour)
+	}
+}
+
+func (a *App) checkForUpdate() (UpdateInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	info, err := checkLatest(ctx)
+	if err == nil {
+		a.mu.Lock()
+		a.update = info
+		a.mu.Unlock()
+		a.wa.Event.Emit("update", info)
+	}
+	return info, err
 }
 
 func (a *App) RequestRefresh() {

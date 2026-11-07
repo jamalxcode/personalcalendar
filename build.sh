@@ -1,8 +1,13 @@
 #!/bin/bash
-# Builds "Personal Calendar.app" and copies it to your Desktop.
+# Builds "Personal Calendar.app".
+#   ./build.sh          build and copy to ~/Desktop
+#   ./build.sh --run    …and launch it
+#   ./build.sh --ci     build + zip for a GitHub release (used by .github/workflows/release.yml)
 set -euo pipefail
 cd "$(dirname "$0")"
 APP="Personal Calendar.app"
+MODE="${1:-}"
+VERSION=$(tr -d ' \n' < VERSION)
 export CGO_ENABLED=1
 export MACOSX_DEPLOYMENT_TARGET=14.0
 
@@ -10,11 +15,14 @@ command -v go >/dev/null || { echo "Go not found. Install with: brew install go"
 xcode-select -p >/dev/null 2>&1 || { echo "Xcode command line tools missing. Run: xcode-select --install"; exit 1; }
 
 echo "→ fetching modules"
-go mod tidy
-echo "→ compiling"
+if [ "$MODE" = "--ci" ]; then go mod download; else go mod tidy; fi
+echo "→ compiling v$VERSION"
 mkdir -p build
+LDFLAGS="-s -w -X main.version=$VERSION"
+# local builds also write .diag/status.json next to the source, for debugging without screen access
+if [ "$MODE" != "--ci" ]; then LDFLAGS="$LDFLAGS -X main.diagDir=$(pwd)/.diag -X main.buildStamp=$(date +%H:%M:%S)"; fi
 # production = embedded runtime; private_mac_apis = transparent webview over the frosted backdrop
-go build -tags production,private_mac_apis -ldflags "-s -w -X main.diagDir=$(pwd)/.diag -X main.buildStamp=$(date +%H:%M:%S)" -o build/PersonalCalendar .
+go build -tags production,private_mac_apis -ldflags "$LDFLAGS" -o build/PersonalCalendar .
 
 echo "→ bundling"
 rm -rf "build/$APP"
@@ -30,7 +38,6 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$ICONSET" -o "build/$APP/Contents/Resources/icon.icns"
 
-VERSION=$(git describe --tags --always 2>/dev/null || echo "1.0")
 cat > "build/$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -53,15 +60,22 @@ PLIST
 
 codesign --force --deep -s - "build/$APP" >/dev/null 2>&1 || true
 
+if [ "$MODE" = "--ci" ]; then
+  ZIP="build/PersonalCalendar-$VERSION-macos-arm64.zip"
+  ditto -c -k --keepParent "build/$APP" "$ZIP"
+  echo "✓ Packaged: $ZIP"
+  exit 0
+fi
+
 # quit any running copy (it holds the single-instance lock) and wait for it to exit
-osascript -e 'tell application id "company.sala.personalcalendar" to quit' >/dev/null 2>&1 || true
+osascript -e 'if application id "company.sala.personalcalendar" is running then tell application id "company.sala.personalcalendar" to quit' >/dev/null 2>&1 || true
 pkill -f "Contents/MacOS/PersonalCalendar" 2>/dev/null || true
 for i in $(seq 1 20); do pgrep -f "Contents/MacOS/PersonalCalendar" >/dev/null || break; sleep 0.25; done
 pkill -9 -f "Contents/MacOS/PersonalCalendar" 2>/dev/null || true
 rm -rf "$HOME/Desktop/$APP"
 cp -R "build/$APP" "$HOME/Desktop/"
 echo "✓ Built: ~/Desktop/$APP"
-if [ "${1:-}" = "--run" ]; then
+if [ "$MODE" = "--run" ]; then
   sleep 0.5
   open "$HOME/Desktop/$APP" || "$HOME/Desktop/$APP/Contents/MacOS/PersonalCalendar" >/dev/null 2>&1 &
 fi

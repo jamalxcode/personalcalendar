@@ -199,6 +199,43 @@ func (s *CalService) OpenURL(u string) {
 	}
 }
 
+// ---- updates ----
+
+func (s *CalService) Version() string { return version }
+
+// LatestUpdate returns the last check result without hitting the network.
+func (s *CalService) LatestUpdate() UpdateInfo {
+	s.a.mu.Lock()
+	defer s.a.mu.Unlock()
+	u := s.a.update
+	u.Current = version
+	return u
+}
+
+func (s *CalService) CheckForUpdate() (UpdateInfo, error) { return s.a.checkForUpdate() }
+
+// InstallUpdate downloads the newest release, swaps the app and relaunches it.
+func (s *CalService) InstallUpdate() error {
+	info, err := s.a.checkForUpdate()
+	if err != nil {
+		return err
+	}
+	if !info.Available {
+		return fmt.Errorf("you're already on the latest version (v%s)", version)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	progress := func(msg string) { s.a.wa.Event.Emit("update:progress", msg) }
+	if err := installUpdate(ctx, info, progress); err != nil {
+		return err
+	}
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		s.a.wa.Quit() // the swap script waits for us to exit, then relaunches the new version
+	}()
+	return nil
+}
+
 func (s *CalService) Hide() { s.a.win.Hide() }
 
 func (s *CalService) Quit() { s.a.wa.Quit() }

@@ -418,6 +418,49 @@ async function allowAccess() {
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
 }
 
+// ---------- updates ----------
+let U = null;
+function renderUpdate(info, statusMsg) {
+  if (info) U = info;
+  const cur = (U && U.current) || "";
+  $("versionLbl").textContent = cur ? `v${cur}` : "";
+  $("updVersion").textContent = cur ? `Personal Calendar v${cur}` : "Personal Calendar";
+  const avail = U && U.available;
+  $("updatePill").classList.toggle("hidden", !avail);
+  if (avail) $("updatePill").textContent = `Update to v${U.latest}`;
+  $("installUpdBtn").classList.toggle("hidden", !avail);
+  if (avail) $("installUpdBtn").textContent = `Update to v${U.latest} now`;
+  $("updNotes").classList.toggle("hidden", !(avail && U.notes));
+  if (avail) $("updNotes").textContent = U.notes || "";
+  let st = statusMsg;
+  if (!st && U && U.checked && !U.checked.startsWith("0001")) {
+    st = avail ? `v${U.latest} is available.` : `You're up to date · checked ${fmtTime(new Date(U.checked))}`;
+  }
+  if (st) $("updStatus").textContent = st;
+}
+
+async function checkUpdate() {
+  $("checkUpdBtn").disabled = true;
+  renderUpdate(null, "Checking GitHub…");
+  try { renderUpdate(await go("CheckForUpdate")); }
+  catch (err) { renderUpdate(null, errMsg(err)); }
+  finally { $("checkUpdBtn").disabled = false; }
+}
+
+async function installUpdate() {
+  $("installUpdBtn").disabled = true;
+  $("updatePill").disabled = true;
+  renderUpdate(null, "Starting update…");
+  toast("Updating — the app will restart by itself");
+  try { await go("InstallUpdate"); }
+  catch (err) {
+    toast(errMsg(err), true);
+    renderUpdate(null, errMsg(err));
+    $("installUpdBtn").disabled = false;
+    $("updatePill").disabled = false;
+  }
+}
+
 // ---------- settings ----------
 async function openSettings() {
   $("main").classList.add("hidden");
@@ -530,6 +573,12 @@ function wire() {
   });
 
   Events.On("state", (ev) => applyState(ev.data));
+  Events.On("update", (ev) => renderUpdate(ev.data));
+  Events.On("update:progress", (ev) => { renderUpdate(null, ev.data); toast(ev.data); });
+  Events.On("ui:updates", () => { openSettings().then(() => { $("updatesGroup").scrollIntoView({ behavior: "smooth" }); checkUpdate(); }); });
+  $("checkUpdBtn").onclick = checkUpdate;
+  $("installUpdBtn").onclick = installUpdate;
+  $("updatePill").onclick = () => { openSettings().then(() => $("updatesGroup").scrollIntoView({ behavior: "smooth" })); };
   Events.On("ui:settings", () => openSettings());
   Events.On("popover:shown", () => {
     viewMonth = startOfMonth(new Date());
@@ -552,3 +601,4 @@ async function refresh() {
 wire();
 renderMiniCal();
 go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
+go("LatestUpdate").then((u) => renderUpdate(u)).catch(() => {});

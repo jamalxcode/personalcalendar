@@ -282,3 +282,16 @@ a:hover { text-decoration: underline; }
 .setup-step.waiting { opacity: .55; }
 .setup-step.waiting .btn { display: none; }
 .sync-hint { text-align: center; padding: 14px 18px 4px; line-height: 1.5; }
+
+/* ---------- updates ---------- */
+.update-pill {
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+  padding: 2px 9px; border-radius: 10px; animation: pop .2s ease-out;
+}
+.update-pill:hover { filter: brightness(1.08); }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.upd-notes {
+  font-size: 12px; line-height: 1.45; white-space: pre-wrap; max-height: 120px; overflow-y: auto;
+  background: var(--input); border-radius: 8px; padding: 8px 10px; -webkit-user-select: text; user-select: text;
+}
+#installUpdBtn { align-self: flex-start; }

@@ -33,6 +33,14 @@ Then paste an **AI key** in Settings for quick add: an OpenAI key (`sk-…`, fro
 
 Works with every calendar macOS syncs — Google, iCloud, Exchange — and you choose which ones to show and which one new events go to.
 
+## Updates
+
+The app checks GitHub for a newer release at launch and every 6 hours. When one exists an **Update to vX** pill appears in the panel footer (also Settings → Updates, or right-click the menu bar icon → Check for Updates…). One click downloads it, swaps the app in place and relaunches.
+
+**Publishing a new version:** bump `VERSION`, add a `## vX.Y.Z` section to `CHANGELOG.md` (those lines become the release notes shown in the app), push to `main`. The *Release* workflow builds the app on a macOS runner and attaches `PersonalCalendar-X.Y.Z-macos-arm64.zip` to a new GitHub release.
+
+> macOS may ask for calendar access again after an update — the build isn't signed with an Apple Developer ID, so each version looks new to the privacy system.
+
 ## Where things are stored
 
 `~/Library/Application Support/PersonalCalendar/config.json` (settings + AI key, file mode `0600`; deliberately not the Keychain, so there are no password prompts). Calendar data stays in macOS; only the text you type into quick add is sent to OpenAI/OpenRouter.
@@ -49,4 +57,6 @@ Works with every calendar macOS syncs — Google, iCloud, Exchange — and you c
 | `ai.go` | OpenAI / OpenRouter structured-output parsing of free text → events |
 | `config.go` | settings file |
 | `icons.go` | menu bar template icon + app icon, drawn in code |
+| `updater.go` | checks GitHub releases, downloads the zip, swaps the bundle, relaunches |
+| `.github/workflows/release.yml` | builds + publishes a release when `VERSION` changes |
 | `build.sh` / `build.command` | compile (`-tags production,private_mac_apis`), bundle as a menu-bar-only `.app`, ad-hoc sign, copy to Desktop |

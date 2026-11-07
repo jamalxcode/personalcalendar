@@ -47,6 +47,8 @@
       <footer class="foot">
         <span id="updated" class="muted"></span>
         <span class="muted" id="hotkeyHint"></span>
+        <button class="update-pill hidden" id="updatePill" title="A new version is ready">Update</button>
+        <span class="muted small" id="versionLbl"></span>
         <button class="icon-btn small" id="refreshBtn" title="Refresh (⌘R)">↻</button>
       </footer>
     </section>
@@ -100,6 +102,19 @@
           <label class="field"><span>Show next</span>
             <select id="sDays"><option value="7">7 days</option><option value="14">14 days</option>
               <option value="30">30 days</option><option value="60">60 days</option></select></label>
+        </div>
+
+        <div class="group" id="updatesGroup">
+          <div class="group-title">Updates</div>
+          <div class="row-between">
+            <div>
+              <div id="updVersion">Personal Calendar</div>
+              <div class="muted small" id="updStatus">Checks GitHub automatically every 6 hours.</div>
+            </div>
+            <button class="btn" id="checkUpdBtn">Check now</button>
+          </div>
+          <div id="updNotes" class="upd-notes hidden"></div>
+          <button class="btn primary hidden" id="installUpdBtn">Update now</button>
         </div>
 
         <div class="settings-actions">
