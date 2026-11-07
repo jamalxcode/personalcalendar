@@ -2,6 +2,21 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.6.0
+
+- Meet the mascot: a smiling calendar whose face follows your day (happy, busy, focused, sleepy, party) — click it for a tip
+- One-line greeting at the top (AI-written with your OpenRouter key, built-in otherwise); evenings preview tomorrow
+- Emojis on events, picked automatically (🦷 dentist, 🚗 test drive, 🍽️ lunch…; the AI fills in the rest, cached)
+- Weather on the next days (Open-Meteo, your city in Settings)
+- Countdowns: pin any future event; birthdays in the next month appear automatically
+- Weekly recap card at the start of the weekend (or "This week" in the footer)
+- Day view is now a timeline: drag to move, drag the bottom edge to resize, Undo, double-click empty space to add
+- Confetti when you add events, a "Day clear!" moment, month page-flip, optional soft sounds
+- AI voice: friendly, fun or formal
+- Week starts on Saturday; weekend Friday + Saturday by default, with region presets and custom weekend days
+- The menu bar icon gets an orange badge in the 5 minutes before a meeting
+- Playful mode switch turns all of the fun off in one go
+
 ## v1.5.0
 
 - Event card: click any event for time, place (opens Maps), notes, attendees and a Join button — with Edit, Duplicate, Delete and Open in Calendar

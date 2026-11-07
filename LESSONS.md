@@ -34,3 +34,9 @@
 - **Notifications from an ad-hoc-signed app** may be refused; fall back to dropping the panel down so the alert is never lost.
 - **Wails `Autostart`** uses SMAppService for a bundled app — the login item follows the bundle path, so self-updates that swap the bundle in place keep it.
 - **Iterate on a branch with a macOS CI build check** before bumping VERSION on main — catches compile errors without needing the user's Mac.
+- **Fun that stays out of the way:** one "Playful mode" switch plus individual toggles; the greeting is cached per part-of-day + schedule so the AI is called a few times a day at most; AI emoji picks are cached forever in emoji.json (misses too).
+- **Weather without a key:** Open-Meteo forecast + geocoding APIs; cache an hour; keep the last good forecast on errors.
+- **Draw the mascot as inline SVG** (not the raster icon) so its face can change per mood with plain CSS animation (bob, blink, wiggle).
+- **Drag-to-reschedule:** pointer events with `setPointerCapture`, snap to 15 min, update on pointerup, offer Undo; fetch the event's notes first so the update doesn't wipe them.
+- **Week start / weekend are user settings**, never hard-coded — they feed the month grid, the recap, the greeting and the AI prompt.
+- **Playwright won't click animated elements** ("not stable") — use `{force: true}` in preview scripts.

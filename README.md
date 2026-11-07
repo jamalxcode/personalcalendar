@@ -8,6 +8,9 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **AI box** (OpenRouter): add (`dinner with Sara Thursday 8pm at Mais Alghanim`), ask (`what's on Thursday?`, `am I free tomorrow afternoon?`) or change (`move lunch to 3pm`, `cancel Friday's dentist`) — changes show a before/after preview first. Simple lines work offline without a key.
 - **Search** (⌘F or `/`) across the past month and the next year.
 - **Meeting alerts** with a Join button, **starts at login**, **highlight colour** of your choice, self-**updates** from GitHub.
+- **Playful mode** (one switch): a mascot whose mood follows your day, an AI greeting, emojis on events, weather, countdowns (pin events; birthdays automatic), a weekly recap, confetti, optional sounds, and a choice of AI voice.
+- **Day timeline**: drag events to move them, drag the bottom edge to resize, Undo, double-click to add.
+- **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
 - Keys: `⌃⌥C` toggle · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` back/close.
 
 ## Build (on your Mac)
@@ -53,6 +56,7 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 | `eventkit_darwin.m` | Objective-C bridge to Apple EventKit: permission, calendars, events, add, delete, change notifications |
 | `calendar_darwin.go` | Go wrapper over the bridge (+ Meet/Zoom/Teams link detection) |
 | `ai.go` | OpenRouter/OpenAI structured output: one call decides add / answer / update / delete |
+| `fun.go` | weather (Open-Meteo), greeting, emoji cache, countdowns |
 | `parse_local.go` (+ test) | offline parser for simple lines when there's no key or no network |
 | `config.go` | settings file |
 | `icons.go` | menu bar template icon + app icon, drawn in code |

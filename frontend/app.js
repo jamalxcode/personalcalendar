@@ -112,9 +112,13 @@ function renderMiniCal() {
   $("yearName").textContent = viewMonth.getFullYear();
   $("todayBtn").style.visibility = sameDay(viewMonth, startOfMonth(now)) && !selectedDay ? "hidden" : "visible";
 
+  const ws = S.weekStart ?? 6;
+  const wk = new Set(S.weekendDays ?? [5, 6]);
   const dow = $("dow");
-  if (!dow.childElementCount) {
-    ["S", "M", "T", "W", "T", "F", "S"].forEach((d, i) => dow.append(el("span", i === 5 || i === 6 ? "wknd" : "", d)));
+  dow.innerHTML = "";
+  for (let i = 0; i < 7; i++) {
+    const wd = (ws + i) % 7;
+    dow.append(el("span", wk.has(wd) ? "wknd" : "", "SMTWTFS"[wd]));
   }
 
   const dots = new Map(), counts = new Map(), hols = new Map();
@@ -134,14 +138,15 @@ function renderMiniCal() {
   const grid = $("grid");
   grid.innerHTML = "";
   const first = viewMonth;
-  const start = addDays(first, -first.getDay());
-  const weeks = Math.ceil((first.getDay() + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
+  const lead = (first.getDay() - ws + 7) % 7;
+  const start = addDays(first, -lead);
+  const weeks = Math.ceil((lead + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
   for (let i = 0; i < weeks * 7; i++) {
     const d = addDays(start, i);
     const k = dayKey(d);
     const cell = el("div", "day");
     if (d.getMonth() !== first.getMonth()) cell.classList.add("out");
-    if (d.getDay() === 5 || d.getDay() === 6) cell.classList.add("wknd");
+    if (wk.has(d.getDay())) cell.classList.add("wknd");
     if (sameDay(d, now)) cell.classList.add("today");
     if (selectedDay && sameDay(d, selectedDay)) cell.classList.add("sel");
     cell.append(el("span", "num", d.getDate()));
@@ -212,7 +217,7 @@ function renderUpNext() {
   if (!inProgress && next.s - now > 24 * 36e5) lbl = `Up next · ${dayLabel(next.s)}`;
   const card = el("div", "upnext");
   const grow = el("div", "grow");
-  grow.append(el("div", "lbl", lbl), el("div", "ttl", next.title));
+  grow.append(el("div", "lbl", lbl), el("div", "ttl", withEmoji(next)));
   let sub = `${fmtTime(next.s)} – ${fmtTime(next.e)}`;
   if (next.location) sub += `  ·  ${next.location}`;
   grow.append(el("div", "sub", sub));
@@ -230,6 +235,7 @@ function renderUpNext() {
 function renderList() {
   const list = $("list");
   list.innerHTML = "";
+  if (typeof renderCountdowns === "function") renderCountdowns();
   kbIndex = -1;
   renderUpNext();
   const now = new Date();
@@ -251,6 +257,8 @@ function renderList() {
     const ttl = el("span", "", d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }));
     const back = el("button", "pill-btn", "Upcoming ›");
     back.onclick = closeDay;
+    const wxd = weatherChip(d);
+    if (wxd) ttl.append(" ", wxd);
     head.append(ttl, back);
     list.append(head);
     if (!dayView.events) { list.append(emptyState("⏳", "Loading…")); return; }
@@ -265,7 +273,7 @@ function renderList() {
       list.append(em);
       return;
     }
-    renderGroups(list, evsDay, { now, showPast: true, spread: false, dayOnly: d });
+    renderTimeline(list, d, evsDay);
     return;
   }
 
@@ -277,6 +285,7 @@ function renderList() {
   }
   renderGroups(list, all, { now, showPast: false, spread: true });
   if (all.filter((e) => !e.holiday).length < 3) list.append(syncHint());
+  renderRecap(list);
 }
 
 // Groups events by day; holidays become small tags on the day header (unless shown as rows).
@@ -299,7 +308,10 @@ function renderGroups(list, events, { now, showPast, spread, dayOnly }) {
     const head = el("div", "day-head" + (sameDay(g.d, now) ? " is-today" : ""));
     head.dataset.day = dayKey(g.d);
     const timed = g.items.filter((e) => !e.allDay).length;
-    head.append(el("span", "", dayHead(g.d)), el("span", "count", timed ? `${timed} event${timed > 1 ? "s" : ""}` : ""));
+    const right = el("span", "count", timed ? `${timed} event${timed > 1 ? "s" : ""}` : "");
+    const wxc = weatherChip(g.d);
+    if (wxc) right.prepend(wxc);
+    head.append(el("span", "", dayHead(g.d)), right);
     list.append(head);
     if (g.hols.length) list.append(holidayTags(g.hols));
     for (const e of g.items) list.append(eventRow(e, now));
@@ -338,7 +350,7 @@ function eventRow(e, now) {
   if (e.allDay) when.textContent = "all-day";
   else when.append(el("div", "", fmtTime(e.s)), el("div", "end", fmtTime(e.e)));
   const body = el("div", "body");
-  body.append(el("div", "title", e.title));
+  body.append(el("div", "title", withEmoji(e)));
   const meta = [e.location, e.meetLink && !e.location ? "Online meeting" : "", S.calendars.length > 1 ? e.calendar : ""].filter(Boolean).join(" · ");
   if (meta) body.append(el("div", "meta", meta));
   const tools = el("div", "tools");
@@ -366,6 +378,7 @@ async function deleteEvent(e) {
   try {
     applyState(await go("Delete", e.id, e.start));
     afterChange();
+    sound("whoosh");
     toast("Deleted");
     return true;
   } catch (err) { toast(errMsg(err), true); return false; }
@@ -422,7 +435,7 @@ function renderDetail(d) {
   const s = new Date(d.start), en = new Date(d.end);
   sh.append(sheetHeader(d.title, d.color));
   const body = el("div", "sheet-body");
-  const t = el("div", "sheet-title", d.title);
+  const t = el("div", "sheet-title", withEmoji(d));
   body.append(t);
   const when = el("div", "sheet-when");
   when.textContent = whenText(d.start, d.end, d.allDay) + (d.recurring ? "  ·  repeats" : "");
@@ -451,6 +464,16 @@ function renderDetail(d) {
   const mk = (label, cls, fn) => { const b = el("button", "btn " + cls, label); b.onclick = fn; actions.append(b); return b; };
   if (d.writable) mk("Edit", "primary", () => renderEdit(d, "edit"));
   mk("Duplicate", "", () => renderEdit(d, "duplicate"));
+  if (new Date(d.start) > new Date()) {
+    const pinned = (S.pinned || []).includes(d.id);
+    mk(pinned ? "Unpin countdown" : "📌 Countdown", "", async () => {
+      try {
+        applyState(pinned ? await go("UnpinEvent", d.id) : await go("PinEvent", d.id, d.title, d.start));
+        toast(pinned ? "Countdown removed" : "Pinned — it's counting down under the AI box");
+        renderDetail(d);
+      } catch (err) { toast(errMsg(err), true); }
+    });
+  }
   mk("Open in Calendar", "", () => go("OpenURL", d.link));
   if (d.writable) mk("Delete", "danger-ghost", async () => { if (await deleteEvent(d)) closeSheet(); });
   sh.append(actions);
@@ -521,6 +544,7 @@ function renderEdit(d, mode) {
       if (mode === "edit") applyState(await go("UpdateEvent", d.id, d.start, draft));
       else applyState(await go("Add", [draft]));
       afterChange();
+      if (mode !== "edit") celebrate("add");
       toast(mode === "edit" ? "Saved" : "Added");
       closeSheet();
     } catch (err) { toast(errMsg(err), true); save.disabled = false; }
@@ -592,7 +616,8 @@ function renderBanner() {
 }
 
 function renderFooter() {
-  $("updated").textContent = S.now ? `Updated ${fmtTime(new Date(S.now))}` : "";
+  $("updated").textContent = "";
+  $("refreshBtn").title = S.now ? `Refresh (⌘R) · updated ${fmtTime(new Date(S.now))}` : "Refresh (⌘R)";
   $("hotkeyHint").textContent = S.hotkey ? S.hotkey.replace("Ctrl", "⌃").replace("Alt", "⌥").replace(/\+/g, "") + " to open" : "";
 }
 
@@ -604,9 +629,468 @@ function applyState(st) {
   renderList();
   renderBanner();
   renderFooter();
+  renderMascot();
+  renderCountdowns();
+  checkDayClear();
   if (drafts.length) renderDrafts();
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
   if (mkey(viewMonth) !== mkey(new Date())) loadMonth(viewMonth, true);
+}
+
+// =====================================================================
+// Playful layer: mascot, greeting, emojis, weather, countdowns, recap,
+// confetti/sounds, and the drag-to-reschedule day timeline.
+// =====================================================================
+
+const playful = () => S.playful !== false;
+
+// ---------- emojis ----------
+const EMOJI_RULES = [
+  [/test drive|car\b|garage|service|geely|ford|toyota|lexus|bmw|tesla|oil change/, "🚗"], [/renew|license|licence|passport|visa|civil id|insurance/, "🪪"],
+  [/birthday|bday|b-day/, "🎂"], [/anniversar/, "💍"], [/wedding/, "💒"], [/party|celebrat/, "🎉"],
+  [/flight|fly|airport|✈/, "✈️"], [/trip|travel|vacation|holiday|getaway/, "🧳"], [/hotel|check.?in/, "🏨"],
+  [/dentist|teeth|tooth/, "🦷"], [/doctor|clinic|hospital|checkup|check-up|appointment with dr/, "🩺"],
+  [/pharm|medicine|prescription/, "💊"], [/eye|optician/, "👓"], [/vet\b|vet appointment/, "🐾"],
+  [/gym|workout|training|crossfit|lift/, "🏋️"], [/run\b|running|jog/, "🏃"], [/swim/, "🏊"], [/yoga|pilates/, "🧘"],
+  [/football|soccer|match|game\b/, "⚽"], [/padel|tennis/, "🎾"], [/golf/, "⛳"], [/bike|cycling/, "🚴"],
+  [/breakfast/, "🥐"], [/brunch/, "🥞"], [/lunch/, "🍽️"], [/dinner|supper|iftar|suhoor|ghabqa/, "🍲"],
+  [/coffee|karak|tea\b|cafe|café/, "☕"], [/drinks|bar\b/, "🍹"], [/bbq|grill/, "🍖"], [/pizza/, "🍕"], [/sushi/, "🍣"],
+  [/meeting|sync|standup|stand-up|1:1|one on one|catch.?up|call\b|zoom|teams|meet\b/, "💬"],
+  [/interview/, "🤝"], [/review|retro|planning/, "🗂️"], [/present|demo|pitch/, "📊"], [/deadline|due\b/, "⏰"],
+  [/class|lesson|lecture|course|teach|tutor/, "📚"], [/exam|test\b|quiz|igcse|sat\b/, "📝"], [/school|pick ?up|drop ?off/, "🎒"],
+  [/pay|rent|bill|invoice|bank|transfer|dewa|salary/, "💳"], [/shop|buy|grocery|groceries|mall|avenues/, "🛍️"],
+  [/haircut|barber|salon/, "💇"], [/clean|laundry/, "🧺"], [/movie|cinema|film/, "🎬"], [/concert|music|gig/, "🎵"],
+  [/mosque|prayer|jumu|friday prayer/, "🕌"], [/family|mom|mum|dad|parents|kids/, "👨‍👩‍👧"], [/date night|date with/, "❤️"],
+  [/follow ?up|remind|todo|to-do/, "📌"], [/decide|decision/, "🤔"], [/code|deploy|release|bug/, "💻"], [/write|blog|post/, "✍️"],
+  [/beach|sea/, "🏖️"], [/camp|desert|kashta/, "🏕️"], [/garden|plant/, "🪴"], [/dubai|riyadh|london|paris|cairo|istanbul/, "🌍"],
+];
+const aiEmoji = new Map();     // title → emoji ("" = no good match)
+const askedEmoji = new Set();
+let emojiTimer;
+
+function emojiFor(e) {
+  if (!playful() || !e || !e.title) return "";
+  if (e.holiday) return "🎉";
+  const t = e.title.toLowerCase();
+  for (const [re, em] of EMOJI_RULES) if (re.test(t)) return em;
+  if (aiEmoji.has(e.title)) return aiEmoji.get(e.title);
+  if (!askedEmoji.has(e.title)) { askedEmoji.add(e.title); queueEmojiLookup(); }
+  return "";
+}
+function queueEmojiLookup() {
+  clearTimeout(emojiTimer);
+  emojiTimer = setTimeout(async () => {
+    const titles = [...askedEmoji].filter((t) => !aiEmoji.has(t));
+    if (!titles.length || !S.hasKey) return;
+    try {
+      const m = await go("Emojis", titles.slice(0, 40));
+      titles.forEach((t) => aiEmoji.set(t, (m && m[t]) || ""));
+      renderList();
+      renderCountdowns();
+    } catch (_) { /* fine without */ }
+  }, 600);
+}
+const withEmoji = (e) => { const em = emojiFor(e); return em ? `${em} ${e.title}` : e.title; };
+
+// ---------- weather ----------
+const WX = (c) => c === 0 ? "☀️" : c <= 2 ? "🌤️" : c === 3 ? "☁️" : c <= 48 ? "🌫️" : c <= 57 ? "🌦️" : c <= 67 ? "🌧️" : c <= 77 ? "🌨️" : c <= 82 ? "🌧️" : c <= 86 ? "🌨️" : "⛈️";
+function weatherFor(d) {
+  if (!playful() || !S.weather) return null;
+  const k = dateVal(d);
+  return S.weather.find((w) => w.date === k) || null;
+}
+function weatherChip(d) {
+  const w = weatherFor(d);
+  if (!w) return null;
+  const c = el("span", "wx-chip", `${WX(w.code)} ${Math.round(w.max)}°`);
+  c.title = `${S.weatherCity || ""}: high ${Math.round(w.max)}°, low ${Math.round(w.min)}°`;
+  if (w.max >= 45) c.classList.add("hot");
+  return c;
+}
+
+// ---------- mascot ----------
+function mascotMood() {
+  const now = new Date();
+  if (celebratingUntil > Date.now()) return "ecstatic";
+  const today = evs().filter((e) => sameDay(e.s, now) || (e.allDay && e.s <= now && e.e > now));
+  if (today.some((e) => /birthday|bday/i.test(e.title)) || (S.countdowns || []).some((c) => c.birthday && sameDay(new Date(c.start), now))) return "party";
+  const h = now.getHours();
+  if (h >= 23 || h < 6) return "sleepy";
+  const timed = today.filter((e) => !e.allDay && !e.holiday);
+  if (timed.some((e) => e.s <= now && e.e > now)) return "focused";
+  if (timed.filter((e) => e.e > now).length >= 5) return "busy";
+  return "happy";
+}
+
+function mascotSVG(mood) {
+  const eyes = {
+    happy: `<path d="M22 20q3-4 6 0M36 20q3-4 6 0" class="ln"/>`,
+    ecstatic: `<path d="M21 21q3.5-5 7 0M36 21q3.5-5 7 0" class="ln"/>`,
+    party: `<path d="M22 20q3-4 6 0M36 20q3-4 6 0" class="ln"/>`,
+    busy: `<circle cx="25" cy="19.5" r="1.8" class="dot"/><circle cx="39" cy="19.5" r="1.8" class="dot"/>`,
+    focused: `<path d="M22 19.5h6M36 19.5h6" class="ln"/><path d="M21 16.5l7 1.5M43 16.5l-7 1.5" class="ln thin"/>`,
+    sleepy: `<path d="M22 20q3 2.5 6 0M36 20q3 2.5 6 0" class="ln"/>`,
+  }[mood];
+  const mouth = {
+    happy: `<path d="M28.5 23.5q3.5 4 7 0z" class="mouth"/>`,
+    ecstatic: `<path d="M27 23q5 6.5 10 0z" class="mouth"/>`,
+    party: `<path d="M27.5 23.5q4.5 5 9 0z" class="mouth"/>`,
+    busy: `<ellipse cx="32" cy="25" rx="1.8" ry="2" class="mouth"/>`,
+    focused: `<path d="M29.5 25h5" class="ln"/>`,
+    sleepy: `<ellipse cx="32" cy="25" rx="1.4" ry="1" class="mouth"/>`,
+  }[mood];
+  const extra = {
+    busy: `<path d="M50 8q3 4.5 0 7q-3-2.5 0-7z" fill="#5AB8FF"/>`,
+    sleepy: `<text x="47" y="11" class="zz">z</text><text x="53" y="6" class="zz small">z</text>`,
+    party: `<path d="M24 9l8-9 8 9z" fill="#FFC53D"/><circle cx="32" cy="0.5" r="2" fill="#E5484D"/><circle cx="27" cy="6" r="1" fill="#fff"/><circle cx="35" cy="4" r="1" fill="#fff"/>`,
+    ecstatic: `<path d="M53 6l1.2 2.8 2.8 1.2-2.8 1.2L53 14l-1.2-2.8L49 10l2.8-1.2zM9 4l.9 2 2 .9-2 .9L9 10l-.9-2-2-.9 2-.9z" fill="#FFC53D"/>`,
+  }[mood] || "";
+  return `<svg viewBox="0 -2 64 66" class="mascot-svg ${mood}" aria-label="${mood} calendar">
+    <rect x="7" y="11" width="50" height="47" rx="11" class="paper"/>
+    <path d="M7 22a11 11 0 0 1 11-11h28a11 11 0 0 1 11 11v8H7z" class="band"/>
+    <rect x="17" y="4" width="7" height="14" rx="3.5" class="ring"/><rect x="40" y="4" width="7" height="14" rx="3.5" class="ring"/>
+    <g class="face">${eyes}${mouth}<circle cx="20.5" cy="24.5" r="2" class="blush"/><circle cx="43.5" cy="24.5" r="2" class="blush"/></g>
+    <g class="cells"><rect x="15" y="35" width="8" height="6" rx="2"/><rect x="28" y="35" width="8" height="6" rx="2" class="hot"/><rect x="41" y="35" width="8" height="6" rx="2"/>
+    <rect x="15" y="45" width="8" height="6" rx="2"/><rect x="28" y="45" width="8" height="6" rx="2"/><rect x="41" y="45" width="8" height="6" rx="2"/></g>
+    ${extra}</svg>`;
+}
+
+const MASCOT_LINES = {
+  happy: ["Looking good today!", "I've got your schedule. You've got this. 💪", "Tip: try “what's on Friday?”", "Double-click a day to add something there."],
+  busy: ["Busy one! Remember to drink water 💧", "Lots on today — I'll nudge you before each one.", "Tip: drag events in the day view to move them."],
+  focused: ["Shh… you're in a meeting 🤫", "Focus mode. I'll keep watch."],
+  sleepy: ["Zzz… tomorrow's preview is below.", "Late night? Your calendar can wait. 🌙"],
+  party: ["Happy birthday vibes! 🎂", "Party time! 🎉"],
+  ecstatic: ["Day clear! 🎉 Nicely done.", "That's everything for today! 🙌"],
+};
+let celebratingUntil = 0;
+
+function renderMascot() {
+  const box = $("greet");
+  box.classList.toggle("hidden", !playful());
+  if (!playful()) return;
+  const mood = mascotMood();
+  const m = $("mascot");
+  if (m.dataset.mood !== mood) { m.innerHTML = mascotSVG(mood); m.dataset.mood = mood; }
+}
+
+function mascotPoke() {
+  const m = $("mascot");
+  m.classList.remove("boing"); void m.offsetWidth; m.classList.add("boing");
+  const lines = MASCOT_LINES[m.dataset.mood] || MASCOT_LINES.happy;
+  $("greetText").textContent = lines[Math.floor(Math.random() * lines.length)];
+  sound("pop");
+  clearTimeout(mascotPoke._t);
+  mascotPoke._t = setTimeout(refreshGreeting, 6000);
+}
+
+// ---------- greeting ----------
+let greetPending = false;
+async function refreshGreeting() {
+  if (!playful() || greetPending) return;
+  greetPending = true;
+  try {
+    const t = await go("GetGreeting");
+    if (t) { $("greetText").textContent = t; $("greet").classList.add("ready"); }
+  } catch (_) { /* keep the last one */ }
+  finally { greetPending = false; }
+}
+
+// ---------- countdowns ----------
+function daysUntil(d) {
+  return Math.round((startOfDay(d) - startOfDay(new Date())) / 864e5);
+}
+function renderCountdowns() {
+  const box = $("countdowns");
+  box.innerHTML = "";
+  const list = (S.countdowns || []).filter((c) => daysUntil(new Date(c.start)) >= 0);
+  if (!list.length || listMode !== "upcoming") return;
+  for (const c of list) {
+    const n = daysUntil(new Date(c.start));
+    const chip = el("button", "cd-chip" + (c.birthday ? " bday" : ""));
+    const em = c.birthday ? "🎂" : (emojiFor({ title: c.title }) || "📌");
+    chip.innerHTML = `<span class="cd-em">${em}</span><span class="cd-t">${esc(c.title)}</span><span class="cd-n">${n === 0 ? "today!" : n === 1 ? "tomorrow" : n + " days"}</span>`;
+    chip.title = whenText(c.start, c.start, true);
+    chip.onclick = () => openEvent({ id: c.id, title: c.title, start: c.start, end: c.start, color: "", s: new Date(c.start), e: new Date(c.start) });
+    box.append(chip);
+  }
+}
+
+// ---------- weekly recap ----------
+function weekStartOf(d) {
+  const ws = S.weekStart ?? 6;
+  return addDays(startOfDay(d), -((d.getDay() - ws + 7) % 7));
+}
+function recapDue() {
+  if (!playful()) return false;
+  const now = new Date(), wk = new Set(S.weekendDays ?? [5, 6]);
+  const firstWeekendDay = wk.has(now.getDay()) && !wk.has(addDays(now, -1).getDay());
+  const lastWorkdayEvening = !wk.has(now.getDay()) && wk.has(addDays(now, 1).getDay()) && now.getHours() >= 16;
+  let dismissed = "";
+  try { dismissed = localStorage.getItem("recapDismissed") || ""; } catch (_) {}
+  return (firstWeekendDay || lastWorkdayEvening) && dismissed !== dateVal(weekStartOf(now));
+}
+
+async function buildRecap() {
+  const ws = weekStartOf(new Date());
+  const list = withDates(await go("EventsBetween", ws.toISOString(), addDays(ws, 7).toISOString())).filter((e) => !e.holiday);
+  const wk = new Set(S.weekendDays ?? [5, 6]);
+  const timed = list.filter((e) => !e.allDay);
+  const mins = timed.reduce((a, e) => a + (e.e - e.s) / 6e4, 0);
+  const perDay = new Map();
+  timed.forEach((e) => { const k = dayKey(e.s); perDay.set(k, { d: startOfDay(e.s), n: ((perDay.get(k) || {}).n || 0) + 1 }); });
+  const busiest = [...perDay.values()].sort((a, b) => b.n - a.n)[0];
+  // free time on workdays between 08:00 and 18:00
+  let free = 0, longest = { m: 0, d: null, from: null };
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(ws, i);
+    if (wk.has(d.getDay())) continue;
+    const dayStart = new Date(d); dayStart.setHours(8, 0, 0, 0);
+    const dayEnd = new Date(d); dayEnd.setHours(18, 0, 0, 0);
+    const busy = timed.filter((e) => e.e > dayStart && e.s < dayEnd).sort((a, b) => a.s - b.s);
+    let cur = dayStart;
+    for (const e of [...busy, { s: dayEnd, e: dayEnd }]) {
+      const gap = (Math.max(cur, Math.min(e.s, dayEnd)) - cur) / 6e4;
+      if (gap > 0) { free += gap; if (gap > longest.m) longest = { m: gap, d, from: new Date(cur) }; }
+      if (e.e > cur) cur = new Date(Math.min(e.e, dayEnd));
+    }
+  }
+  const n = timed.length;
+  const quip = n === 0 ? "A whole week without meetings. Legendary. 🏆"
+    : n <= 4 ? "A calm week — plenty of room to think. 🧘"
+    : n <= 12 ? "A solid, balanced week. Well played. 👏"
+    : n <= 20 ? "That was a busy one — you earned this weekend. 🛋️"
+    : "Wow. That's a lot of meetings. Treat yourself. 🍰";
+  return { n, hours: mins / 60, busiest, free: free / 60, longest, quip, ws };
+}
+
+async function renderRecap(container, force = false) {
+  if (!force && !recapDue()) return;
+  const card = el("div", "recap");
+  card.innerHTML = `<div class="recap-head"><span>✨ Your week</span><button class="icon-btn small" title="Dismiss">✕</button></div><div class="muted small">Crunching numbers…</div>`;
+  container.prepend(card);
+  card.querySelector("button").onclick = () => {
+    try { localStorage.setItem("recapDismissed", dateVal(weekStartOf(new Date()))); } catch (_) {}
+    card.remove();
+  };
+  try {
+    const r = await buildRecap();
+    const range = `${r.ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${addDays(r.ws, 6).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+    card.querySelector(".muted").remove();
+    const body = el("div", "recap-body");
+    body.innerHTML = `
+      <div class="muted small">${range}</div>
+      <div class="recap-stats">
+        <div><b>${r.n}</b><span>events</span></div>
+        <div><b>${r.hours.toFixed(r.hours < 10 ? 1 : 0)}h</b><span>scheduled</span></div>
+        <div><b>${Math.round(r.free)}h</b><span>free (8–18)</span></div>
+      </div>
+      ${r.busiest ? `<div class="recap-line">📈 Busiest: <b>${r.busiest.d.toLocaleDateString("en-GB", { weekday: "long" })}</b> (${r.busiest.n})</div>` : ""}
+      ${r.longest.d ? `<div class="recap-line">🌿 Longest free stretch: <b>${dur(r.longest.m * 6e4)}</b> on ${r.longest.d.toLocaleDateString("en-GB", { weekday: "long" })} from ${fmtTime(r.longest.from)}</div>` : ""}
+      <div class="recap-quip">${r.quip}</div>`;
+    card.append(body);
+  } catch (err) { card.remove(); }
+}
+
+// ---------- confetti & sounds ----------
+function confetti(power = 1) {
+  if (!S.confetti) return;
+  const c = $("confetti");
+  const ctx = c.getContext("2d");
+  const W = (c.width = c.offsetWidth * 2), H = (c.height = c.offsetHeight * 2);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4169e1";
+  const colors = [accent, "#FFC53D", "#E5484D", "#2FA36B", "#8B5CF6", "#12A4A4", "#ffffff"];
+  const parts = Array.from({ length: Math.round(110 * power) }, () => ({
+    x: W / 2 + (Math.random() - 0.5) * W * 0.3, y: H * 0.38,
+    vx: (Math.random() - 0.5) * 26, vy: -Math.random() * 30 - 12,
+    r: Math.random() * 6 + 4, a: Math.random() * Math.PI, va: (Math.random() - 0.5) * 0.4,
+    c: colors[Math.floor(Math.random() * colors.length)], sq: Math.random() > 0.5,
+  }));
+  const t0 = performance.now();
+  (function frame(t) {
+    const k = (t - t0) / 1800;
+    ctx.clearRect(0, 0, W, H);
+    for (const p of parts) {
+      p.vy += 1.1; p.vx *= 0.985; p.x += p.vx; p.y += p.vy; p.a += p.va;
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - k); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c;
+      if (p.sq) ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); else { ctx.beginPath(); ctx.arc(0, 0, p.r * 0.6, 0, 7); ctx.fill(); }
+      ctx.restore();
+    }
+    if (k < 1) requestAnimationFrame(frame); else ctx.clearRect(0, 0, W, H);
+  })(t0);
+}
+
+let audioCtx;
+function sound(kind) {
+  if (!S.sounds) return;
+  try {
+    audioCtx = audioCtx || new AudioContext();
+    const notes = { pop: [[880, 0, 0.07], [1320, 0.05, 0.08]], chime: [[523, 0, 0.18], [659, 0.1, 0.18], [784, 0.2, 0.3]],
+      flip: [[300, 0, 0.03]], whoosh: [[520, 0, 0.09], [330, 0.06, 0.12]] }[kind] || [];
+    const t = audioCtx.currentTime;
+    for (const [f, at, d] of notes) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = kind === "flip" ? "triangle" : "sine";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + at);
+      g.gain.exponentialRampToValueAtTime(0.12, t + at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + d);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t + at); o.stop(t + at + d + 0.02);
+    }
+  } catch (_) {}
+}
+
+function celebrate(kind) {
+  if (!playful()) return;
+  if (kind === "add") { confetti(0.8); sound("pop"); }
+  if (kind === "clear") {
+    celebratingUntil = Date.now() + 8000;
+    confetti(1.3); sound("chime");
+    renderMascot();
+    $("greetText").textContent = MASCOT_LINES.ecstatic[0];
+    setTimeout(() => { renderMascot(); refreshGreeting(); }, 8200);
+  }
+}
+
+// "Day clear!" — once per day, when today had timed events and they've all finished.
+function checkDayClear() {
+  if (!playful()) return;
+  const now = new Date();
+  const today = evs().filter((e) => !e.allDay && !e.holiday && sameDay(e.s, now));
+  const k = "dayClear-" + dateVal(now);
+  let done = false;
+  try { done = !!localStorage.getItem(k); } catch (_) {}
+  if (done) return;
+  // evs() only holds events that haven't ended yet, so "had meetings today" is tracked separately
+  if (today.length) { try { localStorage.setItem("hadToday-" + dateVal(now), "1"); } catch (_) {} return; }
+  let had = false;
+  try { had = !!localStorage.getItem("hadToday-" + dateVal(now)); } catch (_) {}
+  if (had && now.getHours() >= 9) {
+    try { localStorage.setItem(k, "1"); } catch (_) {}
+    celebrate("clear");
+  }
+}
+
+// ---------- toast with an action (Undo) ----------
+function toastAction(msg, label, fn) {
+  const t = $("toast");
+  t.innerHTML = "";
+  t.className = "toast";
+  t.append(el("span", "", msg));
+  const b = el("button", "toast-btn", label);
+  b.onclick = () => { t.classList.add("hidden"); fn(); };
+  t.append(b);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add("hidden"), 6000);
+}
+
+// ---------- day timeline with drag-to-reschedule ----------
+const HOUR = 44; // px per hour
+const SNAP = 15; // minutes
+
+function renderTimeline(list, d, events) {
+  const allDay = events.filter((e) => e.allDay || e.holiday);
+  const timed = events.filter((e) => !e.allDay && !e.holiday).sort((a, b) => a.s - b.s);
+  if (allDay.length) {
+    const hol = allDay.filter((e) => e.holiday && !S.showHolidayRows);
+    if (hol.length) list.append(holidayTags(hol));
+    allDay.filter((e) => !(e.holiday && !S.showHolidayRows)).forEach((e) => list.append(eventRow(e, new Date())));
+  }
+  const day0 = startOfDay(d);
+  const hourOf = (t) => (t - day0) / 36e5;
+  let h0 = 8, h1 = 20;
+  timed.forEach((e) => { h0 = Math.min(h0, Math.floor(Math.max(0, hourOf(e.s)))); h1 = Math.max(h1, Math.ceil(Math.min(24, hourOf(e.e)))); });
+  const tl = el("div", "timeline");
+  tl.style.height = `${(h1 - h0) * HOUR}px`;
+  for (let h = h0; h <= h1; h++) {
+    const line = el("div", "tl-hour");
+    line.style.top = `${(h - h0) * HOUR}px`;
+    const lbl = new Date(day0); lbl.setHours(h);
+    line.append(el("span", "", h === 24 ? "" : fmtTime(lbl)));
+    tl.append(line);
+  }
+  if (sameDay(d, new Date())) {
+    const nowLine = el("div", "tl-now");
+    nowLine.style.top = `${(hourOf(new Date()) - h0) * HOUR}px`;
+    tl.append(nowLine);
+  }
+  // simple overlap layout: columns within clusters
+  const cols = [];
+  const placed = timed.map((e) => {
+    let c = 0;
+    while (cols[c] && cols[c] > e.s) c++;
+    cols[c] = e.e;
+    return { e, c };
+  });
+  const width = Math.max(1, cols.length);
+  for (const { e, c } of placed) tl.append(timelineBlock(e, c, width, h0, day0));
+  // double-click empty space: new event at that time
+  tl.ondblclick = (ev) => {
+    if (ev.target !== tl && !ev.target.classList.contains("tl-hour")) return;
+    const y = ev.clientY - tl.getBoundingClientRect().top;
+    const mins = Math.round(((y / HOUR) * 60) / 30) * 30;
+    const s = new Date(day0.getTime() + (h0 * 60 + mins) * 6e4);
+    const def = S.defaultCalendar || (S.calendars.find((x) => x.primary) || {}).id || "";
+    renderEdit({ title: "", start: s.toISOString(), end: new Date(s.getTime() + 36e5).toISOString(), allDay: false, location: "", notes: "", calendarId: def, color: "" }, "new");
+  };
+  list.append(tl);
+  list.append(el("div", "tl-hint muted small", "Drag to move · drag the bottom edge to resize · double-click empty space to add"));
+}
+
+function timelineBlock(e, col, cols, h0, day0) {
+  const b = el("div", "tl-ev");
+  const top = ((e.s - day0) / 36e5 - h0) * HOUR;
+  const height = Math.max(18, ((e.e - e.s) / 36e5) * HOUR - 2);
+  Object.assign(b.style, { top: `${top}px`, height: `${height}px`, left: `calc(52px + (100% - 56px) * ${col / cols})`, width: `calc((100% - 56px) / ${cols} - 3px)`, "--c": e.color || "var(--accent)" });
+  const ttl = el("div", "tl-title", withEmoji(e));
+  const tm = el("div", "tl-time", `${fmtTime(e.s)} – ${fmtTime(e.e)}`);
+  b.append(ttl, tm);
+  if (height < 34) b.classList.add("short");
+  const editable = e.writable !== false;
+  if (editable) { const h = el("div", "tl-resize"); b.append(h); }
+
+  let mode = null, y0 = 0, moved = false, ds = 0, de = 0;
+  const snapMin = (px) => Math.round(((px / HOUR) * 60) / SNAP) * SNAP;
+  b.onpointerdown = (ev) => {
+    if (ev.button !== 0) return;
+    mode = editable && ev.target.classList.contains("tl-resize") ? "resize" : editable ? "move" : "click";
+    y0 = ev.clientY; moved = false; ds = de = 0;
+    b.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+  };
+  b.onpointermove = (ev) => {
+    if (!mode || mode === "click") return;
+    const dy = ev.clientY - y0;
+    if (Math.abs(dy) > 4) moved = true;
+    if (!moved) return;
+    const m = snapMin(dy);
+    if (mode === "move") { ds = de = m; b.style.transform = `translateY(${(m / 60) * HOUR}px)`; }
+    else { de = Math.max(m, SNAP - (e.e - e.s) / 6e4); b.style.height = `${Math.max(18, height + (de / 60) * HOUR)}px`; }
+    b.classList.add("dragging");
+    const ns = new Date(e.s.getTime() + ds * 6e4), ne = new Date(e.e.getTime() + de * 6e4);
+    tm.textContent = `${fmtTime(ns)} – ${fmtTime(ne)}`;
+  };
+  b.onpointerup = async () => {
+    const m0 = mode; mode = null;
+    b.classList.remove("dragging");
+    if (!moved || m0 === "click") { if (!moved) openEvent(e); return; }
+    if (!ds && !de) return;
+    const ns = new Date(e.s.getTime() + ds * 6e4), ne = new Date(e.e.getTime() + de * 6e4);
+    const draft = { title: e.title, start: ns.toISOString(), end: ne.toISOString(), allDay: false, location: e.location || "", notes: "", calendarId: e.calendarId, reminderMinutes: 0 };
+    try {
+      // keep the notes: fetch details first so the update doesn't wipe them
+      try { const full = await go("GetEvent", e.id, e.start); draft.notes = full.notes || ""; } catch (_) {}
+      applyState(await go("UpdateEvent", e.id, e.start, draft));
+      sound("pop");
+      const undo = { ...draft, start: e.start, end: e.end };
+      toastAction(`Moved to ${fmtTime(ns)}–${fmtTime(ne)}`, "Undo", async () => {
+        try { applyState(await go("UpdateEvent", e.id, draft.start, undo)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
+      });
+      afterChange();
+    } catch (err) { toast(errMsg(err), true); afterChange(); }
+  };
+  return b;
 }
 
 // ---------- AI box ----------
@@ -761,6 +1245,7 @@ async function addDrafts() {
     renderDrafts();
     applyState(st);
     afterChange();
+    celebrate("add");
     toast(n === 1 ? `Added “${first.title}”` : `Added ${n} events`);
     flashDay(new Date(first.start));
   } catch (err) {
@@ -884,6 +1369,27 @@ async function installUpdate() {
   }
 }
 
+// ---------- week settings ----------
+const REGIONS = { kw: [6, [5, 6]], sa: [0, [5, 6]], ae: [1, [6, 0]], eg: [6, [5, 6]], eu: [1, [6, 0]], us: [0, [6, 0]] };
+function renderWeekendChips(days) {
+  const box = $("sWeekend");
+  box.innerHTML = "";
+  const set = new Set(days);
+  ["S", "M", "T", "W", "T", "F", "S"].forEach((l, d) => {
+    const b = el("button", "day-chip" + (set.has(d) ? " on" : ""), l);
+    b.dataset.d = d;
+    b.title = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d];
+    b.onclick = () => { b.classList.toggle("on"); $("sRegion").value = matchRegion(); };
+    box.append(b);
+  });
+}
+function matchRegion() {
+  const ws = +$("sWeekStart").value;
+  const days = [...document.querySelectorAll("#sWeekend .on")].map((b) => +b.dataset.d).sort().join();
+  for (const [k, [w, d]] of Object.entries(REGIONS)) if (w === ws && [...d].sort().join() === days) return k;
+  return "custom";
+}
+
 // ---------- settings ----------
 async function openSettings() {
   $("main").classList.add("hidden");
@@ -898,6 +1404,17 @@ async function openSettings() {
   $("sAlert").value = settingsCache.alertMode || "1";
   $("sLogin").checked = !!settingsCache.launchAtLogin;
   $("sHolRows").checked = !!settingsCache.showHolidayRows;
+  $("sRegion").value = settingsCache.region || "kw";
+  $("sWeekStart").value = String(settingsCache.weekStart ?? 6);
+  renderWeekendChips(settingsCache.weekendDays || [5, 6]);
+  $("sPlayful").checked = settingsCache.playful !== false;
+  $("sName").value = settingsCache.name || "";
+  $("sVoice").value = settingsCache.voice || "friendly";
+  $("sWeather").checked = settingsCache.weather !== false;
+  $("sCity").value = settingsCache.weatherCity || "";
+  $("sConfetti").checked = settingsCache.confetti !== false;
+  $("sSounds").checked = !!settingsCache.sounds;
+  $("playfulOpts").classList.toggle("off", !$("sPlayful").checked);
   pendingAccent = null;
   showSetupDetails = false;
   editingKey = false;
@@ -1002,6 +1519,16 @@ async function saveSettings() {
     alertMode: $("sAlert").value,
     launchAtLogin: $("sLogin").checked,
     showHolidayRows: $("sHolRows").checked,
+    region: $("sRegion").value,
+    weekStart: parseInt($("sWeekStart").value, 10),
+    weekendDays: [...document.querySelectorAll("#sWeekend .on")].map((b) => +b.dataset.d),
+    playful: $("sPlayful").checked,
+    name: $("sName").value.trim(),
+    voice: $("sVoice").value,
+    weather: $("sWeather").checked,
+    weatherCity: $("sCity").value.trim(),
+    confetti: $("sConfetti").checked,
+    sounds: $("sSounds").checked,
   };
   try {
     pendingAccent = null;
@@ -1023,7 +1550,16 @@ function wire() {
   $("quick").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submitQuick(); }
   });
-  const goMonth = (n) => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1); renderMiniCal(); loadMonth(viewMonth); };
+  const goMonth = (n) => {
+    viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1);
+    renderMiniCal(); loadMonth(viewMonth);
+    if (playful()) {
+      const g = $("grid");
+      g.classList.remove("flip-next", "flip-prev"); void g.offsetWidth;
+      g.classList.add(n > 0 ? "flip-next" : "flip-prev");
+      sound("flip");
+    }
+  };
   $("prevMonth").onclick = () => goMonth(-1);
   $("nextMonth").onclick = () => goMonth(1);
   $("todayBtn").onclick = () => { viewMonth = startOfMonth(new Date()); closeDay(); };
@@ -1038,6 +1574,12 @@ function wire() {
   $("openSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("returnBtn").onclick = closeSettings;
+  $("sRegion").onchange = () => {
+    const r = REGIONS[$("sRegion").value];
+    if (r) { $("sWeekStart").value = String(r[0]); renderWeekendChips(r[1]); }
+  };
+  $("sWeekStart").onchange = () => { $("sRegion").value = matchRegion(); };
+  $("sPlayful").onchange = () => $("playfulOpts").classList.toggle("off", !$("sPlayful").checked);
   $("changeKey").onclick = () => { editingKey = true; arrangeSettings(); $("sKey").focus(); };
   $("showSetup").onclick = (ev) => { ev.preventDefault(); showSetupDetails = !showSetupDetails; arrangeSettings(); $("showSetup").textContent = showSetupDetails ? "hide" : "details"; };
   $("sKey").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); saveSettings(); } });
@@ -1116,11 +1658,16 @@ function wire() {
     renderList();
     if ($("settings").classList.contains("hidden")) setTimeout(() => $("quick").focus(), 30);
     go("Refresh").then(applyState).catch(() => {});
+    refreshGreeting();
   });
+  $("mascot").onclick = mascotPoke;
+  $("recapBtn").onclick = () => { if (listMode !== "upcoming") closeDay(); const l = $("list"); l.querySelectorAll(".recap").forEach((x) => x.remove()); renderRecap(l, true); $("scroll").scrollTo({ top: 0, behavior: "smooth" }); };
   window.addEventListener("focus", () => { if ($("settings").classList.contains("hidden")) $("quick").focus(); });
 
   // keep countdowns fresh while open
   setInterval(() => { renderUpNext(); }, 15000);
+  setInterval(() => { renderMascot(); checkDayClear(); }, 60000);
+  setInterval(refreshGreeting, 30 * 60000);
 }
 
 async function refresh() {
@@ -1131,3 +1678,4 @@ wire();
 renderMiniCal();
 go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
 go("LatestUpdate").then((u) => renderUpdate(u)).catch(() => {});
+setTimeout(refreshGreeting, 400);

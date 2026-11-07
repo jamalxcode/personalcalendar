@@ -45,6 +45,13 @@ type App struct {
 	notif   *notifications.NotificationService
 	notifOK bool
 	alerted map[string]bool // event+start already notified
+	badged  bool            // tray shows the "starting soon" badge
+	extras  extras          // weather + countdowns, refreshed with events
+}
+
+type extras struct {
+	Weather    []DayWeather
+	Countdowns []Countdown
 }
 
 func main() {
@@ -77,7 +84,7 @@ func main() {
 		Name:            "popover",
 		Title:           "Personal Calendar",
 		Width:           380,
-		Height:          650,
+		Height:          700,
 		Frameless:       true,
 		Hidden:          true,
 		DisableResize:   true,
@@ -280,11 +287,13 @@ func (a *App) RequestRefresh() {
 
 func (a *App) doRefresh() State {
 	evs, err := a.cal.Upcoming(a.cfg, a.cfg.DaysAhead)
+	ex := extras{Weather: a.weather(), Countdowns: a.countdowns()}
 	a.mu.Lock()
 	if err == nil {
 		a.events = evs
 	}
 	a.err = err
+	a.extras = ex
 	a.mu.Unlock()
 	a.updateLabel()
 	st := a.state()
@@ -359,6 +368,21 @@ func (a *App) updateLabel() {
 		}
 	}
 	a.tray.SetLabel(label)
+
+	// badge the menu bar icon in the 5 minutes before a meeting
+	soon := false
+	if e, ok := nextEvent(evs, now); ok && !a.cfg.NoPlayful {
+		d := e.Start.Sub(now)
+		soon = d > 0 && d <= 5*time.Minute
+	}
+	if soon != a.badged {
+		a.badged = soon
+		if soon {
+			a.tray.SetIcon(trayIconAlert)
+		} else {
+			a.tray.SetIcon(trayIconPNG())
+		}
+	}
 }
 
 func (a *App) fmtTime(t time.Time) string {

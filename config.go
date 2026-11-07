@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -22,6 +23,31 @@ type Config struct {
 	LaunchAtLogin    bool     `json:"launch_at_login"`
 	LoginConfigured  bool     `json:"login_configured"`  // first-run default applied
 	ShowHolidayRows  bool     `json:"show_holiday_rows"` // false = holidays appear as small day tags
+
+	// Week & region
+	Region      string `json:"region"`       // preset that filled week_start/weekend (kw, sa, ae, eu, us, custom)
+	WeekStart   int    `json:"week_start"`   // 0=Sun … 6=Sat
+	WeekendDays []int  `json:"weekend_days"` // e.g. [5,6] = Fri+Sat
+	WeekSet     bool   `json:"week_set"`     // false → apply Kuwait defaults
+
+	// Playful
+	NoPlayful   bool    `json:"no_playful"` // master switch (inverted so the default is on)
+	NoConfetti  bool    `json:"no_confetti"`
+	Sounds      bool    `json:"sounds"`
+	Voice       string  `json:"voice"` // friendly | formal | fun
+	Name        string  `json:"name"`  // used in greetings
+	NoWeather   bool    `json:"no_weather"`
+	WeatherCity string  `json:"weather_city"`
+	WeatherLat  float64 `json:"weather_lat"`
+	WeatherLon  float64 `json:"weather_lon"`
+	Pinned      []Pin   `json:"pinned"` // countdowns
+}
+
+// Pin is an event pinned as a countdown.
+type Pin struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Start string `json:"start"` // RFC3339
 }
 
 var cfgMu sync.Mutex
@@ -62,6 +88,26 @@ func loadConfig() *Config {
 	if !validHex(c.Accent) {
 		c.Accent = "#4169E1" // royal blue
 	}
+	if !c.WeekSet {
+		c.Region, c.WeekStart, c.WeekendDays = "kw", 6, []int{5, 6} // Saturday start, Fri+Sat weekend
+	}
+	if c.WeekStart < 0 || c.WeekStart > 6 {
+		c.WeekStart = 6
+	}
+	if c.WeekendDays == nil {
+		c.WeekendDays = []int{}
+	}
+	switch c.Voice {
+	case "friendly", "formal", "fun":
+	default:
+		c.Voice = "friendly"
+	}
+	if c.WeatherCity == "" {
+		c.WeatherCity, c.WeatherLat, c.WeatherLon = "Kuwait City", 29.3759, 47.9774
+	}
+	if c.Pinned == nil {
+		c.Pinned = []Pin{}
+	}
 	if c.DaysAhead <= 0 {
 		c.DaysAhead = 14
 	}
@@ -101,4 +147,20 @@ func validHex(s string) bool {
 		}
 	}
 	return true
+}
+
+var weekdayNames = []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+
+// WeekendText is "Friday and Saturday" style text for the AI prompt.
+func (c *Config) WeekendText() string {
+	if len(c.WeekendDays) == 0 {
+		return "no fixed weekend"
+	}
+	var n []string
+	for _, d := range c.WeekendDays {
+		if d >= 0 && d <= 6 {
+			n = append(n, weekdayNames[d])
+		}
+	}
+	return strings.Join(n, " and ")
 }

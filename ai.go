@@ -131,12 +131,14 @@ Decide what the user wants:
 - "delete": remove ONE existing event ("cancel lunch on Friday"). Set target.
 If the request is ambiguous between several events, use "answer" to ask which one.
 
-Kuwait weekend is Friday–Saturday. Always use the offset %s in times. Writable calendars: %s.
+The user's weekend is %s; their week starts on %s ("weekend" = those days). Always use the offset %s in times. Writable calendars: %s.
+%s
 
 The user's events (past week to next two months):
 %s`,
 		now.Format("Monday 2 January 2006 15:04"), now.Format("2006-01-02T15:04:05Z07:00"),
-		now.Location().String(), now.Format("-07:00"), now.Format("-07:00"), strings.Join(names, ", "), list.String())
+		now.Location().String(), now.Format("-07:00"), cfg.WeekendText(), weekdayNames[cfg.WeekStart], now.Format("-07:00"),
+		strings.Join(names, ", "), voiceLine(cfg), list.String())
 
 	content, err := callAI(ctx, cfg, sys, text, "calendar_action", askSchema)
 	if err != nil {
@@ -271,6 +273,23 @@ func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {
 		out = append(out, d)
 	}
 	return out, nil
+}
+
+// voiceLine sets the tone of answers (Settings → AI personality).
+func voiceLine(cfg *Config) string {
+	name := strings.TrimSpace(cfg.Name)
+	who := ""
+	if name != "" {
+		who = " The user's name is " + name + "."
+	}
+	switch cfg.Voice {
+	case "formal":
+		return "Tone for answers: concise, polite and professional, no emoji." + who
+	case "fun":
+		return "Tone for answers: playful and witty, a light joke or emoji is welcome, but always accurate and short." + who
+	default:
+		return "Tone for answers: warm and friendly, plain words, at most one emoji." + who
+	}
 }
 
 var errNoKey = fmt.Errorf("add your OpenRouter key in Settings to use AI")

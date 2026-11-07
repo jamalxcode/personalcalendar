@@ -28,6 +28,16 @@ type State struct {
 	Accent           string         `json:"accent"`
 	ShowHolidayRows  bool           `json:"showHolidayRows"`
 	AIProvider       string         `json:"aiProvider"` // OpenRouter | OpenAI | ""
+	WeekStart        int            `json:"weekStart"`
+	WeekendDays      []int          `json:"weekendDays"`
+	Playful          bool           `json:"playful"`
+	Confetti         bool           `json:"confetti"`
+	Sounds           bool           `json:"sounds"`
+	Name             string         `json:"name"`
+	Weather          []DayWeather   `json:"weather"`
+	WeatherCity      string         `json:"weatherCity"`
+	Countdowns       []Countdown    `json:"countdowns"`
+	Pinned           []string       `json:"pinned"` // pinned event IDs
 	Now              time.Time      `json:"now"`
 }
 
@@ -47,10 +57,30 @@ func (a *App) state() State {
 		Accent:           a.cfg.Accent,
 		ShowHolidayRows:  a.cfg.ShowHolidayRows,
 		AIProvider:       aiProvider(a.cfg.OpenAIKey),
+		WeekStart:        a.cfg.WeekStart,
+		WeekendDays:      a.cfg.WeekendDays,
+		Playful:          !a.cfg.NoPlayful,
+		Confetti:         !a.cfg.NoPlayful && !a.cfg.NoConfetti,
+		Sounds:           !a.cfg.NoPlayful && a.cfg.Sounds,
+		Name:             a.cfg.Name,
+		WeatherCity:      a.cfg.WeatherCity,
 		Now:              time.Now(),
 		GoogleAccounts:   []string{},
 	}
 	st.Connected = st.Access == "full"
+	a.mu.Lock()
+	st.Weather, st.Countdowns = a.extras.Weather, a.extras.Countdowns
+	a.mu.Unlock()
+	if st.Weather == nil {
+		st.Weather = []DayWeather{}
+	}
+	if st.Countdowns == nil {
+		st.Countdowns = []Countdown{}
+	}
+	st.Pinned = []string{}
+	for _, p := range a.cfg.Pinned {
+		st.Pinned = append(st.Pinned, p.ID)
+	}
 	seen := map[string]bool{}
 	for _, c := range cals {
 		if c.Google && !seen[c.Account] {
@@ -208,6 +238,45 @@ func (s *CalService) Search(q string) ([]Event, error) {
 	return out, nil
 }
 
+// GetGreeting returns the one-line greeting for the top of the panel.
+func (s *CalService) GetGreeting() string {
+	if s.a.cfg.NoPlayful {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return s.a.greeting(ctx)
+}
+
+// Emojis returns AI-picked emojis for titles the frontend couldn't match itself (cached forever).
+func (s *CalService) Emojis(titles []string) map[string]string {
+	return s.a.emojisFor(titles)
+}
+
+// PinEvent adds a countdown for an event; UnpinEvent removes it.
+func (s *CalService) PinEvent(id, title string, start time.Time) State {
+	for _, p := range s.a.cfg.Pinned {
+		if p.ID == id {
+			return s.a.state()
+		}
+	}
+	s.a.cfg.Pinned = append(s.a.cfg.Pinned, Pin{ID: id, Title: title, Start: start.Format(time.RFC3339)})
+	_ = s.a.cfg.Save()
+	return s.a.doRefresh()
+}
+
+func (s *CalService) UnpinEvent(id string) State {
+	keep := []Pin{}
+	for _, p := range s.a.cfg.Pinned {
+		if p.ID != id {
+			keep = append(keep, p)
+		}
+	}
+	s.a.cfg.Pinned = keep
+	_ = s.a.cfg.Save()
+	return s.a.doRefresh()
+}
+
 func (s *CalService) loginEnabled() bool {
 	st, err := s.a.wa.Autostart.Status()
 	return err == nil && st.Enabled
@@ -261,6 +330,16 @@ type Settings struct {
 	AlertMode        string   `json:"alertMode"`
 	LaunchAtLogin    bool     `json:"launchAtLogin"`
 	ShowHolidayRows  bool     `json:"showHolidayRows"`
+	Region           string   `json:"region"`
+	WeekStart        int      `json:"weekStart"`
+	WeekendDays      []int    `json:"weekendDays"`
+	Playful          bool     `json:"playful"`
+	Confetti         bool     `json:"confetti"`
+	Sounds           bool     `json:"sounds"`
+	Voice            string   `json:"voice"`
+	Name             string   `json:"name"`
+	Weather          bool     `json:"weather"`
+	WeatherCity      string   `json:"weatherCity"`
 }
 
 func (s *CalService) GetSettings() Settings {
@@ -277,7 +356,9 @@ func (s *CalService) GetSettings() Settings {
 		ConfirmBeforeAdd: c.ConfirmBeforeAdd, DaysAhead: c.DaysAhead,
 		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent,
 		MenuBarStyle: c.MenuBarStyle, AlertMode: c.AlertMode, LaunchAtLogin: s.loginEnabled(),
-		ShowHolidayRows: c.ShowHolidayRows}
+		ShowHolidayRows: c.ShowHolidayRows, Region: c.Region, WeekStart: c.WeekStart, WeekendDays: c.WeekendDays,
+		Playful: !c.NoPlayful, Confetti: !c.NoConfetti, Sounds: c.Sounds, Voice: c.Voice, Name: c.Name,
+		Weather: !c.NoWeather, WeatherCity: c.WeatherCity}
 }
 
 func (s *CalService) SaveSettings(in Settings) (State, error) {
@@ -319,6 +400,30 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 		}
 	}
 	c.LaunchAtLogin = in.LaunchAtLogin
+	if in.WeekStart >= 0 && in.WeekStart <= 6 {
+		c.WeekStart = in.WeekStart
+	}
+	days := []int{}
+	for _, d := range in.WeekendDays {
+		if d >= 0 && d <= 6 {
+			days = append(days, d)
+		}
+	}
+	c.WeekendDays, c.Region, c.WeekSet = days, in.Region, true
+	c.NoPlayful, c.NoConfetti, c.Sounds = !in.Playful, !in.Confetti, in.Sounds
+	switch in.Voice {
+	case "friendly", "formal", "fun":
+		c.Voice = in.Voice
+	}
+	c.Name = strings.TrimSpace(in.Name)
+	c.NoWeather = !in.Weather
+	if city := strings.TrimSpace(in.WeatherCity); city != "" && !strings.EqualFold(city, c.WeatherCity) {
+		name, lat, lon, err := geocode(city)
+		if err != nil {
+			return s.a.state(), err
+		}
+		c.WeatherCity, c.WeatherLat, c.WeatherLon = name, lat, lon
+	}
 	if err := c.Save(); err != nil {
 		return s.a.state(), err
 	}
