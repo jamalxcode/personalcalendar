@@ -1976,7 +1976,7 @@ function renderUpdate(info, statusMsg) {
     const ul = $("updNotes");
     ul.innerHTML = "";
     (U.notes || "").split("\n").map((l) => l.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean)
-      .forEach((l) => ul.append(el("li", "", l)));
+      .forEach((l) => { const li = el("li"); li.innerHTML = esc(l).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); ul.append(li); });
   }
   let st = statusMsg;
   if (!st && U && U.checked && !U.checked.startsWith("0001")) {

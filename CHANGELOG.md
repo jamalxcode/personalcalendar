@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.1
+
+- The drop-down panel is taller (fits the AI box, calendar and list), up to your screen's height
+- Updating is more reliable: if the old copy doesn't quit in time it's stopped, so the new version always opens
+- Release notes in the Update panel show bold text properly
+
 ## v1.8.0
 
 - **New layout:** the AI box sits right at the top, then the greeting, then the calendar

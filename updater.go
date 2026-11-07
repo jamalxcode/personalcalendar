@@ -115,7 +115,12 @@ func currentBundle() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	exe, _ = filepath.EvalSymlinks(exe)
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	} else if _, statErr := os.Stat(exe); statErr != nil {
+		// our own program file is gone: an update already replaced this copy on disk
+		return "", fmt.Errorf("Smart Cal was already updated on disk — click Quit app, then open Smart Cal from Applications")
+	}
 	b := filepath.Dir(filepath.Dir(filepath.Dir(exe))) // …/X.app/Contents/MacOS/bin → …/X.app
 	if !strings.HasSuffix(b, ".app") {
 		return "", fmt.Errorf("not running from an .app bundle (%s)", exe)
@@ -168,7 +173,8 @@ PID=%d
 OLD=%q
 NEW=%q
 TARGET=%q
-for i in $(seq 1 100); do kill -0 $PID 2>/dev/null || break; sleep 0.1; done
+for i in $(seq 1 150); do kill -0 $PID 2>/dev/null || break; sleep 0.1; done
+kill -0 $PID 2>/dev/null && { kill -9 $PID 2>/dev/null; sleep 0.5; }   # old copy still up: stop it so "open" starts the new one
 rm -rf "$OLD.previous"
 mv "$OLD" "$OLD.previous" && mv "$NEW" "$TARGET" || { mv "$OLD.previous" "$OLD" 2>/dev/null; open "$OLD"; exit 1; }
 rm -rf "$OLD.previous"

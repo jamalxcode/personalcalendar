@@ -142,9 +142,10 @@ func main() {
 		a.week.Hide()
 		e.Cancel()
 	})
-	if a.cfg.TextSize != 100 {
+	// size the drop-down to the screen once the app (and its screen list) is up
+	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		a.applyTextSize()
-	}
+	})
 
 	a.notif.OnNotificationResponse(func(r notifications.NotificationResult) {
 		if r.Error != nil {
@@ -312,9 +313,25 @@ func (a *App) setHotkey(accel string) error {
 }
 
 // applyTextSize scales the panel (the page zooms itself; the window grows to match).
-func (a *App) applyTextSize() {
+// panelSize: the drop-down grows to fit the AI box + calendar + list, up to the screen's height.
+func (a *App) panelSize() (int, int) {
 	z := float64(a.cfg.TextSize) / 100
-	a.win.SetSize(int(380*z), int(700*z))
+	w, h := int(380*z), int(880*z)
+	if a.wa.Screen != nil {
+		if sc := a.wa.Screen.GetPrimary(); sc != nil && sc.WorkArea.Height > 0 {
+			if max := sc.WorkArea.Height - 20; h > max {
+				h = max
+			}
+		}
+	}
+	if h < 560 {
+		h = 560
+	}
+	return w, h
+}
+
+func (a *App) applyTextSize() {
+	a.win.SetSize(a.panelSize())
 	a.wa.Event.Emit("ui:textsize", a.cfg.TextSize)
 }
 
