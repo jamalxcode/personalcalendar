@@ -52,3 +52,8 @@
 - **Template tray icons:** Wails keeps `isTemplate` once set, so switching colour ↔ monochrome is done natively by setting `button.image` with `setTemplate:` ourselves.
 - **i18n without rewriting the UI:** an exact-match dictionary plus a few regex patterns, applied by a `MutationObserver` to text nodes and `title`/`placeholder` attributes; guard against observer loops by only writing when the value differs.
 - **Standard About panel:** `orderFrontStandardAboutPanelWithOptions:` with an attributed Credits string; activate the app first (accessory apps are in the background).
+- **Wails v3 window methods are no-ops before `Run()`** (no native window yet) — restore saved frames in an `ApplicationStarted` handler.
+- **Never auto-save a secret field.** Instant-save forms must exclude half-typed keys; save them on an explicit action (Enter/paste).
+- **Re-renders must not steal scroll.** Auto-scroll only when the view's subject (the day) changes, not on every state update.
+- **Keep network waits out of locks.** Do the quick store lookup under the EventKit lock, then geocode/ETA outside it; cache geocodes (Apple rate-limits them).
+- **Write config atomically** (temp file + rename) when it holds the only copy of a user's API key.

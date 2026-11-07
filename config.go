@@ -199,8 +199,16 @@ func loadConfig() *Config {
 func (c *Config) Save() error {
 	cfgMu.Lock()
 	defer cfgMu.Unlock()
-	b, _ := json.MarshalIndent(c, "", "  ")
-	return os.WriteFile(configPath(), b, 0o600)
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	// write a temp file and rename it, so a crash mid-write can never lose the config (and the AI key)
+	tmp := configPath() + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, configPath())
 }
 
 func (c *Config) IsHidden(id string) bool {

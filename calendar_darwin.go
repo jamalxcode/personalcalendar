@@ -27,7 +27,8 @@ void show_about(const char *version, const char *credits);
 void set_dock_visible(int show);
 void app_activate(void);
 char *sys_prefs(void);
-double ek_eta(const char *from, const char *eventId, double start);
+double ek_eta(const char *from, double lat, double lon, const char *place);
+char *ek_event_place(const char *eventId, double start);
 */
 import "C"
 
@@ -482,10 +483,22 @@ func readClipboard() (text, imageB64 string) {
 
 // driveTime returns the driving time from `from` to the event's place (Apple Maps), or -1.
 func (c *Cal) driveTime(from, eventID string, start time.Time) time.Duration {
-	f, id := C.CString(from), C.CString(eventID)
+	id := C.CString(eventID)
+	c.mu.Lock() // the store lookup is quick and must be serialised…
+	raw := takeString(C.ek_event_place(id, C.double(start.Unix())))
+	c.mu.Unlock()
+	C.free(unsafe.Pointer(id))
+	var p struct {
+		Lat, Lon float64
+		Loc      string
+	}
+	if json.Unmarshal([]byte(raw), &p) != nil || (p.Lat == 0 && p.Lon == 0 && p.Loc == "") {
+		return -1
+	}
+	f, loc := C.CString(from), C.CString(p.Loc)
 	defer C.free(unsafe.Pointer(f))
-	defer C.free(unsafe.Pointer(id))
-	secs := float64(C.ek_eta(f, id, C.double(start.Unix())))
+	defer C.free(unsafe.Pointer(loc))
+	secs := float64(C.ek_eta(f, C.double(p.Lat), C.double(p.Lon), loc)) // …the network part runs outside the lock
 	if secs < 0 {
 		return -1
 	}

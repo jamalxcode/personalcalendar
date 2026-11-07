@@ -2,6 +2,18 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.0.1 — review fixes
+
+- Fixed: typing your AI key while another setting saved could store a half-typed key (the key now saves only on Enter or paste)
+- Fixed: the Day view jumped back to "now" every couple of minutes while you were scrolling
+- Fixed: changes made in another app (or a refresh) now update the open Week/Day lists and the Year view straight away
+- Fixed: the week and Settings windows now really reopen where you left them (and only if that spot is still on a screen)
+- Settings are written safely (temporary file + rename), so a crash can't wipe your config or key
+- Faster search: one fetch serves every keystroke for a minute
+- Leave-now: drive-time lookups no longer hold the calendar lock while waiting on the network (no more brief freezes), and places are cached so Apple's geocoding limits aren't hit
+- The Settings window no longer repeats the panel's background work (greeting, emoji lookups, refreshes)
+- Small thread-safety fix for the menu bar icon
+
 ## v2.0.0 — a proper Mac app
 
 - **Settings is now its own window** (⌘, from anywhere) with toolbar tabs, and changes **save as you make them** — no Save button

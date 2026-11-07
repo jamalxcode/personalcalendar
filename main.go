@@ -44,7 +44,10 @@ type App struct {
 	notifOK      bool
 	alerted      map[string]bool // event+start already notified
 	badged       bool            // tray shows the "starting soon" badge
-	iconKey      string          // current tray image (soon|style)
+	iconKey      string          // current tray image (soon|style), guarded by trayMu
+	trayMu       sync.Mutex
+	searchEvs    []Event // cached two-year range for search (guarded by mu)
+	searchAt     time.Time
 	settings     *application.WebviewWindow
 	week         *application.WebviewWindow
 	travel       map[string]int // "id|unix" → driving minutes (guarded by mu)
@@ -164,8 +167,11 @@ func main() {
 		a.settings.Hide()
 		e.Cancel()
 	})
-	a.rememberFrame(a.week, &a.cfg.WeekBounds)
-	a.rememberFrame(a.settings, &a.cfg.SetBounds)
+	// window frames: restore once the native windows exist (before Run they're no-ops), then track changes
+	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		a.rememberFrame(a.week, &a.cfg.WeekBounds)
+		a.rememberFrame(a.settings, &a.cfg.SetBounds)
+	})
 
 	// clicking the Dock icon (when shown) opens the panel
 	a.wa.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
@@ -387,18 +393,25 @@ func (a *App) showAboutPanel() {
 
 // rememberFrame restores a window's last size and position and saves it when it changes.
 func (a *App) rememberFrame(w *application.WebviewWindow, slot **Rect) {
-	if r := *slot; r != nil && r.W > 300 && r.H > 300 {
+	if r := *slot; r != nil && r.W > 300 && r.H > 300 && a.onScreen(r) {
 		w.SetBounds(application.Rect{X: r.X, Y: r.Y, Width: r.W, Height: r.H})
 	}
-	var t *time.Timer
+	var (
+		tmu sync.Mutex
+		t   *time.Timer
+	)
 	save := func(*application.WindowEvent) {
+		tmu.Lock()
+		defer tmu.Unlock()
 		if t != nil {
 			t.Stop()
 		}
 		t = time.AfterFunc(800*time.Millisecond, func() {
 			b := w.Bounds()
 			if b.Width > 300 && b.Height > 300 {
+				cfgMu.Lock()
 				*slot = &Rect{X: b.X, Y: b.Y, W: b.Width, H: b.Height}
+				cfgMu.Unlock()
 				_ = a.cfg.Save()
 			}
 		})
@@ -516,6 +529,7 @@ func (a *App) doRefresh() State {
 		ex.Todos, _ = a.cal.Reminders()
 	}
 	a.mu.Lock()
+	a.searchAt = time.Time{} // events may have changed: next search refetches
 	if err == nil {
 		a.events = evs
 	}
@@ -715,6 +729,8 @@ func (a *App) fullLabel(evs []Event, now time.Time) string {
 // there's no text to show. In the 5 minutes before a meeting the label gets an orange dot
 // (or, icon-only, the icon gets its orange badge).
 func (a *App) setTray(label string, evs []Event, now time.Time) {
+	a.trayMu.Lock() // called from the refresh loop and from settings/panel calls
+	defer a.trayMu.Unlock()
 	soon := a.meetingSoon(evs, now)
 	if label != "" && soon {
 		label = "🟠 " + label
@@ -852,4 +868,18 @@ func isDigits(s string) bool {
 		}
 	}
 	return true
+}
+
+// onScreen: a saved frame is only restored if it still overlaps a connected display.
+func (a *App) onScreen(r *Rect) bool {
+	if a.wa.Screen == nil {
+		return true
+	}
+	for _, sc := range a.wa.Screen.GetAll() {
+		b := sc.Bounds
+		if r.X < b.X+b.Width && r.X+r.W > b.X && r.Y < b.Y+b.Height && r.Y+r.H > b.Y {
+			return true
+		}
+	}
+	return false
 }

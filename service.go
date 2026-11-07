@@ -690,9 +690,19 @@ func (s *CalService) Search(q string) ([]Event, error) {
 		return out, nil
 	}
 	now := time.Now()
-	evs, err := s.a.cal.Range(s.a.cfg, now.AddDate(-1, 0, 0), now.AddDate(1, 0, 0))
-	if err != nil {
-		return out, err
+	// one two-year fetch serves every keystroke for a minute (cleared on any refresh)
+	s.a.mu.Lock()
+	evs, fresh := s.a.searchEvs, time.Since(s.a.searchAt) < time.Minute
+	s.a.mu.Unlock()
+	if !fresh {
+		var err error
+		evs, err = s.a.cal.Range(s.a.cfg, now.AddDate(-1, 0, 0), now.AddDate(1, 0, 0))
+		if err != nil {
+			return out, err
+		}
+		s.a.mu.Lock()
+		s.a.searchEvs, s.a.searchAt = evs, now
+		s.a.mu.Unlock()
 	}
 	// newest first for the past, soonest first for the future
 	var past, future []Event

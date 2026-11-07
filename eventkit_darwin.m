@@ -564,20 +564,36 @@ static CLLocation *geocodeSync(NSString *addr, CLLocation *near) {
     return loc;
 }
 
-// Driving time in seconds from `from` (an address) to the event's place, or -1 if unknown.
-double ek_eta(const char *from, const char *eventId, double start) {
+// The event's place as {"lat","lon","loc"} — a quick store lookup (called under the calendar lock).
+char *ek_event_place(const char *eventId, double start) {
     ek_init();
-    NSString *f = str(from);
+    EKEvent *e = findOccurrence(str(eventId), start);
+    if (!e) return strdup("{}");
+    CLLocation *g = e.structuredLocation.geoLocation;
+    NSDictionary *d = @{@"lat": @(g ? g.coordinate.latitude : 0), @"lon": @(g ? g.coordinate.longitude : 0), @"loc": e.location ?: @""};
+    NSData *j = [NSJSONSerialization dataWithJSONObject:d options:0 error:nil];
+    return strdup([[[NSString alloc] initWithData:j encoding:NSUTF8StringEncoding] UTF8String]);
+}
+
+static NSMutableDictionary<NSString *, CLLocation *> *destCache = nil;
+
+// Driving time in seconds from `from` (an address) to a place, or -1 if unknown. Slow (network):
+// never called under the calendar lock. Only the travel loop calls it, so the caches need no lock.
+double ek_eta(const char *from, double lat, double lon, const char *place) {
+    NSString *f = str(from), *p = str(place);
     if (!f.length) return -1;
     if (!originLoc || ![originAddr isEqualToString:f]) {
         originLoc = geocodeSync(f, nil);
         originAddr = f;
     }
     if (!originLoc) return -1;
-    EKEvent *e = findOccurrence(str(eventId), start);
-    if (!e) return -1;
-    CLLocation *dest = e.structuredLocation.geoLocation;
-    if (!dest && e.location.length) dest = geocodeSync(e.location, originLoc);
+    CLLocation *dest = nil;
+    if (lat != 0 || lon != 0) dest = [[CLLocation alloc] initWithLatitude:lat longitude:lon];
+    if (!dest && p.length) {
+        if (!destCache) destCache = [NSMutableDictionary dictionary];
+        dest = destCache[p];
+        if (!dest) { dest = geocodeSync(p, originLoc); if (dest) destCache[p] = dest; } // Apple rate-limits geocoding: cache places
+    }
     if (!dest) return -1;
     if ([dest distanceFromLocation:originLoc] < 300) return 0;
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);

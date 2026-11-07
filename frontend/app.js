@@ -318,10 +318,9 @@ function renderWeekStrip() {
   setTodayDot(calView === "day" ? !(selectedDay && sameDay(selectedDay, now)) : !inToday);
 }
 
-async function loadWeekList() {
+async function loadWeekList(quiet) {
   const start = weekAnchor;
-  weekView = { start, events: null };
-  renderList();
+  if (!quiet || !weekView || +weekView.start !== +start) { weekView = { start, events: null }; renderList(); }
   try {
     const list = withDates(await go("EventsBetween", start.toISOString(), addDays(start, 7).toISOString()));
     if (weekView && +weekView.start === +start) { weekView.events = list; renderList(); renderMiniCal(); }
@@ -330,6 +329,7 @@ async function loadWeekList() {
 
 function setView(v) {
   calView = v;
+  lastHourScroll = "";
   try { localStorage.setItem("calView", v); } catch (_) {}
   if (v === "day") {
     const d = selectedDay || new Date();
@@ -407,6 +407,7 @@ function renderWeekRows(list, start, events) {
 }
 
 // ---------- day view: one line per hour ----------
+let lastHourScroll = "";
 function renderHourRows(list, d, events) {
   const now = new Date(), day0 = startOfDay(d), day1 = addDays(day0, 1);
   const shown = events.filter((e) => S.showHolidayRows || !e.holiday);
@@ -452,6 +453,9 @@ function renderHourRows(list, d, events) {
   // scroll to now (today) or to the first event / 7 am
   const first = timed.length ? Math.min(...timed.map((e) => (e.s < day0 ? 0 : e.s.getHours()))) : 7;
   const target = scrollTo || box.children[Math.min(first, 7)];
+  const k = dayKey(d);
+  if (lastHourScroll === k) return;
+  lastHourScroll = k;
   requestAnimationFrame(() => {
     const sc = $("scroll");
     sc.scrollTop += target.getBoundingClientRect().top - sc.getBoundingClientRect().top - 70;
@@ -487,6 +491,16 @@ async function openDay(d, keepView) {
     const list = withDates(await go("EventsBetween", startOfDay(d).toISOString(), addDays(startOfDay(d), 1).toISOString()));
     if (dayView && sameDay(dayView.d, d)) { dayView.events = list; renderList(); }
   } catch (err) { toast(errMsg(err), true); }
+}
+
+// reload the open day without resetting its scroll (used when events change)
+async function reloadDay() {
+  const d = dayView && dayView.d;
+  if (!d) return;
+  try {
+    const list = withDates(await go("EventsBetween", startOfDay(d).toISOString(), addDays(startOfDay(d), 1).toISOString()));
+    if (dayView && sameDay(dayView.d, d)) { dayView.events = list; const top = $("scroll").scrollTop; renderList(); $("scroll").scrollTop = top; }
+  } catch (_) {}
 }
 
 function closeDay() {
@@ -1092,9 +1106,21 @@ function renderFooter() {
   $("hotkeyHint").textContent = S.hotkey ? S.hotkey.replace("Ctrl", "⌃").replace("Alt", "⌥").replace(/\+/g, "") + " to open" : "";
 }
 
+let eventsSig = "";
 function applyState(st) {
   if (!st) return;
   S = st;
+  const sig = (S.events || []).map((e) => e.id + e.start + e.end + e.title).join("|");
+  if (eventsSig && sig !== eventsSig) {
+    // something changed (here or in another app): drop cached ranges and reload what's open
+    monthCache.clear(); yearCache.clear();
+    if (!SETTINGS_WIN) {
+      if (calView === "year") loadYear(viewYear);
+      if (listMode === "week" && weekView) loadWeekList(true);
+      if (listMode === "day" && dayView) reloadDay();
+    }
+  }
+  eventsSig = sig;
   if ((S.lang || "en") !== LANG) i18nApply(S.lang || "en");
   document.body.classList.toggle("reduce-motion", !!S.reduceMotion);
   document.body.classList.toggle("more-contrast", !!S.contrast);
@@ -1157,6 +1183,7 @@ function emojiFor(e) {
   return "";
 }
 function queueEmojiLookup() {
+  if (SETTINGS_WIN) return;
   clearTimeout(emojiTimer);
   emojiTimer = setTimeout(async () => {
     const titles = [...askedEmoji].filter((t) => !aiEmoji.has(t));
@@ -1266,6 +1293,7 @@ function mascotPoke() {
 // ---------- greeting ----------
 let greetPending = false;
 async function refreshGreeting() {
+  if (SETTINGS_WIN) return;
   if (!playful() || greetPending) return;
   greetPending = true;
   try {
@@ -2372,7 +2400,7 @@ async function saveSettings(silent) {
   const hidden = [...document.querySelectorAll("#calList input[type=checkbox]")].filter((c) => !c.checked).map((c) => c.dataset.cal);
   const def = (document.querySelector("#calList input[type=radio]:checked") || {}).value || "";
   const payload = {
-    openaiKey: $("sKey").value.trim(),
+    openaiKey: silent ? "" : $("sKey").value.trim(), // the key saves only on Enter/paste, never mid-typing
     openaiModel: $("sModel").value.trim(),
     clockMode: $("sClock").value,
     language: $("sLang").value,
@@ -2410,7 +2438,7 @@ async function saveSettings(silent) {
     settingsCache = await go("GetSettings");
     renderSwatches();
     const keyJustSaved = !!payload.openaiKey;
-    $("sKey").value = "";
+    if (keyJustSaved) $("sKey").value = "";
     if (keyJustSaved) editingKey = false;
     arrangeSettings();
     if (keyJustSaved) { const k = $("keySaved"); k.classList.remove("just"); void k.offsetWidth; k.classList.add("just"); }
@@ -2557,6 +2585,8 @@ function wire() {
     toast(`⏰ ${a.title} — ${a.body}`);
   });
   Events.On("popover:shown", () => {
+    if (SETTINGS_WIN) return;
+    lastHourScroll = "";
     const now = new Date();
     viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
     selectedDay = null;
@@ -2598,6 +2628,7 @@ setTimeout(() => { if (calView !== "month") setView(calView); }, 300);
 // send the panel's emoji for upcoming events to the menu bar label ("👥 2h Meet")
 let lastLabelEmojis = "";
 function pushLabelEmojis() {
+  if (SETTINGS_WIN) return;
   const m = {};
   for (const e of evs().slice(0, 12)) if (!e.allDay && !e.holiday) m[e.title] = emojiFor(e) || (flightOf(e.title, e.location) ? "✈️" : "");
   const j = JSON.stringify(m);
@@ -2787,5 +2818,10 @@ function labelIconButtons(root = document) {
     if (!b.textContent.trim() || /^[^\w؀-ۿ]+$/.test(b.textContent.trim())) b.setAttribute("aria-label", b.title);
   });
 }
-new MutationObserver(() => labelIconButtons()).observe(document.body, { childList: true, subtree: true });
+let labelPending = false;
+new MutationObserver(() => {
+  if (labelPending) return;
+  labelPending = true;
+  requestAnimationFrame(() => { labelPending = false; labelIconButtons(); });
+}).observe(document.body, { childList: true, subtree: true });
 labelIconButtons();
