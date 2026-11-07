@@ -2,6 +2,19 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.5.0
+
+- Event card: click any event for time, place (opens Maps), notes, attendees and a Join button — with Edit, Duplicate, Delete and Open in Calendar
+- Any day: click a day in the month (any month) to see its agenda; ← → step through days
+- The AI box now answers questions ("what's on Thursday?", "am I free tomorrow afternoon?") and makes changes ("move lunch to 3pm", "cancel Friday's dentist") with a before/after preview
+- Works offline / without a key for simple lines ("gym 7am", "dentist tomorrow 4:30pm")
+- Search events across the past month and the next year (⌘F or /)
+- Meeting alerts: a notification before each meeting with a Join button (1/5/10 min, at start, or off)
+- Starts at login (toggle in Settings)
+- Menu bar shows the next event (e.g. "Mon 09:00 · Follow up") — or pick date / icon only
+- Holidays appear as small tags on the day instead of full rows; duplicate events from overlapping calendars are merged
+- Weekends (Fri–Sat) shaded in the month view; arrow keys move through events, Return opens, ⌫ deletes
+
 ## v1.4.0
 
 - New app and menu bar icon: the smiling calendar with the magic wand

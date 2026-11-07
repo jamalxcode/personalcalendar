@@ -2,15 +2,13 @@
 
 A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and uses **OpenAI or OpenRouter** to understand plain-English event entry.
 
-- Menu bar shows what's next: `Standup in 12m`, `● Lunch with Ali · 25m left`, or today's date when the day is clear.
-- Click it (or press **⌃⌥C** anywhere) and a frosted popover drops down under the icon: mini month with event dots, quick add, an "Up next" card with live countdown + **Join** for Google Meet, and your upcoming events grouped by day. Click away and it hides. Right-click the icon for Refresh / Settings / Quit.
-- Click a day in the mini month to jump to it; double-click a day to start an event on that date.
-- **Quick add**: type `Dinner with Sara Thursday 8pm at Mais Alghanim`, hit Return, check the preview card (title is editable, calendar is pickable), hit Return again. Done.
-  - Handles durations (`for 30m`), all-day (`Ali's birthday Friday`), multi-day (`Dubai trip 12–15 Dec`), locations, reminders (`remind me 1h before`), several events at once, and picks a calendar if you name one (`… on Work`).
-  - Knows the Kuwait weekend is Fri–Sat.
-- Hover an event for Join / delete (with confirmation); click it to open in Calendar.
-- Settings: choose which calendars to show, which one new events go to, 12/24h, days ahead, preview on/off.
-- Shortcuts: `⌃⌥C` toggle popover (global) · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` cancel preview / hide.
+- **Menu bar** shows the next event (`Mon 09:00 · Follow up`, `Standup in 12m`, `● Lunch · 25m left`) — or just the date, or icon only.
+- **Panel** (click the icon or press **⌃⌥C**): month view with highlighted event days (any month, weekends shaded, holiday days underlined), the AI box, an *Up next* card with countdown + **Join**, and your upcoming events by day. Holidays show as small tags.
+- **Click a day** for that day's agenda; **click an event** for its card — time, place (opens Maps), notes, attendees, Join — with **Edit / Duplicate / Delete / Open in Calendar**.
+- **AI box** (OpenRouter): add (`dinner with Sara Thursday 8pm at Mais Alghanim`), ask (`what's on Thursday?`, `am I free tomorrow afternoon?`) or change (`move lunch to 3pm`, `cancel Friday's dentist`) — changes show a before/after preview first. Simple lines work offline without a key.
+- **Search** (⌘F or `/`) across the past month and the next year.
+- **Meeting alerts** with a Join button, **starts at login**, **highlight colour** of your choice, self-**updates** from GitHub.
+- Keys: `⌃⌥C` toggle · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` back/close.
 
 ## Build (on your Mac)
 
@@ -54,9 +52,11 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 | `frontend/` | the popover: `index.html`, `style.css`, `app.js` (talks to Go via `/wails/runtime.js`) |
 | `eventkit_darwin.m` | Objective-C bridge to Apple EventKit: permission, calendars, events, add, delete, change notifications |
 | `calendar_darwin.go` | Go wrapper over the bridge (+ Meet/Zoom/Teams link detection) |
-| `ai.go` | OpenAI / OpenRouter structured-output parsing of free text → events |
+| `ai.go` | OpenRouter/OpenAI structured output: one call decides add / answer / update / delete |
+| `parse_local.go` (+ test) | offline parser for simple lines when there's no key or no network |
 | `config.go` | settings file |
 | `icons.go` | menu bar template icon + app icon, drawn in code |
 | `updater.go` | checks GitHub releases, downloads the zip, swaps the bundle, relaunches |
 | `.github/workflows/release.yml` | builds + publishes a release when `VERSION` changes |
+| `.github/workflows/ci.yml` | compiles + tests every push to a non-main branch on a macOS runner |
 | `build.sh` / `build.command` | compile (`-tags production,private_mac_apis`), bundle as a menu-bar-only `.app`, ad-hoc sign, copy to Desktop |

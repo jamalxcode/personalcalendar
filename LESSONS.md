@@ -27,3 +27,10 @@
 - **`tell application id "…" to quit` launches the app if it isn't running** — guard it with `if application id "…" is running then …`.
 - **Release on VERSION bump:** a workflow filtered on `paths: [VERSION]` that skips if the tag already exists; release notes come from the matching `## vX.Y.Z` section of CHANGELOG.md.
 - **Secrets for personal Mac apps go in a 0600 file in Application Support, not the Keychain** (the Keychain keeps asking for the password for unsigned/ad-hoc builds). That folder survives app updates, so the key is entered once.
+- **One AI call, four intents.** A strict JSON schema with `kind: add|answer|update|delete` plus fields that are always present (empty when unused) lets one request route everything. Give the model a numbered list of nearby events and have it answer with the number — never let it invent event IDs.
+- **Always confirm AI edits/deletes** with a before/after card; apply only on the user's click.
+- **Offline fallback** keeps the app useful without a key: a small regex parser for "thing + day/time" lines, with unit tests.
+- **Holiday calendars**: detect read-only calendars named *Holiday*; show them as day tags. De-duplicate events by title+start+all-day — the same Google holiday often arrives through two subscriptions.
+- **Notifications from an ad-hoc-signed app** may be refused; fall back to dropping the panel down so the alert is never lost.
+- **Wails `Autostart`** uses SMAppService for a bundled app — the login item follows the bundle path, so self-updates that swap the bundle in place keep it.
+- **Iterate on a branch with a macOS CI build check** before bumping VERSION on main — catches compile errors without needing the user's Mac.
