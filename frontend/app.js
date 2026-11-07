@@ -191,6 +191,7 @@ function renderList() {
   if (!S.connected) { list.append(emptyState("📅", "Allow calendar access to see what's coming up.")); return; }
   if (!all.length) {
     list.append(emptyState("🌴", S.error ? "Couldn't load events." : `Nothing in the next ${S.daysAhead} days.`));
+    list.append(syncHint());
     return;
   }
 
@@ -215,6 +216,15 @@ function renderList() {
     list.append(head);
     for (const e of g.items) list.append(eventRow(e, now));
   }
+  if (all.length < 3) list.append(syncHint());
+}
+
+// macOS doesn't tell apps when an account's login has expired, so give a way to check.
+function syncHint() {
+  const d = el("div", "sync-hint muted small");
+  d.innerHTML = `Events missing? macOS may need you to sign in to Google again — <a href="#">open Calendar</a> and look for “Sign in”.`;
+  d.querySelector("a").onclick = (ev) => { ev.preventDefault(); go("OpenURL", "ical://"); };
+  return d;
 }
 
 function emptyState(icon, text) {
@@ -428,6 +438,7 @@ function renderGoogleBox() {
     : S.access === "notDetermined" ? "macOS will ask once — click <b>Allow</b>."
     : "It was turned off — click Allow to open the switch in System Settings.";
   $("step2").classList.toggle("done", S.hasGoogle);
+  $("saveSettings").textContent = S.connected && S.hasGoogle ? "Done" : "Save";
   $("step2").classList.toggle("waiting", !S.connected);
   const accounts = [...new Set(S.calendars.map((c) => c.account).filter(Boolean))];
   $("step2Hint").innerHTML = !S.connected

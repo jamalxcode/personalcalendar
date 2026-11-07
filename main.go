@@ -130,7 +130,7 @@ func (a *App) loop() {
 		a.cal.RequestAccess() // first launch: macOS asks "allow access to Calendars?"
 	}
 	a.doRefresh()
-	if !a.cal.Connected() || a.cfg.OpenAIKey == "" {
+	if !a.cal.Connected() { // a missing AI key only shows a banner; the calendar view comes first
 		a.tray.ShowWindow()
 		a.wa.Event.Emit("ui:settings")
 	}

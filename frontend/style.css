@@ -281,3 +281,4 @@ a:hover { text-decoration: underline; }
 .banner .btn { margin-left: 6px; padding: 3px 10px; }
 .setup-step.waiting { opacity: .55; }
 .setup-step.waiting .btn { display: none; }
+.sync-hint { text-align: center; padding: 14px 18px 4px; line-height: 1.5; }

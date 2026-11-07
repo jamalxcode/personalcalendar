@@ -20,3 +20,5 @@
 - **Native file picker from Go without cgo glue:** `osascript -e 'POSIX path of (choose file …)'`.
 - **Builds happen on the Mac.** Fyne needs cgo + Apple frameworks; cross-compiling from Linux isn't worth it.
 - **ObjC → JSON booleans:** `@(a && b)` boxes an *int*, so NSJSONSerialization writes `1`/`0` and Go's `bool` unmarshal fails. Use `cond ? @YES : @NO`. (Found via the `.diag/status.json` the dev build writes — worth having when you can't see the app.)
+- **"Calendars listed but no events" = expired account login on the Mac.** Apple Calendar shows "Invalid Credentials. Sign in?"; EventKit still lists the calendars but has no new events. Apps can't detect this, so the UI shows a hint linking to Calendar.app.
+- **device_commit_files can lag/silently not land** on the Mac — verify with md5sum via device_bash, and fall back to editing in place with python in device_bash.
