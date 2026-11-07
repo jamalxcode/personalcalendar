@@ -2,6 +2,19 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.0
+
+- **New layout:** the AI box sits right at the top, then the greeting, then the calendar
+- **Year · Month · Week · Day views** — switch with the icons next to the title (the selected one has a dark outline); ‹ › step by year, month, week or day, and the blue dot takes you back to today
+- **Repeating events:** "gym every Mon & Wed 7am", "rent on the 1st every month" — or pick Repeat in the editor (custom days, until a date). Editing or deleting a repeating event asks: this one, or this and all future
+- **Clash warnings** on previews, the editor and drag-and-drop, plus a free-slot finder ("find an hour for the gym this week") with one-click booking
+- **Paste anything:** paste or drop text, emails or screenshots (flight bookings, invites) into the AI box, or press the clipboard button — the AI pulls the events out
+- **Undo everywhere:** adds, edits, moves, deletes and to-dos
+- **Default alerts** for new events (and all-day events), and **Leave now** notifications using live drive time from Apple Maps
+- **To-dos** from Apple Reminders: see, tick off and add — or just type "remind me to call the bank tomorrow"
+- **Big week view** window (⌘⇧W or from the menu bar): drag to move and resize across days, double-click to add
+- Time zones shown when an event is in another zone; search now covers notes and the past year; configurable keyboard shortcut; settings split into tabs; text size setting
+
 ## v1.7.0
 
 - Renamed to **Smart Cal** — from go.sala.company. The app renames itself on disk ("Smart Cal.app"); settings, your AI key and calendar permission carry over.

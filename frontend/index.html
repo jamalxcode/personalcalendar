@@ -16,35 +16,6 @@
     </div>
     <!-- ===== main view ===== -->
     <section id="main" class="view">
-      <div class="greet hidden" id="greet">
-        <button class="mascot" id="mascot" title="Hi! Click me"></button>
-        <div class="bubble" id="greetText">Hi there 👋</div>
-      </div>
-      <header class="top">
-        <div class="month-title"><span id="monthName"></span> <span id="yearName" class="muted"></span></div>
-        <div class="top-actions">
-          <button class="icon-btn" id="prevMonth" title="Previous month">‹</button>
-          <button class="pill-btn" id="todayBtn" title="Back to today">Today</button>
-          <button class="icon-btn" id="nextMonth" title="Next month">›</button>
-          <button class="icon-btn search-btn" id="searchBtn" title="Search (⌘F)">
-            <svg viewBox="0 0 20 20"><path d="M8.5 3a5.5 5.5 0 0 1 4.38 8.83l3.65 3.64-1.06 1.06-3.64-3.65A5.5 5.5 0 1 1 8.5 3Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>
-          </button>
-          <button class="icon-btn gear" id="openSettings" title="Settings (⌘,)">
-            <svg viewBox="0 0 24 24" class="gear-svg"><path fill-rule="evenodd" d="M19.39 10.23 L22.11 10.64 L22.11 13.36 L19.39 13.77 L18.48 15.97 L20.11 18.19 L18.19 20.11 L15.97 18.48 L13.77 19.39 L13.36 22.11 L10.64 22.11 L10.23 19.39 L8.03 18.48 L5.81 20.11 L3.89 18.19 L5.52 15.97 L4.61 13.77 L1.89 13.36 L1.89 10.64 L4.61 10.23 L5.52 8.03 L3.89 5.81 L5.81 3.89 L8.03 5.52 L10.23 4.61 L10.64 1.89 L13.36 1.89 L13.77 4.61 L15.97 5.52 L18.19 3.89 L20.11 5.81 L18.48 8.03 Z M15.20 12 A3.2 3.2 0 1 0 8.80 12 A3.2 3.2 0 1 0 15.20 12 Z"/></svg>
-          </button>
-        </div>
-      </header>
-
-      <div class="search-bar hidden" id="searchBar">
-        <input id="searchInput" type="text" placeholder="Search events…" spellcheck="false">
-        <button class="icon-btn small" id="searchClose" title="Close search">✕</button>
-      </div>
-
-      <div class="minical">
-        <div class="dow" id="dow"></div>
-        <div class="grid" id="grid"></div>
-      </div>
-
       <form id="quickForm" class="quick" autocomplete="off">
         <span class="spark" id="spark" title="AI quick add">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -56,15 +27,56 @@
         </span>
         <textarea id="quick" rows="2" spellcheck="false"
                   placeholder="Add, ask or change anything…&#10;“lunch Fri 1pm” · “what’s on today?”"></textarea>
-        <kbd class="enter-hint">↩</kbd>
+        <div class="quick-side">
+          <button type="button" class="icon-btn clip-btn" id="clipBtn" title="Make events from what you copied — a message, email or screenshot">
+            <svg viewBox="0 0 20 20"><path d="M7 3.5h6v1.5H7zM5.5 4.25A1.75 1.75 0 0 1 7.25 2.5h5.5a1.75 1.75 0 0 1 1.75 1.75V5h.75A1.75 1.75 0 0 1 17 6.75v9.5A1.75 1.75 0 0 1 15.25 18h-10.5A1.75 1.75 0 0 1 3 16.25v-9.5A1.75 1.75 0 0 1 4.75 5h.75zm-.75 2.25a.25.25 0 0 0-.25.25v9.5c0 .14.11.25.25.25h10.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25H14.5v.25A1.75 1.75 0 0 1 12.75 8.25h-5.5A1.75 1.75 0 0 1 5.5 6.5v-.25z"/></svg>
+          </button>
+          <kbd class="enter-hint">↩</kbd>
+        </div>
       </form>
-
+      <div class="attach hidden" id="attach"><img id="attachImg" alt=""><span>Screenshot attached — press ↩</span><button class="icon-btn small" id="attachX" title="Remove">✕</button></div>
       <div id="drafts" class="drafts"></div>
-      <div id="countdowns" class="countdowns"></div>
       <div id="setupBanner" class="banner hidden"></div>
+
+      <div class="greet hidden" id="greet">
+        <button class="mascot" id="mascot" title="Hi! Click me"></button>
+        <div class="bubble" id="greetText">Hi there 👋</div>
+      </div>
+      <header class="top">
+        <div class="title-row">
+          <div class="month-title" id="periodTitle"><span id="monthName"></span> <span id="yearName" class="muted"></span></div>
+          <div class="views" id="views">
+            <button data-view="year" title="Year view"><svg viewBox="0 0 20 20"><path d="M3 3h6v6H3zm8 0h6v6h-6zM3 11h6v6H3zm8 0h6v6h-6z" class="vf"/></svg></button>
+            <button data-view="month" title="Month view"><svg viewBox="0 0 20 20"><path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5c0 .97.78 1.75 1.75 1.75h10.5c.97 0 1.75-.78 1.75-1.75V4.75C17 3.78 16.22 3 15.25 3zM4.5 7h11v8.25a.25.25 0 0 1-.25.25H4.75a.25.25 0 0 1-.25-.25zM6 9h2v2H6zm3 0h2v2H9zm3 0h2v2h-2zm-6 3h2v2H6zm3 0h2v2H9z"/></svg></button>
+            <button data-view="week" title="Week view"><svg viewBox="0 0 20 20"><path d="M3 4h2v12H3zm3.5 0h2v12h-2zm3.5 0h2v12h-2zm3.5 0h2v12h-2z"/></svg></button>
+            <button data-view="day" title="Day view"><svg viewBox="0 0 20 20"><path d="M5 3.5h10A1.5 1.5 0 0 1 16.5 5v10a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 15V5A1.5 1.5 0 0 1 5 3.5zM6 7v2h8V7zm0 4v2h5v-2z"/></svg></button>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="icon-btn small-nav" id="prevMonth" title="Previous">‹</button>
+          <button class="today-dot" id="todayBtn" title="Back to today (⌘T)"></button>
+          <button class="icon-btn small-nav" id="nextMonth" title="Next">›</button>
+          <button class="icon-btn search-btn" id="searchBtn" title="Search (⌘F)">
+            <svg viewBox="0 0 20 20"><path d="M8.5 3a5.5 5.5 0 0 1 4.38 8.83l3.65 3.64-1.06 1.06-3.64-3.65A5.5 5.5 0 1 1 8.5 3Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>
+          </button>
+          <button class="icon-btn gear" id="openSettings" title="Settings (⌘,)">
+            <svg viewBox="0 0 24 24" class="gear-svg"><path fill-rule="evenodd" d="M19.39 10.23 L22.11 10.64 L22.11 13.36 L19.39 13.77 L18.48 15.97 L20.11 18.19 L18.19 20.11 L15.97 18.48 L13.77 19.39 L13.36 22.11 L10.64 22.11 L10.23 19.39 L8.03 18.48 L5.81 20.11 L3.89 18.19 L5.52 15.97 L4.61 13.77 L1.89 13.36 L1.89 10.64 L4.61 10.23 L5.52 8.03 L3.89 5.81 L5.81 3.89 L8.03 5.52 L10.23 4.61 L10.64 1.89 L13.36 1.89 L13.77 4.61 L15.97 5.52 L18.19 3.89 L20.11 5.81 L18.48 8.03 Z M15.20 12 A3.2 3.2 0 1 0 8.80 12 A3.2 3.2 0 1 0 15.20 12 Z"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="search-bar hidden" id="searchBar">
+        <input id="searchInput" type="text" placeholder="Search events…" spellcheck="false">
+        <button class="icon-btn small" id="searchClose" title="Close search">✕</button>
+      </div>
+      <div class="minical">
+        <div class="dow" id="dow"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div id="countdowns" class="countdowns"></div>
 
       <div class="scroll" id="scroll">
         <div id="upnext"></div>
+        <div id="todos"></div>
         <div id="list"></div>
       </div>
 
@@ -85,13 +97,16 @@
         <div class="month-title">Settings</div>
         <span style="width:58px"></span>
       </header>
+      <div class="tabs" id="tabs">
+        <button data-tab="calendar" class="on">Calendar</button><button data-tab="ai">AI</button><button data-tab="look">Look</button><button data-tab="alerts">Alerts</button><button data-tab="about">About</button>
+      </div>
       <div class="scroll settings-body">
-        <div class="connected-line hidden" id="connectedLine">
+        <div data-tab="calendar" class="connected-line hidden" id="connectedLine">
           <span class="ok-dot">✓</span> <span id="connectedText">Connected</span>
           <a href="#" id="showSetup" class="small">details</a>
         </div>
 
-        <div class="group" id="connectGroup">
+        <div data-tab="calendar" class="group" id="connectGroup">
           <div class="group-title">Connect your calendar</div>
           <div class="setup-step" id="step1">
             <span class="step-num">1</span>
@@ -111,12 +126,12 @@
           </div>
         </div>
 
-        <div class="group" id="calGroup">
+        <div data-tab="calendar" class="group" id="calGroup">
           <div class="group-title">Calendars <span class="muted small">show · default for new events</span></div>
           <div id="calList" class="cal-list"></div>
         </div>
 
-        <div class="group ai-group" id="aiGroup">
+        <div data-tab="ai" class="group ai-group" id="aiGroup">
           <div class="group-title">✦ AI quick add <span class="muted small">powered by OpenRouter</span> <span class="key-state" id="keyState"></span></div>
           <div class="small muted" id="aiIntro">Type events in plain English — the AI turns them into calendar entries. It runs through <b>OpenRouter</b>: paste your OpenRouter key below once (an OpenAI key also works).</div>
           <div class="key-saved hidden" id="keySaved">
@@ -134,12 +149,19 @@
           <div class="small muted" id="keyNote">Get a key at <a href="#" data-url="https://openrouter.ai/keys">openrouter.ai/keys</a>. It's saved in a file on this Mac — no Keychain, no password prompts, and you won't be asked again.</div>
         </div>
 
-        <div class="group">
+        <div data-tab="look" class="group">
           <div class="group-title">Highlight colour <span class="accent-name" id="accentName"></span></div>
           <div class="swatches" id="swatches"></div>
         </div>
 
-        <div class="group">
+        <div data-tab="calendar" class="group" id="todoGroup">
+          <div class="group-title">To-dos <span class="muted small">from Apple Reminders</span></div>
+          <div class="row-between"><span id="remStatus" class="small muted"></span><button class="btn" id="allowRem">Allow Reminders</button></div>
+          <label class="check"><input type="checkbox" id="sTodos"> Show to-dos in the panel</label>
+          <label class="field"><span>New to-dos</span><select id="sTodoList"></select></label>
+        </div>
+
+        <div data-tab="calendar" class="group">
           <div class="group-title">Week</div>
           <label class="field"><span>Region</span>
             <select id="sRegion">
@@ -158,7 +180,7 @@
           <div class="field"><span>Weekend</span><div class="day-chips" id="sWeekend"></div></div>
         </div>
 
-        <div class="group">
+        <div data-tab="look" class="group">
           <div class="group-title">Playful mode <span class="muted small">mascot, greeting, emojis, weather, confetti</span></div>
           <label class="check"><input type="checkbox" id="sPlayful"> Playful mode</label>
           <div id="playfulOpts" class="sub-opts">
@@ -172,7 +194,7 @@
           </div>
         </div>
 
-        <div class="group">
+        <div data-tab="alerts" class="group">
           <div class="group-title">Menu bar &amp; alerts</div>
           <label class="field"><span>Menu bar</span>
             <select id="sMenuBar">
@@ -192,17 +214,43 @@
           <label class="check"><input type="checkbox" id="sLogin"> Start Smart Cal at login</label>
         </div>
 
-        <div class="group">
+        <div data-tab="alerts" class="group">
+          <div class="group-title">Alerts for new events</div>
+          <label class="field"><span>Timed</span>
+            <select id="sDefAlarm"><option value="none">None</option><option value="0">At start</option><option value="5">5 min before</option><option value="10">10 min before</option><option value="15">15 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option></select></label>
+          <label class="field"><span>All-day</span>
+            <select id="sAllDayAlarm"><option value="none">None</option><option value="dayBefore9">9:00 the day before</option><option value="sameDay9">9:00 on the day</option></select></label>
+        </div>
+
+        <div data-tab="alerts" class="group">
+          <div class="group-title">Leave-now alerts <span class="muted small">driving time via Apple Maps</span></div>
+          <label class="field"><span>Start from</span><input id="sTravel" type="text" placeholder="Home address or area (empty = off)" spellcheck="false"></label>
+          <div class="small muted">For events with a place, Smart Cal checks traffic and tells you when to leave.</div>
+        </div>
+
+        <div data-tab="alerts" class="group">
+          <div class="group-title">Keyboard shortcut</div>
+          <label class="field"><span>Open panel</span>
+            <select id="sHotkey">
+              <option value="Ctrl+Alt+C">⌃⌥C</option><option value="Ctrl+Alt+Space">⌃⌥Space</option><option value="Alt+Space">⌥Space</option>
+              <option value="Ctrl+Space">⌃Space</option><option value="CmdOrCtrl+Shift+C">⌘⇧C</option><option value="Ctrl+Alt+CmdOrCtrl+C">⌃⌥⌘C</option><option value="off">Off</option>
+            </select></label>
+          <div class="small muted">⌘⇧W opens the week window.</div>
+        </div>
+
+        <div data-tab="look" class="group">
           <div class="group-title">Display</div>
           <label class="check"><input type="checkbox" id="s24"> 24-hour clock</label>
           <label class="check"><input type="checkbox" id="sConfirm"> Preview before adding</label>
           <label class="check"><input type="checkbox" id="sHolRows"> Show holidays as full rows (instead of small tags)</label>
+          <label class="field"><span>Text size</span>
+            <select id="sTextSize"><option value="100">Normal</option><option value="115">Large</option><option value="130">Extra large</option></select></label>
           <label class="field"><span>Show next</span>
             <select id="sDays"><option value="7">7 days</option><option value="14">14 days</option>
               <option value="30">30 days</option><option value="60">60 days</option></select></label>
         </div>
 
-        <div class="group" id="updatesGroup">
+        <div data-tab="about" class="group" id="updatesGroup">
           <div class="group-title">Updates</div>
           <div class="row-between">
             <div>

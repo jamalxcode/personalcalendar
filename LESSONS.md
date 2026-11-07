@@ -41,3 +41,7 @@
 - **Week start / weekend are user settings**, never hard-coded — they feed the month grid, the recap, the greeting and the AI prompt.
 - **Playwright won't click animated elements** ("not stable") — use `{force: true}` in preview scripts.
 - **Renaming a shipped app:** change only display names (CFBundleName/DisplayName, UI text). Keep the bundle ID, executable name, config folder and repo so permissions, settings and update URLs survive. Old updaters look for the old bundle name inside the zip — keep it there and let the new version rename itself on disk (renaming a running .app is safe), then re-register the login item.
+- **Recurring events in EventKit:** save/remove with `EKSpanThisEvent` or `EKSpanFutureEvents`, and find the occurrence by id + original start (`eventsMatchingPredicate` around that start) — the id alone gives the first occurrence.
+- **One AI call, six intents** (add/answer/update/delete/slots/todo). Images go in as an `image_url` data URL; shrink screenshots to ~1600px JPEG first.
+- **Free slots are computed in Go, not by the model** — the AI only extracts the duration and window; the code checks real busy times.
+- **Pop-out windows in Wails v3:** a second hidden window with its own HTML page; closing hides it; share data via `Event.Emit("state")`.

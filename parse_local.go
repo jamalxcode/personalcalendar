@@ -31,6 +31,27 @@ func localParse(text string, now time.Time) (Draft, bool) {
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
+	// repeats: "every monday", "every mon and wed", "daily", "every day", "weekly", "monthly", "every weekday"
+	var rep Repeat
+	if m := reEvery.FindStringIndex(lower); m != nil {
+		phrase := lower[m[0]:m[1]]
+		switch {
+		case strings.Contains(phrase, "weekday"):
+			rep = Repeat{Freq: "weekly", Interval: 1, Weekdays: []int{0, 1, 2, 3, 4}}
+		case strings.Contains(phrase, "daily") || strings.Contains(phrase, "every day"):
+			rep = Repeat{Freq: "daily", Interval: 1}
+		case strings.Contains(phrase, "monthly") || strings.Contains(phrase, "every month"):
+			rep = Repeat{Freq: "monthly", Interval: 1}
+		case strings.Contains(phrase, "yearly") || strings.Contains(phrase, "every year"):
+			rep = Repeat{Freq: "yearly", Interval: 1}
+		default:
+			rep = Repeat{Freq: "weekly", Interval: 1}
+			for _, w := range reWeekdayWord.FindAllString(phrase, -1) {
+				rep.Weekdays = append(rep.Weekdays, int(weekdays[w[:3]]))
+			}
+		}
+		cut(m)
+	}
 	// duration: "for 30m", "for 2 hours", "for 1.5h"
 	if m := reDur.FindStringSubmatchIndex(lower); m != nil {
 		n, _ := strconv.ParseFloat(lower[m[2]:m[3]], 64)
@@ -117,7 +138,7 @@ func localParse(text string, now time.Time) (Draft, bool) {
 	if tonight && hour < 0 {
 		hour = 20
 	}
-	if !haveDay && hour < 0 {
+	if !haveDay && hour < 0 && !rep.Active() {
 		return Draft{}, false
 	}
 	title := strings.Join(strings.Fields(reFiller.ReplaceAllString(" "+s+" ", " ")), " ")
@@ -126,7 +147,20 @@ func localParse(text string, now time.Time) (Draft, bool) {
 		title = "New event"
 	}
 	title = strings.ToUpper(title[:1]) + title[1:]
-	d := Draft{Title: title, Location: location}
+	d := Draft{Title: title, Location: location, Repeat: rep}
+	if rep.Active() {
+		d.RepeatText = rep.Text()
+		if !haveDay && len(rep.Weekdays) > 0 { // "gym every mon and wed 7am" → first upcoming of those days
+			best := 8
+			for _, w := range rep.Weekdays {
+				dd := (w - int(today.Weekday()) + 7) % 7
+				if dd < best {
+					best = dd
+				}
+			}
+			day, haveDay = today.AddDate(0, 0, best), true
+		}
+	}
 	if hour < 0 { // date only → all-day
 		d.AllDay = true
 		d.Start, d.End = day, day.AddDate(0, 0, 1)
@@ -160,17 +194,19 @@ func dateFrom(today time.Time, mon time.Month, d int) time.Time {
 }
 
 var (
-	reDur      = regexp.MustCompile(`\bfor (\d+(?:\.\d+)?) ?(m|min|mins|minutes|h|hr|hrs|hour|hours)\b`)
-	reLoc      = regexp.MustCompile(`\s(?:at|@)\s+([^\d\s][^@]*?)\s*(?:$|\s(?:on|tomorrow|tmrw|today|tonight|next|this|for|noon|(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*|\d))`)
-	reTonight  = regexp.MustCompile(`\btonight\b`)
-	reToday    = regexp.MustCompile(`\btoday\b`)
-	reTomorrow = regexp.MustCompile(`\b(tomorrow|tmrw|tmr)\b`)
-	reWeekday  = regexp.MustCompile(`\b(?:(next) |this |on )?((sun|mon|tue|wed|thu|fri|sat)[a-z]*)\b`)
-	reDate1    = regexp.MustCompile(`\b(?:on )?(\d{1,2})(?:st|nd|rd|th)? ((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b`)
-	reDate2    = regexp.MustCompile(`\b(?:on )?((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*) (\d{1,2})(?:st|nd|rd|th)?\b`)
-	reTime     = regexp.MustCompile(`\b(?:at )?(\d{1,2})(?::(\d{2}))? ?(am|pm)?\b`)
-	reNoon     = regexp.MustCompile(`\b(?:at )?noon\b`)
-	reFiller   = regexp.MustCompile(`(?i)\s(at|on|@)\s*$`)
-	weekdays   = map[string]time.Weekday{"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
-	months     = map[string]time.Month{"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+	reEvery       = regexp.MustCompile(`\b(?:daily|weekly|monthly|yearly|every (?:week ?day|day|week|month|year|(?:(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*(?:,? (?:and |& )?)?)+))\b`)
+	reWeekdayWord = regexp.MustCompile(`(sun|mon|tue|wed|thu|fri|sat)[a-z]*`)
+	reDur         = regexp.MustCompile(`\bfor (\d+(?:\.\d+)?) ?(m|min|mins|minutes|h|hr|hrs|hour|hours)\b`)
+	reLoc         = regexp.MustCompile(`\s(?:at|@)\s+([^\d\s][^@]*?)\s*(?:$|\s(?:on|tomorrow|tmrw|today|tonight|next|this|for|noon|(?:sun|mon|tue|wed|thu|fri|sat)[a-z]*|\d))`)
+	reTonight     = regexp.MustCompile(`\btonight\b`)
+	reToday       = regexp.MustCompile(`\btoday\b`)
+	reTomorrow    = regexp.MustCompile(`\b(tomorrow|tmrw|tmr)\b`)
+	reWeekday     = regexp.MustCompile(`\b(?:(next) |this |on )?((sun|mon|tue|wed|thu|fri|sat)[a-z]*)\b`)
+	reDate1       = regexp.MustCompile(`\b(?:on )?(\d{1,2})(?:st|nd|rd|th)? ((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b`)
+	reDate2       = regexp.MustCompile(`\b(?:on )?((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*) (\d{1,2})(?:st|nd|rd|th)?\b`)
+	reTime        = regexp.MustCompile(`\b(?:at )?(\d{1,2})(?::(\d{2}))? ?(am|pm)?\b`)
+	reNoon        = regexp.MustCompile(`\b(?:at )?noon\b`)
+	reFiller      = regexp.MustCompile(`(?i)\s(at|on|@)\s*$`)
+	weekdays      = map[string]time.Weekday{"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
+	months        = map[string]time.Month{"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
 )

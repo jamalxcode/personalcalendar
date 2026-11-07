@@ -2,7 +2,7 @@ package main
 
 /*
 #cgo CFLAGS: -fobjc-arc -Wno-unused-command-line-argument
-#cgo LDFLAGS: -framework EventKit -framework AppKit -framework Foundation
+#cgo LDFLAGS: -framework EventKit -framework AppKit -framework Foundation -framework MapKit -framework CoreLocation
 #include <stdlib.h>
 void  ek_init(void);
 int   ek_status(void);
@@ -10,12 +10,18 @@ int   ek_request(void);
 void  ek_refresh(void);
 char *ek_calendars(void);
 char *ek_events(double from, double to, const char *hidden);
-char *ek_add(const char *title, const char *location, const char *notes, const char *calendarId,
-             double start, double end, int allDay, int alarmMinutes);
-char *ek_delete(const char *eventId, double start);
+char *ek_add_json(const char *json);
+char *ek_delete(const char *eventId, double start, int span);
 char *ek_detail(const char *eventId, double start);
-char *ek_update(const char *eventId, double origStart, const char *title, const char *location,
-                const char *notes, const char *calendarId, double start, double end, int allDay);
+char *ek_update_json(const char *eventId, double origStart, const char *json, int span);
+int   ek_rem_status(void);
+int   ek_rem_request(void);
+char *ek_rem_lists(void);
+char *ek_reminders(void);
+char *ek_rem_save(const char *json);
+char *ek_rem_delete(const char *rid);
+char *clip_read(void);
+double ek_eta(const char *from, const char *eventId, double start);
 */
 import "C"
 
@@ -47,6 +53,9 @@ type Event struct {
 	MeetLink   string    `json:"meetLink"`
 	Holiday    bool      `json:"holiday"` // from a holiday calendar: shown as a day tag, not a row
 	Writable   bool      `json:"writable"`
+	TimeZone   string    `json:"timeZone"` // IANA zone the event was created in ("" = floating/all-day)
+	Recurring  bool      `json:"recurring"`
+	Notes      string    `json:"-"` // kept for search only
 }
 
 // EventDetail is the full record for the event card.
@@ -54,9 +63,11 @@ type EventDetail struct {
 	Event
 	Notes     string     `json:"notes"`
 	URL       string     `json:"url"`
-	Recurring bool       `json:"recurring"`
 	Organizer string     `json:"organizer"`
 	Attendees []Attendee `json:"attendees"`
+	Repeat    Repeat     `json:"repeat"`
+	HasAlarm  bool       `json:"hasAlarm"`
+	AlarmSecs float64    `json:"alarmSecs"`
 }
 
 type Attendee struct {
@@ -185,6 +196,8 @@ type rawEvent struct {
 	AllDay     bool    `json:"allDay"`
 	URL        string  `json:"url"`
 	Notes      string  `json:"notes"`
+	TimeZone   string  `json:"timeZone"`
+	Recurring  bool    `json:"recurring"`
 }
 
 // Upcoming returns events from now (including ones in progress) through `days` ahead.
@@ -255,8 +268,12 @@ func (c *Cal) Range(cfg *Config, from, to time.Time) ([]Event, error) {
 
 func rawToEvent(r rawEvent) Event {
 	ev := Event{ID: r.ID, CalendarID: r.CalendarID, Calendar: r.Calendar, Color: r.Color,
-		Title: r.Title, Location: r.Location, AllDay: r.AllDay,
+		Title: r.Title, Location: r.Location, AllDay: r.AllDay, TimeZone: r.TimeZone,
+		Recurring: r.Recurring, Notes: r.Notes,
 		Start: time.Unix(int64(r.Start), 0), End: time.Unix(int64(r.End), 0)}
+	if r.AllDay {
+		ev.TimeZone = ""
+	}
 	if ev.Title == "" {
 		ev.Title = "(No title)"
 	}
@@ -280,10 +297,12 @@ func (c *Cal) Detail(eventID string, start time.Time) (EventDetail, error) {
 	var d struct {
 		rawEvent
 		Error     string     `json:"error"`
-		Recurring bool       `json:"recurring"`
 		Writable  bool       `json:"writable"`
 		Organizer string     `json:"organizer"`
 		Attendees []Attendee `json:"attendees"`
+		Repeat    rawRepeat  `json:"repeat"`
+		HasAlarm  bool       `json:"hasAlarm"`
+		AlarmSecs float64    `json:"alarmSecs"`
 	}
 	if err := json.Unmarshal([]byte(raw), &d); err != nil {
 		return EventDetail{}, err
@@ -296,28 +315,49 @@ func (c *Cal) Detail(eventID string, start time.Time) (EventDetail, error) {
 	if d.Attendees == nil {
 		d.Attendees = []Attendee{}
 	}
-	return EventDetail{Event: ev, Notes: d.Notes, URL: d.URL, Recurring: d.Recurring,
-		Organizer: d.Organizer, Attendees: d.Attendees}, nil
+	return EventDetail{Event: ev, Notes: d.Notes, URL: d.URL, Organizer: d.Organizer, Attendees: d.Attendees,
+		Repeat: d.Repeat.toRepeat(), HasAlarm: d.HasAlarm, AlarmSecs: d.AlarmSecs}, nil
 }
 
-// Update edits one occurrence of an event.
-func (c *Cal) Update(eventID string, origStart time.Time, d Draft) error {
+// Insert creates an event and returns a reference to it (for Undo).
+func (c *Cal) Insert(calID string, d Draft) (EventRef, error) {
+	if !c.Connected() {
+		return EventRef{}, errNoAccess
+	}
+	d.CalendarID = calID
+	j := C.CString(draftJSON(d, true))
+	defer C.free(unsafe.Pointer(j))
+	c.mu.Lock()
+	raw := takeString(C.ek_add_json(j))
+	c.mu.Unlock()
+	var r struct {
+		ID    string  `json:"id"`
+		Start float64 `json:"start"`
+		Error string  `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		return EventRef{}, err
+	}
+	if r.Error != "" {
+		return EventRef{}, errors.New(r.Error)
+	}
+	return EventRef{ID: r.ID, Start: time.Unix(int64(r.Start), 0)}, nil
+}
+
+// Update edits an event; allFuture applies it to this and later occurrences of a repeating event.
+func (c *Cal) Update(eventID string, origStart time.Time, d Draft, allFuture bool) error {
 	if !c.Connected() {
 		return errNoAccess
 	}
-	cs := []*C.char{C.CString(eventID), C.CString(d.Title), C.CString(d.Location), C.CString(d.Notes), C.CString(d.CalendarID)}
-	defer func() {
-		for _, p := range cs {
-			C.free(unsafe.Pointer(p))
-		}
-	}()
-	allDay := 0
-	if d.AllDay {
-		allDay = 1
+	id, j := C.CString(eventID), C.CString(draftJSON(d, false))
+	defer C.free(unsafe.Pointer(id))
+	defer C.free(unsafe.Pointer(j))
+	span := 0
+	if allFuture {
+		span = 1
 	}
 	c.mu.Lock()
-	msg := takeString(C.ek_update(cs[0], C.double(origStart.Unix()), cs[1], cs[2], cs[3], cs[4],
-		C.double(d.Start.Unix()), C.double(d.End.Unix()), C.int(allDay)))
+	msg := takeString(C.ek_update_json(id, C.double(origStart.Unix()), j, C.int(span)))
 	c.mu.Unlock()
 	if msg != "" {
 		return errors.New(msg)
@@ -325,40 +365,125 @@ func (c *Cal) Update(eventID string, origStart time.Time, d Draft) error {
 	return nil
 }
 
-func (c *Cal) Insert(calID string, d Draft) error {
-	if !c.Connected() {
-		return errNoAccess
-	}
-	cs := []*C.char{C.CString(d.Title), C.CString(d.Location), C.CString(d.Notes), C.CString(calID)}
-	defer func() {
-		for _, p := range cs {
-			C.free(unsafe.Pointer(p))
-		}
-	}()
-	allDay := 0
-	if d.AllDay {
-		allDay = 1
-	}
-	c.mu.Lock()
-	msg := takeString(C.ek_add(cs[0], cs[1], cs[2], cs[3], C.double(d.Start.Unix()), C.double(d.End.Unix()),
-		C.int(allDay), C.int(d.ReminderMinutes)))
-	c.mu.Unlock()
-	if msg != "" {
-		return errors.New(msg)
-	}
-	return nil
-}
-
-func (c *Cal) Delete(eventID string, start time.Time) error {
+func (c *Cal) Delete(eventID string, start time.Time, allFuture bool) error {
 	id := C.CString(eventID)
 	defer C.free(unsafe.Pointer(id))
+	span := 0
+	if allFuture {
+		span = 1
+	}
 	c.mu.Lock()
-	msg := takeString(C.ek_delete(id, C.double(start.Unix())))
+	msg := takeString(C.ek_delete(id, C.double(start.Unix()), C.int(span)))
 	c.mu.Unlock()
 	if msg != "" {
 		return errors.New(msg)
 	}
 	return nil
+}
+
+// ---- reminders ----
+
+func (c *Cal) RemindersAccess() string {
+	switch C.ek_rem_status() {
+	case 0:
+		return "notDetermined"
+	case 3:
+		return "full"
+	case 4:
+		return "writeOnly"
+	default:
+		return "denied"
+	}
+}
+
+func (c *Cal) RequestReminders() bool { return C.ek_rem_request() == 1 }
+
+func (c *Cal) Reminders() ([]Todo, error) {
+	if c.RemindersAccess() != "full" {
+		return []Todo{}, nil
+	}
+	c.mu.Lock()
+	raw := takeString(C.ek_reminders())
+	c.mu.Unlock()
+	var out []rawTodo
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil, err
+	}
+	todos := make([]Todo, 0, len(out))
+	for _, r := range out {
+		todos = append(todos, r.toTodo())
+	}
+	return todos, nil
+}
+
+func (c *Cal) ReminderLists() []TodoList {
+	if c.RemindersAccess() != "full" {
+		return []TodoList{}
+	}
+	c.mu.Lock()
+	raw := takeString(C.ek_rem_lists())
+	c.mu.Unlock()
+	var out []TodoList
+	_ = json.Unmarshal([]byte(raw), &out)
+	if out == nil {
+		out = []TodoList{}
+	}
+	return out
+}
+
+// SaveReminder adds (empty ID) or updates a to-do. Only the fields set in m are changed.
+func (c *Cal) SaveReminder(m map[string]any) (Todo, error) {
+	b, _ := json.Marshal(m)
+	j := C.CString(string(b))
+	defer C.free(unsafe.Pointer(j))
+	c.mu.Lock()
+	raw := takeString(C.ek_rem_save(j))
+	c.mu.Unlock()
+	var r struct {
+		rawTodo
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		return Todo{}, err
+	}
+	if r.Error != "" {
+		return Todo{}, errors.New(r.Error)
+	}
+	return r.rawTodo.toTodo(), nil
+}
+
+func (c *Cal) DeleteReminder(id string) error {
+	j := C.CString(id)
+	defer C.free(unsafe.Pointer(j))
+	c.mu.Lock()
+	msg := takeString(C.ek_rem_delete(j))
+	c.mu.Unlock()
+	if msg != "" {
+		return errors.New(msg)
+	}
+	return nil
+}
+
+// ---- clipboard + travel time ----
+
+// readClipboard returns the clipboard's text and/or image (base64 JPEG, max 1600px).
+func readClipboard() (text, imageB64 string) {
+	raw := takeString(C.clip_read())
+	var r struct{ Text, Image string }
+	_ = json.Unmarshal([]byte(raw), &r)
+	return r.Text, r.Image
+}
+
+// driveTime returns the driving time from `from` to the event's place (Apple Maps), or -1.
+func (c *Cal) driveTime(from, eventID string, start time.Time) time.Duration {
+	f, id := C.CString(from), C.CString(eventID)
+	defer C.free(unsafe.Pointer(f))
+	defer C.free(unsafe.Pointer(id))
+	secs := float64(C.ek_eta(f, id, C.double(start.Unix())))
+	if secs < 0 {
+		return -1
+	}
+	return time.Duration(secs * float64(time.Second))
 }
 
 func (c *Cal) RefreshSources() {

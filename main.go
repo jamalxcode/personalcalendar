@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,30 +29,33 @@ var diagDir string
 
 var buildStamp = "dev"
 
-// Global hotkey that toggles the popover from anywhere.
-const hotkey = "Ctrl+Alt+C"
-
 type App struct {
-	wa      *application.App
-	tray    *application.SystemTray
-	win     *application.WebviewWindow
-	cfg     *Config
-	cal     *Cal
-	mu      sync.Mutex
-	events  []Event
-	err     error
-	kick    chan struct{}
-	update  UpdateInfo // latest release check (guarded by mu)
-	notif   *notifications.NotificationService
-	notifOK bool
-	alerted map[string]bool // event+start already notified
-	badged  bool            // tray shows the "starting soon" badge
-	extras  extras          // weather + countdowns, refreshed with events
+	wa           *application.App
+	tray         *application.SystemTray
+	win          *application.WebviewWindow
+	cfg          *Config
+	cal          *Cal
+	mu           sync.Mutex
+	events       []Event
+	err          error
+	kick         chan struct{}
+	update       UpdateInfo // latest release check (guarded by mu)
+	notif        *notifications.NotificationService
+	notifOK      bool
+	alerted      map[string]bool // event+start already notified
+	badged       bool            // tray shows the "starting soon" badge
+	week         *application.WebviewWindow
+	travel       map[string]int // "id|unix" → driving minutes (guarded by mu)
+	travelAt     map[string]time.Time
+	leaveAlerted map[string]bool
+	hotkeyOn     string // currently registered shortcut
+	extras       extras // weather + countdowns, refreshed with events
 }
 
 type extras struct {
 	Weather    []DayWeather
 	Countdowns []Countdown
+	Todos      []Todo
 }
 
 func main() {
@@ -63,7 +67,8 @@ func main() {
 		return
 	}
 
-	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1), alerted: map[string]bool{}}
+	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1), alerted: map[string]bool{},
+		travel: map[string]int{}, travelAt: map[string]time.Time{}, leaveAlerted: map[string]bool{}}
 	a.notif = notifications.New()
 	a.cal.Init()
 	storeChanged = a.RequestRefresh // macOS tells us when any calendar changes
@@ -110,12 +115,35 @@ func main() {
 
 	a.tray = a.wa.SystemTray.New()
 	a.tray.SetIcon(trayIconPNG()) // full-colour icon (not a template, so macOS doesn't flatten it)
-	a.tray.SetTooltip("Smart Cal  (" + hotkey + ")")
+	a.tray.SetTooltip("Smart Cal")
 	a.tray.SetMenu(a.buildMenu())
 	a.tray.AttachWindow(a.win).WindowOffset(6)
 
-	if err := a.wa.GlobalShortcut.Register(hotkey, func() { a.tray.ToggleWindow() }); err != nil {
-		log.Printf("hotkey %s not registered: %v", hotkey, err)
+	if err := a.setHotkey(a.cfg.Hotkey); err != nil {
+		log.Printf("hotkey %s not registered: %v", a.cfg.Hotkey, err)
+	}
+
+	// the big week window (opened from the panel, the tray menu or ⌘⇧W)
+	a.week = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:      "week",
+		Title:     "Smart Cal — Week",
+		Width:     1120,
+		Height:    780,
+		MinWidth:  760,
+		MinHeight: 520,
+		Hidden:    true,
+		URL:       "/week.html",
+		Mac: application.MacWindow{
+			TitleBar:                application.MacTitleBar{AppearsTransparent: true, FullSizeContent: true, HideTitle: true},
+			InvisibleTitleBarHeight: 46,
+		},
+	})
+	a.week.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		a.week.Hide()
+		e.Cancel()
+	})
+	if a.cfg.TextSize != 100 {
+		a.applyTextSize()
 	}
 
 	a.notif.OnNotificationResponse(func(r notifications.NotificationResult) {
@@ -133,6 +161,7 @@ func main() {
 	go a.loop()
 	go a.updateLoop()
 	go a.alertLoop()
+	go a.travelLoop()
 	if err := a.wa.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -141,6 +170,7 @@ func main() {
 func (a *App) buildMenu() *application.Menu {
 	m := a.wa.NewMenu()
 	m.Add("Open Smart Cal").OnClick(func(*application.Context) { a.tray.ShowWindow() })
+	m.Add("Open Week View").OnClick(func(*application.Context) { a.showWeek() })
 	m.Add("Refresh").OnClick(func(*application.Context) { a.RequestRefresh() })
 	m.Add("Settings…").OnClick(func(*application.Context) {
 		a.tray.ShowWindow()
@@ -260,6 +290,106 @@ func (a *App) checkAlerts() {
 	}
 }
 
+// setHotkey swaps the global shortcut ("off" = none). On failure the old one is kept.
+func (a *App) setHotkey(accel string) error {
+	old := a.hotkeyOn
+	if old != "" {
+		_ = a.wa.GlobalShortcut.Unregister(old)
+		a.hotkeyOn = ""
+	}
+	if accel != "off" {
+		if err := a.wa.GlobalShortcut.Register(accel, func() { a.tray.ToggleWindow() }); err != nil {
+			if old != "" && a.wa.GlobalShortcut.Register(old, func() { a.tray.ToggleWindow() }) == nil {
+				a.hotkeyOn = old
+			}
+			return fmt.Errorf("couldn't use that shortcut (another app may have it): %v", err)
+		}
+		a.hotkeyOn = accel
+	}
+	a.cfg.Hotkey = accel
+	a.wa.GlobalShortcut.Register("CmdOrCtrl+Shift+W", func() { a.showWeek() }) //nolint:errcheck // best effort
+	return nil
+}
+
+// applyTextSize scales the panel (the page zooms itself; the window grows to match).
+func (a *App) applyTextSize() {
+	z := float64(a.cfg.TextSize) / 100
+	a.win.SetSize(int(380*z), int(700*z))
+	a.wa.Event.Emit("ui:textsize", a.cfg.TextSize)
+}
+
+func (a *App) showWeek() {
+	a.week.Show()
+	a.week.Focus()
+	a.wa.Event.Emit("week:shown")
+}
+
+func (a *App) clearTravel() {
+	a.mu.Lock()
+	a.travel, a.travelAt = map[string]int{}, map[string]time.Time{}
+	a.mu.Unlock()
+}
+
+// travelLoop asks Apple Maps for the driving time to upcoming events with a place and
+// sends a "Leave now" notification when it's time to go.
+func (a *App) travelLoop() {
+	time.Sleep(20 * time.Second)
+	for {
+		a.checkTravel()
+		time.Sleep(3 * time.Minute)
+	}
+}
+
+func (a *App) checkTravel() {
+	from := strings.TrimSpace(a.cfg.TravelFrom)
+	if from == "" || !a.cal.Connected() {
+		return
+	}
+	evs, _ := a.snapshot()
+	now := time.Now()
+	for _, e := range evs {
+		if e.AllDay || e.Holiday || strings.TrimSpace(e.Location) == "" || strings.HasPrefix(e.Location, "http") {
+			continue
+		}
+		if e.Start.Before(now) || e.Start.Sub(now) > 4*time.Hour {
+			continue
+		}
+		key := e.ID + "|" + strconv.FormatInt(e.Start.Unix(), 10)
+		a.mu.Lock()
+		last, mins := a.travelAt[key], a.travel[key]
+		a.mu.Unlock()
+		if time.Since(last) > 10*time.Minute {
+			d := a.cal.driveTime(from, e.ID, e.Start)
+			if d < 0 {
+				continue
+			}
+			mins = int(d.Round(time.Minute).Minutes())
+			a.mu.Lock()
+			a.travel[key], a.travelAt[key] = mins, time.Now()
+			a.mu.Unlock()
+			a.wa.Event.Emit("state", a.state())
+		}
+		if mins <= 0 || a.leaveAlerted[key] {
+			continue
+		}
+		leaveAt := e.Start.Add(-time.Duration(mins+5) * time.Minute) // 5 min to get to the car
+		if now.After(leaveAt) {
+			a.leaveAlerted[key] = true
+			body := fmt.Sprintf("~%d min drive to %s · starts %s", mins, e.Location, a.fmtTime(e.Start))
+			sent := false
+			if a.notifOK {
+				sent = a.notif.SendNotification(notifications.NotificationOptions{
+					ID: "leave-" + key, Title: "🚗 Leave now for " + e.Title, Body: body,
+				}) == nil
+			}
+			if !sent {
+				a.tray.ShowWindow()
+			}
+			a.wa.Event.Emit("alert", map[string]any{"title": "🚗 Leave now for " + e.Title, "body": body, "id": e.ID, "start": e.Start})
+		}
+	}
+}
+
 // updateLoop checks GitHub for a newer release shortly after launch and every 6 hours.
 func (a *App) updateLoop() {
 	time.Sleep(10 * time.Second)
@@ -292,6 +422,9 @@ func (a *App) RequestRefresh() {
 func (a *App) doRefresh() State {
 	evs, err := a.cal.Upcoming(a.cfg, a.cfg.DaysAhead)
 	ex := extras{Weather: a.weather(), Countdowns: a.countdowns()}
+	if !a.cfg.NoTodos {
+		ex.Todos, _ = a.cal.Reminders()
+	}
 	a.mu.Lock()
 	if err == nil {
 		a.events = evs

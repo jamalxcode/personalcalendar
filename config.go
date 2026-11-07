@@ -41,6 +41,16 @@ type Config struct {
 	WeatherLat  float64 `json:"weather_lat"`
 	WeatherLon  float64 `json:"weather_lon"`
 	Pinned      []Pin   `json:"pinned"` // countdowns
+
+	// Practical
+	DefaultAlarm string `json:"default_alarm"` // new timed events: none | 0 | 5 | 10 | 15 | 30 | 60
+	AllDayAlarm  string `json:"all_day_alarm"` // new all-day events: none | dayBefore9 | sameDay9
+	AlarmsSet    bool   `json:"alarms_set"`    // defaults applied once
+	TravelFrom   string `json:"travel_from"`   // address for "leave now" driving times ("" = off)
+	NoTodos      bool   `json:"no_todos"`      // hide the to-do section
+	TodoList     string `json:"todo_list"`     // Reminders list for new to-dos ("" = default)
+	Hotkey       string `json:"hotkey"`        // global shortcut ("off" = none)
+	TextSize     int    `json:"text_size"`     // 100 | 115 | 130 (%)
 }
 
 // Pin is an event pinned as a countdown.
@@ -104,6 +114,17 @@ func loadConfig() *Config {
 	}
 	if c.WeatherCity == "" {
 		c.WeatherCity, c.WeatherLat, c.WeatherLon = "Kuwait City", 29.3759, 47.9774
+	}
+	if !c.AlarmsSet {
+		c.DefaultAlarm, c.AllDayAlarm, c.AlarmsSet = "15", "dayBefore9", true
+	}
+	if c.Hotkey == "" {
+		c.Hotkey = "Ctrl+Alt+C"
+	}
+	switch c.TextSize {
+	case 100, 115, 130:
+	default:
+		c.TextSize = 100
 	}
 	if c.Pinned == nil {
 		c.Pinned = []Pin{}

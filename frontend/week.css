@@ -1,0 +1,66 @@
+/* Week window — reuses the colour tokens from style.css */
+html, body.week-page { overflow: hidden; background: var(--sheet); }
+.week-page { display: flex; flex-direction: column; height: 100vh; }
+.wk-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 18px 10px 86px; --wails-draggable: drag; flex: none;
+}
+.wk-top button { --wails-draggable: no-drag; }
+.wk-brand { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+.wk-brand img { width: 26px; height: 26px; }
+.wk-actions { display: flex; gap: 6px; }
+.wk-actions .btn { min-width: 34px; }
+.wk-head, .wk-allday { display: grid; grid-template-columns: 56px repeat(7, 1fr); flex: none; padding-right: 10px; }
+.wk-head > div { padding: 6px 8px; font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; border-bottom: .5px solid var(--line); }
+.wk-head .num { font-size: 20px; color: var(--fg); letter-spacing: -.3px; margin-left: 4px; text-transform: none; }
+.wk-head .today .num { background: var(--accent); color: #fff; border-radius: 50%; padding: 0 7px; }
+.wk-head .wx { float: right; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.wk-allday { min-height: 6px; border-bottom: .5px solid var(--line); }
+.wk-allday > div { padding: 3px 4px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wk-chip {
+  font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--c) 22%, var(--card)); border-left: 3px solid var(--c);
+}
+.wk-chip.hol { background: rgba(47, 163, 107, .14); border-left-color: #2fa36b; color: #1f8a57; }
+.wk-scroll { flex: 1; overflow-y: auto; position: relative; padding-right: 10px; }
+.wk-grid { position: relative; display: grid; grid-template-columns: 56px repeat(7, 1fr); }
+.wk-hours { position: relative; }
+.wk-hours span { position: absolute; right: 8px; font-size: 10.5px; color: var(--muted); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.wk-col { position: relative; border-left: .5px solid var(--line); }
+.wk-col.wknd { background: rgba(var(--accent-rgb), .035); }
+.wk-col.today { background: rgba(var(--accent-rgb), .06); }
+.wk-line { position: absolute; left: 0; right: 0; border-top: .5px solid var(--line); pointer-events: none; }
+.wk-line.half { border-top-style: dotted; opacity: .6; }
+.wk-now { position: absolute; left: 0; right: 0; height: 2px; background: #e5484d; z-index: 4; pointer-events: none; }
+.wk-now::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #e5484d; }
+.wk-ev {
+  position: absolute; z-index: 2; border-radius: 7px; padding: 3px 6px; overflow: hidden; cursor: grab; font-size: 11.5px;
+  background: color-mix(in srgb, var(--c) 20%, var(--card)); border-left: 3px solid var(--c); box-shadow: var(--shadow);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.wk-ev:hover { background: color-mix(in srgb, var(--c) 30%, var(--card)); }
+.wk-ev.sel { box-shadow: 0 0 0 2px var(--accent); }
+.wk-ev.dragging { cursor: grabbing; z-index: 6; opacity: .92; box-shadow: 0 10px 26px rgba(0, 0, 0, .25); }
+.wk-ev .t { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-ev .m { color: var(--muted); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-ev .rz { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+.wk-ev.past { opacity: .6; }
+.wk-drawer {
+  position: fixed; top: 54px; right: 12px; bottom: 12px; width: 330px; z-index: 20; display: flex; flex-direction: column;
+  background: var(--sheet); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, .25), inset 0 0 0 .5px var(--line);
+  animation: slideIn .18s ease-out; overflow: hidden;
+}
+.wk-drawer .sheet-body { padding-top: 14px; }
+.wk-modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, .25); }
+.wk-modal-card {
+  width: 380px; max-width: 92vw; padding: 18px; border-radius: 14px; background: var(--sheet);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, .3); display: flex; flex-direction: column; gap: 10px; font-size: 13px;
+}
+.wk-modal-card input, .wk-modal-card select, .wk-modal-card textarea {
+  border: 0; outline: 0; border-radius: 8px; padding: 7px 10px; background: var(--input); box-shadow: inset 0 0 0 .5px var(--line); font-size: 13px;
+}
+.wk-modal-card .f-title { font-size: 16px; font-weight: 700; }
+.wk-modal-card .row { display: flex; gap: 6px; }
+.wk-modal-card .row > * { flex: 1; min-width: 0; }
+.wk-modal-card .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.week-page .toast { bottom: 22px; }

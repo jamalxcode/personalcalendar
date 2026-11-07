@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Cal — Week</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="week.css">
+  <script type="module" src="/wails/runtime.js"></script>
+  <script type="module" src="week.js"></script>
+</head>
+<body class="week-page">
+  <header class="wk-top">
+    <div class="wk-brand"><img src="icon.png" alt=""><span id="wkTitle">This week</span></div>
+    <div class="wk-actions">
+      <button class="btn" id="wkPrev" title="Previous week (←)">‹</button>
+      <button class="btn" id="wkToday" title="This week (T)">Today</button>
+      <button class="btn" id="wkNext" title="Next week (→)">›</button>
+      <button class="btn primary" id="wkNew" title="New event (N)">＋ New</button>
+    </div>
+  </header>
+  <div class="wk-head" id="wkHead"></div>
+  <div class="wk-allday" id="wkAllDay"></div>
+  <div class="wk-scroll" id="wkScroll">
+    <div class="wk-grid" id="wkGrid"></div>
+  </div>
+  <aside class="wk-drawer hidden" id="wkDrawer"></aside>
+  <div class="wk-modal hidden" id="wkModal"><div class="wk-modal-card" id="wkModalCard"></div></div>
+  <div id="toast" class="toast hidden"></div>
+</body>
+</html>

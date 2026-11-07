@@ -53,6 +53,8 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Smart Cal shows your upcoming events in the menu bar and adds the events you type.</string>
   <key>NSCalendarsUsageDescription</key><string>Smart Cal shows your upcoming events in the menu bar and adds the events you type.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>Smart Cal shows your to-dos next to your events and adds the ones you type.</string>
+  <key>NSRemindersUsageDescription</key><string>Smart Cal shows your to-dos next to your events and adds the ones you type.</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

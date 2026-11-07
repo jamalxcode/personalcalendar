@@ -20,29 +20,74 @@ type Draft struct {
 	Location        string    `json:"location"`
 	Notes           string    `json:"notes"`
 	CalendarID      string    `json:"calendarId"`
-	ReminderMinutes int       `json:"reminderMinutes"`
+	ReminderMinutes int       `json:"reminderMinutes"` // explicit "remind me N min before"
+	Alarm           string    `json:"alarm"`           // "" default/keep | none | minutes | dayBefore9 | sameDay9
+	Repeat          Repeat    `json:"repeat"`
+	SetRepeat       bool      `json:"setRepeat"` // update: apply Repeat (otherwise recurrence is left alone)
+	TimeZone        string    `json:"timeZone"`  // IANA, "" = local
+	RepeatText      string    `json:"repeatText"`
 }
 
-// AskResult is what one line typed in the AI box turns into.
+// TodoDraft is a to-do the AI wants to create.
+type TodoDraft struct {
+	Title   string     `json:"title"`
+	Notes   string     `json:"notes"`
+	Due     *time.Time `json:"due"`
+	HasTime bool       `json:"hasTime"`
+}
+
+// AskResult is what one input typed (or pasted) in the AI box turns into.
 type AskResult struct {
-	Kind    string  `json:"kind"`    // add | answer | update | delete
-	Answer  string  `json:"answer"`  // for answer (and a one-line summary for the others)
-	Drafts  []Draft `json:"drafts"`  // add
-	Target  *Event  `json:"target"`  // update / delete
-	Draft   *Draft  `json:"draft"`   // update: the event after the change
-	Refs    []Event `json:"refs"`    // answer: events the answer is about
-	Offline bool    `json:"offline"` // parsed without AI
+	Kind      string      `json:"kind"`   // add | answer | update | delete | slots | todo
+	Answer    string      `json:"answer"` // for answer (and a one-line summary for the others)
+	Drafts    []Draft     `json:"drafts"` // add
+	Clashes   [][]Event   `json:"clashes"`
+	Target    *Event      `json:"target"` // update / delete
+	Draft     *Draft      `json:"draft"`  // update: the event after the change
+	AllFuture bool        `json:"allFuture"`
+	Refs      []Event     `json:"refs"`  // answer: events the answer is about
+	Slots     []Draft     `json:"slots"` // slots: free times that can be booked
+	Todos     []TodoDraft `json:"todos"`
+	Offline   bool        `json:"offline"` // parsed without AI
+	slotReq   *aiSlot
+}
+
+type aiRepeat struct {
+	Freq     string `json:"freq"`
+	Interval int    `json:"interval"`
+	Weekdays []int  `json:"weekdays"`
+	Until    string `json:"until"`
+	Count    int    `json:"count"`
 }
 
 type aiEvent struct {
-	Title           string `json:"title"`
-	Start           string `json:"start"`
-	End             string `json:"end"`
-	AllDay          bool   `json:"all_day"`
-	Location        string `json:"location"`
-	Notes           string `json:"notes"`
-	Calendar        string `json:"calendar"`
-	ReminderMinutes int    `json:"reminder_minutes"`
+	Title           string   `json:"title"`
+	Start           string   `json:"start"`
+	End             string   `json:"end"`
+	AllDay          bool     `json:"all_day"`
+	Location        string   `json:"location"`
+	Notes           string   `json:"notes"`
+	Calendar        string   `json:"calendar"`
+	ReminderMinutes int      `json:"reminder_minutes"`
+	Repeat          aiRepeat `json:"repeat"`
+	TimeZone        string   `json:"time_zone"`
+}
+
+type aiSlot struct {
+	Title          string `json:"title"`
+	Minutes        int    `json:"duration_minutes"`
+	From           string `json:"from_date"`
+	To             string `json:"to_date"`
+	Earliest       int    `json:"earliest_hour"`
+	Latest         int    `json:"latest_hour"`
+	IncludeWeekend bool   `json:"include_weekend"`
+}
+
+type aiTodo struct {
+	Title   string `json:"title"`
+	Due     string `json:"due"`
+	HasTime bool   `json:"has_time"`
+	Notes   string `json:"notes"`
 }
 
 type aiReply struct {
@@ -52,44 +97,78 @@ type aiReply struct {
 	Target  int       `json:"target"`
 	Refs    []int     `json:"refs"`
 	Changes aiEvent   `json:"changes"`
+	Scope   string    `json:"scope"`
+	Slot    aiSlot    `json:"slot"`
+	Todos   []aiTodo  `json:"todos"`
 }
 
 func str(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
-
-var eventProps = map[string]any{
-	"title":            str("Short, clean event title (no date/time words). For changes: new title or empty to keep"),
-	"start":            str("RFC3339 with offset, e.g. 2026-11-08T13:00:00+03:00. All-day: YYYY-MM-DD. For changes: empty to keep"),
-	"end":              str("RFC3339 with offset. All-day: YYYY-MM-DD of the day AFTER the last day. For changes: empty to keep"),
-	"all_day":          map[string]any{"type": "boolean"},
-	"location":         str("Place, or empty string"),
-	"notes":            str("Extra details, or empty string"),
-	"calendar":         str("Exact name of one of the user's calendars if named or clearly implied, else empty"),
-	"reminder_minutes": map[string]any{"type": "integer", "description": "Minutes before start for a reminder if asked, else 0"},
+func integer(desc string) map[string]any {
+	return map[string]any{"type": "integer", "description": desc}
 }
-var eventReq = []string{"title", "start", "end", "all_day", "location", "notes", "calendar", "reminder_minutes"}
+func obj(props map[string]any) map[string]any {
+	req := make([]string, 0, len(props))
+	for k := range props {
+		req = append(req, k)
+	}
+	return map[string]any{"type": "object", "properties": props, "required": req, "additionalProperties": false}
+}
+
+var repeatSchema = obj(map[string]any{
+	"freq": map[string]any{"type": "string", "enum": []string{"none", "daily", "weekly", "monthly", "yearly", "keep"},
+		"description": "none = one-off. For changes: keep = leave the repetition as it is"},
+	"interval": integer("Every N days/weeks/… (1 = every)"),
+	"weekdays": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "Weekly only: 0=Sun … 6=Sat; empty = same weekday as the start"},
+	"until":    str("YYYY-MM-DD last day, or empty"),
+	"count":    integer("Number of occurrences, or 0"),
+})
 
 func eventSchema() map[string]any {
-	return map[string]any{"type": "object", "properties": eventProps, "required": eventReq, "additionalProperties": false}
+	return obj(map[string]any{
+		"title":            str("Short, clean event title (no date/time words). For changes: new title or empty to keep"),
+		"start":            str("RFC3339 with the user's local offset, e.g. 2026-11-08T13:00:00+03:00. All-day: YYYY-MM-DD. For changes: empty to keep"),
+		"end":              str("RFC3339 local. All-day: YYYY-MM-DD of the day AFTER the last day. For changes: empty to keep"),
+		"all_day":          map[string]any{"type": "boolean"},
+		"location":         str("Place, or empty string"),
+		"notes":            str("Extra details (booking refs, links), or empty string"),
+		"calendar":         str("Exact name of one of the user's calendars if named or clearly implied, else empty"),
+		"reminder_minutes": integer("Minutes before start for a reminder if asked, else 0"),
+		"repeat":           repeatSchema,
+		"time_zone":        str("IANA zone if the user named another city/zone for the time (e.g. Asia/Dubai for '3pm Dubai time'), else empty"),
+	})
 }
 
-var askSchema = map[string]any{
-	"type": "object",
-	"properties": map[string]any{
-		"kind": map[string]any{"type": "string", "enum": []string{"add", "answer", "update", "delete"},
-			"description": "add = create new events; answer = a question about the schedule; update = change one existing event; delete = remove one existing event"},
-		"answer":  str("For answer: a short, friendly, direct answer (times in the user's format). For add/update/delete: a one-line summary of what will happen"),
-		"events":  map[string]any{"type": "array", "items": eventSchema(), "description": "For add: the new events. Otherwise empty"},
-		"target":  map[string]any{"type": "integer", "description": "For update/delete: the [n] number of the existing event. Otherwise -1"},
-		"refs":    map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "For answer: [n] numbers of the events the answer mentions (max 8). Otherwise empty"},
-		"changes": eventSchema(),
-	},
-	"required":             []string{"kind", "answer", "events", "target", "refs", "changes"},
-	"additionalProperties": false,
-}
+var askSchema = obj(map[string]any{
+	"kind": map[string]any{"type": "string", "enum": []string{"add", "answer", "update", "delete", "slots", "todo"},
+		"description": "add = create events; answer = question about the schedule; update/delete = change/remove one existing event; slots = find free time; todo = a task/reminder without a set meeting time"},
+	"answer":  str("For answer: short, direct reply. Otherwise: a one-line summary of what will happen"),
+	"events":  map[string]any{"type": "array", "items": eventSchema(), "description": "add: the new events. Otherwise empty"},
+	"target":  integer("update/delete: the [n] number of the existing event, else -1"),
+	"refs":    map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "answer: [n] numbers of events mentioned (max 8)"},
+	"changes": eventSchema(),
+	"scope": map[string]any{"type": "string", "enum": []string{"this", "future"},
+		"description": "update/delete of a repeating event: 'future' if the user means all/every/from now on, else 'this'"},
+	"slot": obj(map[string]any{
+		"title":            str("What the time is for, e.g. Gym"),
+		"duration_minutes": integer("Length needed"),
+		"from_date":        str("YYYY-MM-DD first day to search"),
+		"to_date":          str("YYYY-MM-DD last day to search"),
+		"earliest_hour":    integer("Earliest start hour 0-23 (default 8)"),
+		"latest_hour":      integer("Latest end hour 1-24 (default 20)"),
+		"include_weekend":  map[string]any{"type": "boolean"},
+	}),
+	"todos": map[string]any{"type": "array", "items": obj(map[string]any{
+		"title":    str("The task, short"),
+		"due":      str("YYYY-MM-DD, or RFC3339 local if a time was given, or empty"),
+		"has_time": map[string]any{"type": "boolean"},
+		"notes":    str("Details or empty"),
+	}), "description": "todo: the tasks. Otherwise empty"},
+})
 
-// askAI routes one line of text: add events, answer a question, or change/delete an existing event.
+// askAI routes one input (typed, pasted text, or a screenshot): add events, answer a question,
+// change/delete an existing event, find free time, or create to-dos.
 // known is the list of nearby events the model may refer to by index.
-func askAI(ctx context.Context, cfg *Config, text string, cals []CalendarInfo, known []Event) (AskResult, error) {
+func askAI(ctx context.Context, cfg *Config, text, imageB64 string, cals []CalendarInfo, known []Event) (AskResult, error) {
 	if strings.TrimSpace(cfg.OpenAIKey) == "" {
 		return AskResult{}, errNoKey
 	}
@@ -116,6 +195,9 @@ func askAI(ctx context.Context, cfg *Config, text string, cals []CalendarInfo, k
 		if e.Location != "" {
 			fmt.Fprintf(&list, " | at %s", e.Location)
 		}
+		if e.Recurring {
+			list.WriteString(" | repeats")
+		}
 		if e.Holiday {
 			list.WriteString(" | holiday")
 		}
@@ -125,13 +207,18 @@ func askAI(ctx context.Context, cfg *Config, text string, cals []CalendarInfo, k
 Now is %s (%s), timezone %s (UTC%s). Interpret relative dates ("tomorrow", "next Tue", "this weekend") from now.
 
 Decide what the user wants:
-- "add": they describe new event(s) ("lunch with Ali tomorrow 1pm"). Default duration 1 hour; a time with no date = next occurrence; a weekday = the next upcoming one; no time at all = all-day; "at/@ <place>" = location; several events → several items.
-- "answer": a question about their schedule ("what's on Thursday?", "am I free tomorrow afternoon?", "when is my next dentist?"). Answer briefly and concretely from the event list below; list items with times; say plainly when something isn't there. Put the [n] of mentioned events in refs.
-- "update": change ONE existing event ("move dentist to 5pm", "rename lunch to team lunch", "make Friday's meeting 2 hours"). Set target to its [n]; in changes fill only what changes (others empty strings, all_day false unless switching to all-day, reminder 0). When moving, keep the original duration unless told otherwise and give both start and end.
-- "delete": remove ONE existing event ("cancel lunch on Friday"). Set target.
-If the request is ambiguous between several events, use "answer" to ask which one.
+- "add": new event(s). Default duration 1 hour; a time with no date = next occurrence; a weekday = the next upcoming one; no time = all-day; "at/@ <place>" = location; several events → several items.
+  Repeats: "every Monday", "daily", "every 2 weeks", "on the 1st of every month", "every weekday until June", "for 10 weeks" → fill repeat (weekly + weekdays for specific days). Otherwise repeat.freq = "none".
+  Time zones: "3pm Dubai time" → set time_zone (e.g. Asia/Dubai) and give start/end converted to the user's local offset.
+- If the input is PASTED content (an email, chat message, ticket, invitation, school letter) or a SCREENSHOT/photo: extract every event in it with exact dates, times and places. Flights: one event per flight, title like "✈ KU 101 KWI→DXB", start/end at departure/arrival converted to local offset, time_zone = departure airport's zone, location = departure airport, booking reference and seat in notes. Ignore marketing and boilerplate. If it contains tasks rather than events, use "todo".
+- "answer": a question about their schedule. Answer briefly from the event list below; list items with times; say plainly when something isn't there. Put the [n] of mentioned events in refs.
+- "update": change ONE existing event ("move dentist to 5pm", "make gym 7am every week"). target = its [n]; in changes fill only what changes (empty strings / repeat.freq "keep" for the rest). Keep the duration when moving unless told otherwise; give start and end. scope = "future" for "every/all/from now on" on repeating events.
+- "delete": remove ONE existing event; scope as above.
+- "slots": "find an hour for the gym this week", "when can I fit a 2h meeting tomorrow?" → fill slot (dates, duration, hours; include_weekend only if asked or the request is about the weekend). Do NOT invent the free times yourself — the app computes them.
+- "todo": tasks/reminders without a meeting: "remind me to call the bank tomorrow", "buy milk", "renew passport by Friday". Fill todos (due date if given; has_time only if a time was said).
+If ambiguous between several events, use "answer" to ask which one.
 
-The user's weekend is %s; their week starts on %s ("weekend" = those days). Always use the offset %s in times. Writable calendars: %s.
+The user's weekend is %s; their week starts on %s. Always use the offset %s in times. Writable calendars: %s.
 %s
 
 The user's events (past week to next two months):
@@ -140,7 +227,13 @@ The user's events (past week to next two months):
 		now.Location().String(), now.Format("-07:00"), cfg.WeekendText(), weekdayNames[cfg.WeekStart], now.Format("-07:00"),
 		strings.Join(names, ", "), voiceLine(cfg), list.String())
 
-	content, err := callAI(ctx, cfg, sys, text, "calendar_action", askSchema)
+	user := text
+	if strings.TrimSpace(user) == "" && imageB64 != "" {
+		user = "(screenshot attached — extract the events or tasks in it)"
+	} else if len(user) > 280 {
+		user = "PASTED CONTENT:\n" + user
+	}
+	content, err := callAIWithImage(ctx, cfg, sys, user, imageB64, "calendar_action", askSchema)
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -148,7 +241,7 @@ The user's events (past week to next two months):
 	if err := json.Unmarshal(content, &r); err != nil {
 		return AskResult{}, fmt.Errorf("couldn't read the AI reply: %v", err)
 	}
-	res := AskResult{Kind: r.Kind, Answer: r.Answer}
+	res := AskResult{Kind: r.Kind, Answer: r.Answer, AllFuture: r.Scope == "future"}
 	pick := func(i int) *Event {
 		if i >= 0 && i < len(known) {
 			e := known[i]
@@ -178,6 +271,9 @@ The user's events (past week to next two months):
 			return AskResult{Kind: "answer", Answer: "I couldn't tell which event you mean — try including its name or day."}, nil
 		}
 		res.Target = t
+		if !t.Recurring {
+			res.AllFuture = false
+		}
 		if r.Kind == "update" {
 			d, err := applyChanges(*t, r.Changes, cals)
 			if err != nil {
@@ -185,10 +281,43 @@ The user's events (past week to next two months):
 			}
 			res.Draft = &d
 		}
+	case "slots":
+		sl := r.Slot
+		res.slotReq = &sl
+	case "todo":
+		for _, t := range r.Todos {
+			if strings.TrimSpace(t.Title) == "" {
+				continue
+			}
+			td := TodoDraft{Title: strings.TrimSpace(t.Title), Notes: t.Notes, HasTime: t.HasTime}
+			if t.Due != "" {
+				if tt, err := time.Parse(time.RFC3339, t.Due); err == nil {
+					l := tt.Local()
+					td.Due = &l
+				} else if dd, err := parseDay(t.Due); err == nil {
+					td.Due, td.HasTime = &dd, false
+				}
+			}
+			res.Todos = append(res.Todos, td)
+		}
+		if len(res.Todos) == 0 {
+			return res, fmt.Errorf("couldn't find a task in that")
+		}
 	default:
 		return res, fmt.Errorf("the AI gave an unexpected answer — try rephrasing")
 	}
 	return res, nil
+}
+
+func (r aiRepeat) toRepeat() Repeat {
+	out := Repeat{Freq: r.Freq, Interval: r.Interval, Weekdays: r.Weekdays, Until: r.Until, Count: r.Count}
+	if out.Weekdays == nil {
+		out.Weekdays = []int{}
+	}
+	if out.Freq == "" {
+		out.Freq = "none"
+	}
+	return out
 }
 
 // applyChanges merges the AI's partial changes into an existing event.
@@ -199,6 +328,13 @@ func applyChanges(t Event, c aiEvent, cals []CalendarInfo) (Draft, error) {
 	}
 	if c.Location != "" {
 		d.Location = c.Location
+	}
+	if c.Repeat.Freq != "" && c.Repeat.Freq != "keep" {
+		d.Repeat, d.SetRepeat = c.Repeat.toRepeat(), true
+		d.RepeatText = d.Repeat.Text()
+	}
+	if c.TimeZone != "" {
+		d.TimeZone = c.TimeZone
 	}
 	if c.Notes != "" {
 		d.Notes = c.Notes
@@ -243,7 +379,9 @@ func applyChanges(t Event, c aiEvent, cals []CalendarInfo) (Draft, error) {
 func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {
 	var out []Draft
 	for _, e := range evs {
-		d := Draft{Title: e.Title, AllDay: e.AllDay, Location: e.Location, Notes: e.Notes, ReminderMinutes: e.ReminderMinutes}
+		d := Draft{Title: e.Title, AllDay: e.AllDay, Location: e.Location, Notes: e.Notes, ReminderMinutes: e.ReminderMinutes,
+			Repeat: e.Repeat.toRepeat(), TimeZone: e.TimeZone}
+		d.RepeatText = d.Repeat.Text()
 		for _, c := range cals {
 			if e.Calendar != "" && strings.EqualFold(c.Name, e.Calendar) && c.Writable {
 				d.CalendarID = c.ID
@@ -296,6 +434,11 @@ var errNoKey = fmt.Errorf("add your OpenRouter key in Settings to use AI")
 
 // callAI sends one structured-output chat request to OpenRouter (sk-or-… keys) or OpenAI.
 func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, schema map[string]any) ([]byte, error) {
+	return callAIWithImage(ctx, cfg, sys, user, "", schemaName, schema)
+}
+
+// callAIWithImage is callAI with an optional base64 JPEG (screenshots/photos; needs a vision model).
+func callAIWithImage(ctx context.Context, cfg *Config, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
 	key := strings.TrimSpace(cfg.OpenAIKey)
 	base, model, provider := "https://api.openai.com/v1", cfg.OpenAIModel, "OpenAI"
 	if strings.HasPrefix(key, "sk-or-") {
@@ -306,9 +449,9 @@ func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, sche
 	}
 	body := map[string]any{
 		"model": model,
-		"messages": []map[string]string{
+		"messages": []map[string]any{
 			{"role": "system", "content": sys},
-			{"role": "user", "content": user},
+			{"role": "user", "content": userContent(user, imageB64)},
 		},
 		"response_format": map[string]any{
 			"type":        "json_schema",
@@ -321,7 +464,7 @@ func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, sche
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Title", "Smart Cal")
 	req.Header.Set("HTTP-Referer", "https://go.sala.company")
-	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: 70 * time.Second}).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s unreachable: %w", provider, err)
 	}
@@ -354,6 +497,16 @@ func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, sche
 	c := strings.TrimSpace(cr.Choices[0].Message.Content)
 	c = strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(c, "```json"), "```"), "```")
 	return []byte(c), nil
+}
+
+func userContent(text, imageB64 string) any {
+	if imageB64 == "" {
+		return text
+	}
+	return []map[string]any{
+		{"type": "text", "text": text},
+		{"type": "image_url", "image_url": map[string]any{"url": "data:image/jpeg;base64," + imageB64}},
+	}
 }
 
 func parseDay(s string) (time.Time, error) {

@@ -106,11 +106,10 @@ function monthEvents() {
   return cached || evs();
 }
 
-function renderMiniCal() {
+function renderMonthGrid() {
   const now = new Date();
   $("monthName").textContent = viewMonth.toLocaleDateString("en-GB", { month: "long" });
   $("yearName").textContent = viewMonth.getFullYear();
-  $("todayBtn").style.visibility = sameDay(viewMonth, startOfMonth(now)) && !selectedDay ? "hidden" : "visible";
 
   const ws = S.weekStart ?? 6;
   const wk = new Set(S.weekendDays ?? [5, 6]);
@@ -175,15 +174,192 @@ function renderMiniCal() {
   }
 }
 
+
+// ---------- calendar views: year | month | week | day ----------
+let calView = (() => { try { return localStorage.getItem("calView") || "month"; } catch (_) { return "month"; } })();
+let viewYear = new Date().getFullYear();
+let weekAnchor = null;           // first day of the week shown in week/day view
+let weekView = null;             // { start, events }
+const yearCache = new Map();     // year → Map(dayKey → count)
+
+function weekStartFor(d) {
+  const ws = S.weekStart ?? 6;
+  return addDays(startOfDay(d), -((d.getDay() - ws + 7) % 7));
+}
+
+function renderMiniCal() {
+  document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("on", b.dataset.view === calView));
+  const now = new Date();
+  const mc = document.querySelector(".minical");
+  mc.classList.remove("year-mode", "strip-mode");
+  if (calView === "year") { mc.classList.add("year-mode"); renderYearGrid(); setTodayDot(viewYear !== now.getFullYear()); return; }
+  if (calView === "week" || calView === "day") { mc.classList.add("strip-mode"); renderWeekStrip(); return; }
+  renderMonthGrid();
+  setTodayDot(!sameDay(viewMonth, startOfMonth(now)) || !!selectedDay);
+}
+
+function setTodayDot(show) { $("todayBtn").classList.toggle("show", show); }
+
+function renderYearGrid() {
+  $("monthName").textContent = String(viewYear);
+  $("yearName").textContent = "";
+  $("dow").innerHTML = "";
+  const grid = $("grid");
+  grid.innerHTML = "";
+  const counts = yearCache.get(viewYear);
+  if (!counts) loadYear(viewYear);
+  const now = new Date(), ws = S.weekStart ?? 6, wk = new Set(S.weekendDays ?? [5, 6]);
+  for (let m = 0; m < 12; m++) {
+    const first = new Date(viewYear, m, 1);
+    const box = el("button", "ym" + (m === now.getMonth() && viewYear === now.getFullYear() ? " cur" : ""));
+    box.append(el("div", "ym-name", first.toLocaleDateString("en-GB", { month: "short" })));
+    const g = el("div", "ym-grid");
+    const lead = (first.getDay() - ws + 7) % 7;
+    for (let i = 0; i < lead; i++) g.append(el("i", "pad"));
+    const days = new Date(viewYear, m + 1, 0).getDate();
+    for (let d = 1; d <= days; d++) {
+      const dt = new Date(viewYear, m, d);
+      const c = el("i", "", "");
+      const n = counts ? counts.get(dayKey(dt)) || 0 : 0;
+      if (n) c.className = n >= 3 ? "busy" : "has";
+      if (wk.has(dt.getDay())) c.classList.add("wk");
+      if (sameDay(dt, now)) c.classList.add("today");
+      g.append(c);
+    }
+    box.append(g);
+    box.onclick = () => { viewMonth = first; setView("month"); };
+    grid.append(box);
+  }
+}
+
+async function loadYear(y) {
+  if (yearCache.has(y)) return;
+  yearCache.set(y, new Map());
+  try {
+    const list = withDates(await go("EventsBetween", new Date(y, 0, 1).toISOString(), new Date(y + 1, 0, 1).toISOString()));
+    const m = new Map();
+    for (const e of list) {
+      if (e.holiday) continue;
+      let d = startOfDay(e.s);
+      const last = e.allDay ? addDays(startOfDay(e.e), -1) : startOfDay(e.e);
+      for (let i = 0; d <= last && i < 31; i++, d = addDays(d, 1)) m.set(dayKey(d), (m.get(dayKey(d)) || 0) + 1);
+    }
+    yearCache.set(y, m);
+    if (calView === "year" && viewYear === y) renderMiniCal();
+  } catch (_) { yearCache.delete(y); }
+}
+
+function renderWeekStrip() {
+  if (!weekAnchor) weekAnchor = weekStartFor(selectedDay || new Date());
+  const now = new Date(), wk = new Set(S.weekendDays ?? [5, 6]);
+  const end = addDays(weekAnchor, 6);
+  if (calView === "day" && selectedDay) {
+    $("monthName").textContent = selectedDay.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" });
+    $("yearName").textContent = "";
+  } else {
+    $("monthName").textContent = weekAnchor.getMonth() === end.getMonth()
+      ? `${weekAnchor.getDate()}–${end.getDate()} ${end.toLocaleDateString("en-GB", { month: "short" })}`
+      : `${weekAnchor.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+    $("yearName").textContent = String(end.getFullYear());
+  }
+  const dow = $("dow");
+  dow.innerHTML = "";
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(weekAnchor, i);
+    dow.append(el("span", wk.has(d.getDay()) ? "wknd" : "", "SMTWTFS"[d.getDay()]));
+  }
+  const counts = new Map();
+  const src = (weekView && +weekView.start === +weekAnchor && weekView.events) || monthEvents();
+  for (const e of src) {
+    if (e.holiday) continue;
+    let d = startOfDay(e.s);
+    const last = e.allDay ? addDays(startOfDay(e.e), -1) : startOfDay(e.e);
+    for (let i = 0; d <= last && i < 14; i++, d = addDays(d, 1)) counts.set(dayKey(d), (counts.get(dayKey(d)) || 0) + 1);
+  }
+  const grid = $("grid");
+  grid.innerHTML = "";
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(weekAnchor, i);
+    const cell = el("div", "day");
+    if (wk.has(d.getDay())) cell.classList.add("wknd");
+    if (sameDay(d, now)) cell.classList.add("today");
+    if (calView === "day" && selectedDay && sameDay(d, selectedDay)) cell.classList.add("sel");
+    cell.append(el("span", "num", d.getDate()));
+    const n = counts.get(dayKey(d)) || 0;
+    if (n) { cell.classList.add("has"); if (n >= 3) cell.classList.add("busy"); cell.title = `${n} event${n > 1 ? "s" : ""}`; }
+    const w = weatherFor(d);
+    if (w) cell.append(el("span", "strip-wx", `${WX(w.code)}${Math.round(w.max)}°`));
+    cell.onclick = () => { selectedDay = d; setView("day"); };
+    grid.append(cell);
+  }
+  const inToday = now >= weekAnchor && now < addDays(weekAnchor, 7);
+  setTodayDot(calView === "day" ? !(selectedDay && sameDay(selectedDay, now)) : !inToday);
+}
+
+async function loadWeekList() {
+  const start = weekAnchor;
+  weekView = { start, events: null };
+  renderList();
+  try {
+    const list = withDates(await go("EventsBetween", start.toISOString(), addDays(start, 7).toISOString()));
+    if (weekView && +weekView.start === +start) { weekView.events = list; renderList(); renderMiniCal(); }
+  } catch (err) { toast(errMsg(err), true); }
+}
+
+function setView(v) {
+  calView = v;
+  try { localStorage.setItem("calView", v); } catch (_) {}
+  if (v === "day") {
+    const d = selectedDay || new Date();
+    weekAnchor = weekStartFor(d);
+    openDay(d, true);
+  } else if (v === "week") {
+    weekAnchor = weekAnchor || weekStartFor(selectedDay || new Date());
+    selectedDay = null;
+    listMode = "week";
+    dayView = null;
+    loadWeekList();
+  } else {
+    if (listMode === "day" || listMode === "week") { listMode = "upcoming"; dayView = null; weekView = null; }
+    selectedDay = null;
+    if (v === "year") loadYear(viewYear);
+    renderList();
+  }
+  renderMiniCal();
+}
+
+function stepPeriod(n) {
+  if (calView === "year") { viewYear += n; loadYear(viewYear); renderMiniCal(); return; }
+  if (calView === "week") { weekAnchor = addDays(weekAnchor, 7 * n); loadWeekList(); renderMiniCal(); return; }
+  if (calView === "day") { const d = addDays(selectedDay || new Date(), n); selectedDay = d; weekAnchor = weekStartFor(d); openDay(d, true); return; }
+  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1);
+  renderMiniCal(); loadMonth(viewMonth);
+  if (playful()) {
+    const g = $("grid");
+    g.classList.remove("flip-next", "flip-prev"); void g.offsetWidth;
+    g.classList.add(n > 0 ? "flip-next" : "flip-prev");
+    sound("flip");
+  }
+}
+
+function goToday() {
+  const now = new Date();
+  viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
+  if (calView === "day") { selectedDay = now; openDay(now, true); return; }
+  if (calView === "week") { loadWeekList(); renderMiniCal(); return; }
+  closeDay();
+}
+
 // ---------- list modes: upcoming | day | search ----------
 let listMode = "upcoming";
 let dayView = null;      // { d, events }
 let searchResults = [];
 let searchQ = "";
 
-async function openDay(d) {
-  if (sameDay(d, new Date()) && listMode === "day" && dayView && sameDay(dayView.d, d)) { closeDay(); return; }
+async function openDay(d, keepView) {
+  if (!keepView && sameDay(d, new Date()) && listMode === "day" && dayView && sameDay(dayView.d, d)) { closeDay(); return; }
   selectedDay = d;
+  if (calView === "day" || calView === "week") weekAnchor = weekStartFor(d);
   if (d.getMonth() !== viewMonth.getMonth() || d.getFullYear() !== viewMonth.getFullYear()) viewMonth = startOfMonth(d);
   renderMiniCal();
   listMode = "day";
@@ -196,6 +372,7 @@ async function openDay(d) {
 }
 
 function closeDay() {
+  if (calView === "day" || calView === "week") { calView = "month"; try { localStorage.setItem("calView", "month"); } catch (_) {} weekView = null; }
   listMode = "upcoming";
   dayView = null;
   selectedDay = null;
@@ -221,6 +398,11 @@ function renderUpNext() {
   let sub = `${fmtTime(next.s)} – ${fmtTime(next.e)}`;
   if (next.location) sub += `  ·  ${next.location}`;
   grow.append(el("div", "sub", sub));
+  const tm = (S.travel || {})[`${next.id}|${Math.floor(next.s / 1000)}`];
+  if (tm && next.s > now) {
+    const leave = new Date(next.s - (tm + 5) * 6e4);
+    grow.append(el("div", "sub travel", leave <= now ? `🚗 ~${tm} min drive — leave now!` : `🚗 ~${tm} min drive · leave by ${fmtTime(leave)}`));
+  }
   card.append(grow);
   if (next.meetLink) {
     const j = el("button", "join", "Join");
@@ -236,6 +418,7 @@ function renderList() {
   const list = $("list");
   list.innerHTML = "";
   if (typeof renderCountdowns === "function") renderCountdowns();
+  if (typeof renderTodos === "function") renderTodos();
   kbIndex = -1;
   renderUpNext();
   const now = new Date();
@@ -248,6 +431,20 @@ function renderList() {
     list.append(head);
     if (searchQ.length >= 2 && !searchResults.length) list.append(emptyState("🔍", "Nothing found in the past month or the next year."));
     renderGroups(list, searchResults, { now, showPast: true, spread: false });
+    return;
+  }
+
+  if (listMode === "week" && weekView) {
+    const head = el("div", "mode-head");
+    head.append(el("span", "", "This week" === "" ? "" : `Week of ${weekView.start.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`));
+    const big = el("button", "pill-btn", "⤢ Big week view");
+    big.title = "Open the week window (⌘⇧W)";
+    big.onclick = () => go("OpenWeek");
+    head.append(big);
+    list.append(head);
+    if (!weekView.events) { list.append(emptyState("⏳", "Loading…")); return; }
+    if (!weekView.events.filter((e) => S.showHolidayRows || !e.holiday).length) { list.append(emptyState("☀️", "Nothing planned this week.")); return; }
+    renderGroups(list, weekView.events, { now, showPast: true, spread: true, from: weekView.start });
     return;
   }
 
@@ -289,13 +486,14 @@ function renderList() {
 }
 
 // Groups events by day; holidays become small tags on the day header (unless shown as rows).
-function renderGroups(list, events, { now, showPast, spread, dayOnly }) {
+function renderGroups(list, events, { now, showPast, spread, dayOnly, from }) {
   const groups = new Map();
   const push = (d, e) => { const k = dayKey(d); if (!groups.has(k)) groups.set(k, { d, items: [], hols: [] }); (e.holiday && !S.showHolidayRows ? groups.get(k).hols : groups.get(k).items).push(e); };
   for (const e of events) {
     if (dayOnly) { push(dayOnly, e); continue; }
     if (e.allDay && spread) {
-      let d = startOfDay(e.s) < startOfDay(now) ? startOfDay(now) : startOfDay(e.s);
+      const base = from || startOfDay(now);
+      let d = startOfDay(e.s) < base ? base : startOfDay(e.s);
       for (let i = 0; d < startOfDay(e.e) && i < 14; i++, d = addDays(d, 1)) push(d, e);
     } else {
       push(startOfDay(!showPast && e.s < now ? now : e.s), e);
@@ -350,8 +548,8 @@ function eventRow(e, now) {
   if (e.allDay) when.textContent = "all-day";
   else when.append(el("div", "", fmtTime(e.s)), el("div", "end", fmtTime(e.e)));
   const body = el("div", "body");
-  body.append(el("div", "title", withEmoji(e)));
-  const meta = [e.location, e.meetLink && !e.location ? "Online meeting" : "", S.calendars.length > 1 ? e.calendar : ""].filter(Boolean).join(" · ");
+  body.append(el("div", "title", withEmoji(e) + (e.recurring ? " 🔁" : "")));
+  const meta = [tzNote(e) ? "🌍 " + tzNote(e) : "", e.location, e.meetLink && !e.location ? "Online meeting" : "", S.calendars.length > 1 ? e.calendar : ""].filter(Boolean).join(" · ");
   if (meta) body.append(el("div", "meta", meta));
   const tools = el("div", "tools");
   if (e.meetLink) {
@@ -373,13 +571,23 @@ function eventRow(e, now) {
 }
 
 async function deleteEvent(e) {
-  const ok = await confirmBox(`<b>Delete “${esc(e.title)}”?</b><span class="muted">${esc(whenText(e.start, e.end, e.allDay))}<br>This removes it from your calendar${e.calendar ? " (" + esc(e.calendar) + ")" : ""}.</span>`);
-  if (!ok) return false;
+  let full = e;
+  try { full = await go("GetEvent", e.id, e.start); } catch (_) {}
+  let allFuture = false;
+  if (full.recurring || e.recurring) {
+    const sc = await scopeBox(`Delete “${e.title}”?`, "Delete");
+    if (!sc) return false;
+    allFuture = sc === "future";
+  }
   try {
-    applyState(await go("Delete", e.id, e.start));
+    applyState(await go("Delete", e.id, e.start, allFuture));
     afterChange();
     sound("whoosh");
-    toast("Deleted");
+    if (allFuture) toast("Deleted this and all future events");
+    else toastAction(`Deleted “${e.title}”`, "Undo", async () => {
+      try { const r = await go("Add", [draftFromDetail(full)]); applyState(r.state); afterChange(); toast("Restored"); }
+      catch (err) { toast(errMsg(err), true); }
+    });
     return true;
   } catch (err) { toast(errMsg(err), true); return false; }
 }
@@ -435,21 +643,27 @@ function renderDetail(d) {
   const s = new Date(d.start), en = new Date(d.end);
   sh.append(sheetHeader(d.title, d.color));
   const body = el("div", "sheet-body");
-  const t = el("div", "sheet-title", withEmoji(d));
-  body.append(t);
+  body.append(el("div", "sheet-title", withEmoji(d)));
   const when = el("div", "sheet-when");
-  when.textContent = whenText(d.start, d.end, d.allDay) + (d.recurring ? "  ·  repeats" : "");
+  when.textContent = whenText(d.start, d.end, d.allDay);
   body.append(when);
-  if (!d.allDay) body.append(el("div", "muted small", dur(en - s)));
+  const subs = [];
+  if (!d.allDay) subs.push(dur(en - s));
+  const tz = tzNote(d);
+  if (tz) subs.push(`🌍 ${tz} local time`);
+  if (subs.length) body.append(el("div", "muted small", subs.join("  ·  ")));
 
   const rows = el("div", "sheet-rows");
   const addRow = (icon, html) => { const r = el("div", "sheet-row"); r.innerHTML = `<span class="ico">${icon}</span><div>${html}</div>`; rows.append(r); return r; };
   addRow("📅", `<span class="cal-chip" style="--c:${esc(d.color)}">${esc(d.calendar)}</span>`);
-  if (d.location) addRow("📍", `<a href="#" data-open="https://maps.apple.com/?q=${encodeURIComponent(d.location)}">${esc(d.location)}</a>`);
-  if (d.meetLink) {
-    const r = addRow("🎥", `<button class="btn primary small-btn" data-open="${esc(d.meetLink)}">Join meeting</button>`);
-    r.classList.add("join-row");
+  if (repeats(d.repeat)) addRow("🔁", esc(repeatText(d.repeat)));
+  if (d.hasAlarm) addRow("🔔", esc(alarmText(alarmChoice(d), d.allDay)));
+  if (d.location) {
+    const key = `${d.id}|${Math.floor(s / 1000)}`;
+    const m = (S.travel || {})[key];
+    addRow("📍", `<a href="#" data-open="https://maps.apple.com/?q=${encodeURIComponent(d.location)}">${esc(d.location)}</a>${m ? `<div class="muted small">🚗 ~${m} min drive · leave by ${fmtTime(new Date(s - (m + 5) * 6e4))}</div>` : ""}`);
   }
+  if (d.meetLink) addRow("🎥", `<button class="btn primary small-btn" data-open="${esc(d.meetLink)}">Join meeting</button>`).classList.add("join-row");
   if (d.organizer) addRow("👤", `Organised by ${esc(d.organizer)}`);
   if (d.attendees && d.attendees.length) {
     const icon = { accepted: "✅", declined: "❌", maybe: "❔", pending: "⏳", unknown: "·" };
@@ -464,9 +678,9 @@ function renderDetail(d) {
   const mk = (label, cls, fn) => { const b = el("button", "btn " + cls, label); b.onclick = fn; actions.append(b); return b; };
   if (d.writable) mk("Edit", "primary", () => renderEdit(d, "edit"));
   mk("Duplicate", "", () => renderEdit(d, "duplicate"));
-  if (new Date(d.start) > new Date()) {
+  if (s > new Date()) {
     const pinned = (S.pinned || []).includes(d.id);
-    mk(pinned ? "Unpin countdown" : "📌 Countdown", "", async () => {
+    mk(pinned ? "Unpin" : "📌 Countdown", "", async () => {
       try {
         applyState(pinned ? await go("UnpinEvent", d.id) : await go("PinEvent", d.id, d.title, d.start));
         toast(pinned ? "Countdown removed" : "Pinned — it's counting down under the AI box");
@@ -477,10 +691,10 @@ function renderDetail(d) {
   mk("Open in Calendar", "", () => go("OpenURL", d.link));
   if (d.writable) mk("Delete", "danger-ghost", async () => { if (await deleteEvent(d)) closeSheet(); });
   sh.append(actions);
-  sh.querySelectorAll("[data-open]").forEach((a) => {
-    a.onclick = (ev) => { ev.preventDefault(); go("OpenURL", a.dataset.open); };
-  });
+  sh.querySelectorAll("[data-open]").forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); go("OpenURL", a.dataset.open); }; });
 }
+
+// mode: edit | duplicate | new
 
 const pad = (n) => String(n).padStart(2, "0");
 const dateVal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -505,47 +719,161 @@ function renderEdit(d, mode) {
     <div class="f-grid">
       <span>Starts</span><div class="f-pair"><input type="date" id="fSDate"><input type="time" id="fSTime"></div>
       <span>Ends</span><div class="f-pair"><input type="date" id="fEDate"><input type="time" id="fETime"></div>
+      <span>Repeat</span><div class="f-rep"><div class="f-pair"><select id="fRepeat"></select><input type="date" id="fUntil" title="Until (optional)"></div><div class="day-chips hidden" id="fDays"></div></div>
+      <span>Alert</span><select id="fAlarm"></select>
       <span>Location</span><input id="fLoc" placeholder="Add location">
       <span>Calendar</span><select id="fCal"></select>
     </div>
+    <div class="f-clash hidden" id="fClash"></div>
     <textarea id="fNotes" rows="3" placeholder="Notes"></textarea>`;
   sh.append(f);
-  $("fTitle").value = mode === "duplicate" ? d.title : d.title || "";
+  $("fTitle").value = d.title || "";
   $("fAllDay").checked = !!d.allDay;
   $("fSDate").value = dateVal(s); $("fSTime").value = timeVal(s);
   $("fEDate").value = dateVal(lastDay); $("fETime").value = timeVal(en);
   $("fLoc").value = d.location || "";
   $("fNotes").value = d.notes || "";
   writable.forEach((c) => { const o = el("option", "", c.name); o.value = c.id; if (c.id === d.calendarId) o.selected = true; $("fCal").append(o); });
-  const syncAllDay = () => { const a = $("fAllDay").checked; $("fSTime").classList.toggle("hidden", a); $("fETime").classList.toggle("hidden", a); };
+
+  // repeat
+  const rep = d.repeat || { freq: "none", interval: 1, weekdays: [], until: "", count: 0 };
+  const sd = () => fromInputs($("fSDate").value, "00:00").getDay();
+  const fillRepeat = () => {
+    const sel = $("fRepeat"); const cur = sel.value; sel.innerHTML = "";
+    [["none", "Never"], ["daily", "Every day"], ["weekdays", "Every weekday"], ["weekly", `Every week (${DAY3[sd()]})`],
+     ["biweekly", "Every 2 weeks"], ["monthly", "Every month"], ["yearly", "Every year"], ["custom", "Custom days…"]]
+      .forEach(([v, l]) => { const o = el("option", "", l); o.value = v; sel.append(o); });
+    if (cur) sel.value = cur;
+  };
+  fillRepeat();
+  const wkSet = new Set(S.weekendDays ?? [5, 6]);
+  const workdays = [0, 1, 2, 3, 4, 5, 6].filter((x) => !wkSet.has(x));
+  let choice = "none";
+  if (repeats(rep)) {
+    const n = rep.interval || 1, wd = rep.weekdays || [];
+    if (rep.freq === "daily" && n === 1) choice = "daily";
+    else if (rep.freq === "weekly" && n === 1 && wd.length === workdays.length && workdays.every((x) => wd.includes(x))) choice = "weekdays";
+    else if (rep.freq === "weekly" && n === 1 && wd.length <= 1) choice = "weekly";
+    else if (rep.freq === "weekly" && n === 2 && wd.length <= 1) choice = "biweekly";
+    else if (rep.freq === "monthly" && n === 1) choice = "monthly";
+    else if (rep.freq === "yearly" && n === 1) choice = "yearly";
+    else choice = "custom";
+  }
+  $("fRepeat").value = choice;
+  $("fUntil").value = rep.until || "";
+  const days = $("fDays");
+  DAY3.forEach((l, i) => {
+    const b = el("button", "day-chip" + ((rep.weekdays || []).includes(i) ? " on" : ""), l[0]);
+    b.type = "button"; b.dataset.d = i; b.title = l;
+    b.onclick = () => b.classList.toggle("on");
+    days.append(b);
+  });
+  const syncRepeat = () => {
+    const v = $("fRepeat").value;
+    days.classList.toggle("hidden", v !== "custom");
+    $("fUntil").classList.toggle("hidden", v === "none");
+  };
+  $("fRepeat").onchange = syncRepeat; syncRepeat();
+  const readRepeat = () => {
+    const v = $("fRepeat").value, until = $("fUntil").value || "";
+    const base = { interval: 1, weekdays: [], until, count: 0 };
+    switch (v) {
+      case "daily": return { ...base, freq: "daily" };
+      case "weekdays": return { ...base, freq: "weekly", weekdays: workdays };
+      case "weekly": return { ...base, freq: "weekly", weekdays: [sd()] };
+      case "biweekly": return { ...base, freq: "weekly", interval: 2, weekdays: [sd()] };
+      case "monthly": return { ...base, freq: "monthly" };
+      case "yearly": return { ...base, freq: "yearly" };
+      case "custom": { const w = [...days.querySelectorAll(".on")].map((b) => +b.dataset.d); return { ...base, freq: "weekly", weekdays: w.length ? w : [sd()] }; }
+      default: return { freq: "none", interval: 1, weekdays: [], until: "", count: 0 };
+    }
+  };
+  const origRepeat = JSON.stringify(choice === "none" ? null : { ...rep });
+
+  // alert
+  const fillAlarm = () => {
+    const allDay = $("fAllDay").checked, sel = $("fAlarm"), cur = sel.value; sel.innerHTML = "";
+    const opts = allDay ? [["", "Default"], ["none", "None"], ["dayBefore9", "09:00 the day before"], ["sameDay9", "09:00 on the day"]]
+      : [["", "Default"], ["none", "None"], ["0", "At start"], ["5", "5 min before"], ["10", "10 min before"], ["15", "15 min before"], ["30", "30 min before"], ["60", "1 hour before"], ["1440", "1 day before"]];
+    opts.forEach(([v, l]) => { const o = el("option", "", l); o.value = v; sel.append(o); });
+    if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+  };
+  fillAlarm();
+  if (mode === "edit" && d.hasAlarm !== undefined) {
+    const c = alarmChoice(d);
+    if (![...$("fAlarm").options].some((o) => o.value === c)) { const o = el("option", "", alarmText(c, d.allDay)); o.value = c; $("fAlarm").append(o); }
+    $("fAlarm").value = c;
+  }
+
+  const syncAllDay = () => { const a = $("fAllDay").checked; $("fSTime").classList.toggle("hidden", a); $("fETime").classList.toggle("hidden", a); fillAlarm(); };
   $("fAllDay").onchange = syncAllDay; syncAllDay();
-  // moving the start keeps the duration
   let lastStart = fromInputs($("fSDate").value, $("fSTime").value);
   const shift = () => {
     const ns = fromInputs($("fSDate").value, $("fSTime").value);
     const ne = new Date(fromInputs($("fEDate").value, $("fETime").value).getTime() + (ns - lastStart));
     $("fEDate").value = dateVal(ne); $("fETime").value = timeVal(ne);
     lastStart = ns;
+    fillRepeat();
+    checkClash();
   };
   $("fSDate").onchange = shift; $("fSTime").onchange = shift;
+  $("fEDate").onchange = $("fETime").onchange = () => checkClash();
+
+  const readDraft = () => {
+    const allDay = $("fAllDay").checked;
+    const start = fromInputs($("fSDate").value, allDay ? "00:00" : $("fSTime").value);
+    const end = allDay ? addDays(fromInputs($("fEDate").value, "00:00"), 1) : fromInputs($("fEDate").value, $("fETime").value);
+    const repeat = readRepeat();
+    return { title: $("fTitle").value.trim(), start: start.toISOString(), end: end.toISOString(), allDay,
+      location: $("fLoc").value.trim(), notes: $("fNotes").value, calendarId: $("fCal").value, timeZone: d.timeZone || "",
+      alarm: $("fAlarm").value, repeat, setRepeat: JSON.stringify(repeats(repeat) ? repeat : null) !== origRepeat, reminderMinutes: 0 };
+  };
+  let clashTimer;
+  async function checkClash() {
+    clearTimeout(clashTimer);
+    clashTimer = setTimeout(async () => {
+      const dr = readDraft();
+      if (dr.allDay || new Date(dr.end) <= new Date(dr.start)) { $("fClash").classList.add("hidden"); return; }
+      try {
+        const cl = await go("CheckClashes", dr, mode === "edit" ? d.id : "");
+        $("fClash").classList.toggle("hidden", !cl.length);
+        $("fClash").textContent = cl.length ? `⚠️ Overlaps ${cl.map((c) => `“${c.title}” ${fmtTime(new Date(c.start))}`).join(", ")}` : "";
+      } catch (_) {}
+    }, 250);
+  }
+  checkClash();
 
   const actions = el("div", "sheet-actions");
   const save = el("button", "btn primary", mode === "edit" ? "Save changes" : "Add event");
   save.onclick = async () => {
-    const allDay = $("fAllDay").checked;
-    let start = fromInputs($("fSDate").value, allDay ? "00:00" : $("fSTime").value);
-    let end = allDay ? addDays(fromInputs($("fEDate").value, "00:00"), 1) : fromInputs($("fEDate").value, $("fETime").value);
-    if (end <= start) { toast("The end must be after the start", true); return; }
-    const draft = { title: $("fTitle").value.trim(), start: start.toISOString(), end: end.toISOString(), allDay,
-      location: $("fLoc").value.trim(), notes: $("fNotes").value, calendarId: $("fCal").value, reminderMinutes: 0 };
+    const draft = readDraft();
+    if (new Date(draft.end) <= new Date(draft.start)) { toast("The end must be after the start", true); return; }
     if (!draft.title) { toast("Give it a title", true); return; }
     save.disabled = true;
     try {
-      if (mode === "edit") applyState(await go("UpdateEvent", d.id, d.start, draft));
-      else applyState(await go("Add", [draft]));
-      afterChange();
-      if (mode !== "edit") celebrate("add");
-      toast(mode === "edit" ? "Saved" : "Added");
+      if (mode === "edit") {
+        let allFuture = false;
+        if (d.recurring || repeats(d.repeat)) {
+          if (draft.setRepeat) allFuture = true; // changing the pattern applies from here on
+          else {
+            const sc = await scopeBox("Save changes", "Save");
+            if (!sc) { save.disabled = false; return; }
+            allFuture = sc === "future";
+          }
+        }
+        const prev = draftFromDetail(d);
+        applyState(await go("UpdateEvent", d.id, d.start, draft, allFuture));
+        afterChange();
+        toastAction("Saved", "Undo", async () => {
+          try { applyState(await go("UpdateEvent", d.id, draft.start, prev, allFuture)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
+        });
+      } else {
+        const r = await go("Add", [draft]);
+        applyState(r.state);
+        afterChange();
+        celebrate("add");
+        toastAction("Added", "Undo", () => undoAdd(r.created, [repeats(draft.repeat)]));
+      }
       closeSheet();
     } catch (err) { toast(errMsg(err), true); save.disabled = false; }
   };
@@ -631,7 +959,10 @@ function applyState(st) {
   renderFooter();
   renderMascot();
   renderCountdowns();
+  renderTodos();
   checkDayClear();
+  document.documentElement.style.setProperty("--z", String((S.textSize || 100) / 100));
+  document.body.style.zoom = String((S.textSize || 100) / 100);
   if (drafts.length) renderDrafts();
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
   if (mkey(viewMonth) !== mkey(new Date())) loadMonth(viewMonth, true);
@@ -1080,17 +1411,263 @@ function timelineBlock(e, col, cols, h0, day0) {
     const draft = { title: e.title, start: ns.toISOString(), end: ne.toISOString(), allDay: false, location: e.location || "", notes: "", calendarId: e.calendarId, reminderMinutes: 0 };
     try {
       // keep the notes: fetch details first so the update doesn't wipe them
-      try { const full = await go("GetEvent", e.id, e.start); draft.notes = full.notes || ""; } catch (_) {}
-      applyState(await go("UpdateEvent", e.id, e.start, draft));
+      try { const full = await go("GetEvent", e.id, e.start); draft.notes = full.notes || ""; draft.timeZone = full.timeZone || ""; } catch (_) {}
+      let allFuture = false;
+      if (e.recurring) {
+        const sc = await scopeBox(`Move “${e.title}”`, "Move");
+        if (!sc) { afterChange(); return; }
+        allFuture = sc === "future";
+      }
+      applyState(await go("UpdateEvent", e.id, e.start, draft, allFuture));
+      go("CheckClashes", draft, e.id).then((cl) => { if (cl && cl.length) setTimeout(() => toast(`⚠️ Now overlaps “${cl[0].title}”`), 2500); }).catch(() => {});
       sound("pop");
       const undo = { ...draft, start: e.start, end: e.end };
       toastAction(`Moved to ${fmtTime(ns)}–${fmtTime(ne)}`, "Undo", async () => {
-        try { applyState(await go("UpdateEvent", e.id, draft.start, undo)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
+        try { applyState(await go("UpdateEvent", e.id, draft.start, undo, allFuture)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
       });
       afterChange();
     } catch (err) { toast(errMsg(err), true); afterChange(); }
   };
   return b;
+}
+
+// =====================================================================
+// v1.8 practical layer: repeats, scope choice, undo, clashes, slots,
+// paste/drop/clipboard → events, to-dos, travel time, time zones.
+// =====================================================================
+
+const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const repeats = (r) => r && r.freq && r.freq !== "none" && r.freq !== "keep";
+
+function repeatText(r) {
+  if (!repeats(r)) return "";
+  const n = Math.max(1, r.interval || 1);
+  let s;
+  if (r.freq === "weekly" && (r.weekdays || []).length && n === 1) {
+    const d = r.weekdays.map((w) => DAY3[w]);
+    s = d.length === 5 && !r.weekdays.includes(5) && !r.weekdays.includes(6) ? "Every weekday (Sun–Thu)"
+      : "Every " + (d.length > 1 ? d.slice(0, -1).join(", ") + " & " + d[d.length - 1] : d[0]);
+  } else if (n === 1) s = { daily: "Every day", weekly: "Every week", monthly: "Every month", yearly: "Every year" }[r.freq];
+  else s = `Every ${n} ${{ daily: "days", weekly: "weeks", monthly: "months", yearly: "years" }[r.freq]}`;
+  if (r.until) s += " until " + new Date(r.until + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  else if (r.count > 0) s += `, ${r.count} times`;
+  return s;
+}
+
+// time in the event's own zone when it differs from the Mac's ("14:00 Dubai")
+function tzNote(e, when) {
+  if (!e.timeZone || e.allDay || e.timeZone === localTZ) return "";
+  try {
+    const t = new Date(when || e.start);
+    const loc = t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: !S.use24h, timeZone: e.timeZone });
+    const local = t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: !S.use24h });
+    if (loc === local) return "";
+    return `${loc} ${e.timeZone.split("/").pop().replace(/_/g, " ")}`;
+  } catch (_) { return ""; }
+}
+
+// Delete / save a repeating event: this one or this and all future?
+function scopeBox(title, verb) {
+  return new Promise((res) => {
+    $("confirmText").innerHTML = `<b>${esc(title)}</b><span class="muted">This is a repeating event.</span>`;
+    const yes = $("confirmYes"), no = $("confirmNo");
+    const extra = el("button", "btn", `${verb} all future`);
+    yes.textContent = `${verb} this one`;
+    yes.className = "btn " + (verb === "Delete" ? "danger" : "primary");
+    no.parentElement.insertBefore(extra, yes);
+    $("confirm").classList.remove("hidden");
+    const done = (v) => {
+      $("confirm").classList.add("hidden");
+      extra.remove();
+      yes.textContent = "Delete"; yes.className = "btn danger";
+      yes.onclick = no.onclick = null;
+      res(v);
+    };
+    yes.onclick = () => done("this");
+    extra.onclick = () => done("future");
+    no.onclick = () => done(null);
+  });
+}
+
+function alarmChoice(d) {
+  if (!d.hasAlarm) return "none";
+  const s = Math.round(d.alarmSecs || 0);
+  if (d.allDay) return s === -54000 ? "dayBefore9" : s === 32400 ? "sameDay9" : "dayBefore9";
+  return String(Math.max(0, Math.round(-s / 60)));
+}
+function alarmText(choice, allDay) {
+  if (!choice || choice === "none") return "";
+  if (choice === "dayBefore9") return "09:00 the day before";
+  if (choice === "sameDay9") return "09:00 on the day";
+  const m = +choice;
+  return m === 0 ? "At start" : m >= 60 && m % 60 === 0 ? `${m / 60} h before` : `${m} min before`;
+}
+
+function draftFromDetail(d) {
+  return { title: d.title, start: d.start, end: d.end, allDay: !!d.allDay, location: d.location || "", notes: d.notes || "",
+    calendarId: d.calendarId, timeZone: d.timeZone || "", alarm: d.hasAlarm !== undefined ? alarmChoice(d) : "",
+    repeat: { freq: "none", interval: 1, weekdays: [], until: "", count: 0 }, setRepeat: false, reminderMinutes: 0 };
+}
+
+async function undoAdd(created, wholeSeries) {
+  try {
+    let st;
+    for (let i = 0; i < created.length; i++) st = await go("Delete", created[i].id, created[i].start, !!(wholeSeries && wholeSeries[i]));
+    if (st) applyState(st);
+    afterChange();
+    toast("Undone");
+  } catch (err) { toast(errMsg(err), true); }
+}
+
+// ---------- attachments: paste / drop / clipboard ----------
+let attachment = null; // base64 JPEG
+
+function shrinkImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL("image/jpeg", 0.82));
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = rej;
+    img.src = URL.createObjectURL(file);
+  });
+}
+async function attachImage(file) {
+  try {
+    const url = await shrinkImage(file);
+    attachment = url.split(",")[1];
+    $("attachImg").src = url;
+    $("attach").classList.remove("hidden");
+    $("quick").focus();
+    if (!S.hasKey) toast("Reading screenshots needs your OpenRouter key (Settings → AI)", true);
+  } catch (_) { toast("Couldn't read that image", true); }
+}
+function clearAttachment() {
+  attachment = null;
+  $("attach").classList.add("hidden");
+  $("attachImg").removeAttribute("src");
+}
+
+// ---------- to-dos ----------
+let todoAdding = false;
+let todoAll = false;
+function todoDue(t) { return t.due ? new Date(t.due) : null; }
+function renderTodos() {
+  const box = $("todos");
+  box.innerHTML = "";
+  if (!S.connected || S.showTodos === false || listMode !== "upcoming") return;
+  let dismissed = false;
+  try { dismissed = !!localStorage.getItem("todoPromptDismissed"); } catch (_) {}
+  if (S.remindersAccess !== "full") {
+    if (dismissed) return;
+    const p = el("div", "todo-prompt");
+    p.innerHTML = `<span>✅ Show your to-dos from Apple Reminders here</span>`;
+    const allow = el("button", "btn primary small-btn", "Allow");
+    allow.onclick = async () => { try { applyState(await go("AllowReminders")); } catch (err) { toast(errMsg(err), true); } };
+    const x = el("button", "icon-btn small", "✕");
+    x.onclick = () => { try { localStorage.setItem("todoPromptDismissed", "1"); } catch (_) {} renderTodos(); };
+    p.append(allow, x);
+    box.append(p);
+    return;
+  }
+  const now = new Date(), sod = startOfDay(now);
+  const list = (S.todos || []).filter((t) => !t.done).sort((a, b) => {
+    const da = todoDue(a), db = todoDue(b);
+    if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; return da - db;
+  });
+  const head = el("div", "todo-head");
+  const overdue = list.filter((t) => todoDue(t) && todoDue(t) < sod).length;
+  head.innerHTML = `<span>To-do</span><span class="count">${list.length ? list.length + (overdue ? ` · <b class="od">${overdue} overdue</b>` : "") : "all done ✨"}</span>`;
+  const add = el("button", "icon-btn small", "+");
+  add.title = "Add a to-do";
+  add.onclick = () => { todoAdding = true; renderTodos(); };
+  head.append(add);
+  box.append(head);
+  if (todoAdding) {
+    const row = el("div", "todo-new");
+    const inp = el("input");
+    inp.placeholder = "New to-do — press ↩ (tip: “call bank tomorrow” in the AI box sets a date)";
+    inp.onkeydown = async (ev) => {
+      if (ev.key === "Escape") { todoAdding = false; renderTodos(); }
+      if (ev.key === "Enter" && inp.value.trim()) {
+        try {
+          const ids = await go("AddTodos", [{ title: inp.value.trim(), notes: "", due: null, hasTime: false }]);
+          inp.value = "";
+          toastAction("To-do added", "Undo", async () => { for (const id of ids) await go("DeleteTodo", id); go("Refresh").then(applyState); });
+          go("Refresh").then(applyState);
+        } catch (err) { toast(errMsg(err), true); }
+      }
+    };
+    row.append(inp);
+    box.append(row);
+    setTimeout(() => inp.focus(), 20);
+  }
+  const shown = todoAll ? list : list.slice(0, 5);
+  for (const t of shown) box.append(todoRow(t, sod));
+  if (list.length > 5) {
+    const more = el("button", "link-btn todo-more", todoAll ? "Show less" : `${list.length - 5} more…`);
+    more.onclick = () => { todoAll = !todoAll; renderTodos(); };
+    box.append(more);
+  }
+}
+function todoRow(t, sod) {
+  const r = el("div", "todo");
+  const cb = el("button", "todo-check");
+  cb.style.setProperty("--c", t.color || "var(--accent)");
+  cb.title = "Mark done";
+  cb.onclick = async () => {
+    r.classList.add("done");
+    sound("pop");
+    try {
+      applyState(await go("CompleteTodo", t.id, true));
+      toastAction(`Done: ${t.title}`, "Undo", async () => { applyState(await go("CompleteTodo", t.id, false)); });
+    } catch (err) { r.classList.remove("done"); toast(errMsg(err), true); }
+  };
+  const body = el("div", "todo-body");
+  body.append(el("div", "todo-title", t.title));
+  const due = todoDue(t);
+  const meta = [];
+  if (due) {
+    const lbl = sameDay(due, new Date()) ? (t.hasTime ? fmtTime(due) : "Today") : due < sod ? "Overdue · " + due.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+      : dayLabel(due) + (t.hasTime ? " " + fmtTime(due) : "");
+    meta.push(lbl);
+    if (due < sod) r.classList.add("overdue");
+  }
+  if ((S.todos || []).some((x) => x.list !== t.list)) meta.push(t.list);
+  if (meta.length) body.append(el("div", "todo-meta", meta.join(" · ")));
+  const del = el("button", "icon-btn small todo-del", "🗑");
+  del.title = "Delete";
+  del.onclick = async () => {
+    try {
+      applyState(await go("DeleteTodo", t.id));
+      toastAction("To-do deleted", "Undo", async () => {
+        await go("AddTodos", [{ title: t.title, notes: t.notes || "", due: t.due, hasTime: t.hasTime }]);
+        go("Refresh").then(applyState);
+      });
+    } catch (err) { toast(errMsg(err), true); }
+  };
+  r.append(cb, body, del);
+  return r;
+}
+
+// ---------- settings tabs ----------
+function showTab(tab) {
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  document.querySelectorAll(".settings-body [data-tab]").forEach((g) => g.classList.toggle("tab-off", g.dataset.tab !== tab));
+  document.querySelector(".settings-body").scrollTop = 0;
+}
+
+function slotLabel(s) {
+  const a = new Date(s.start), b = new Date(s.end);
+  return `${dayLabel(a)} ${a.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · ${fmtTime(a)}–${fmtTime(b)}`;
 }
 
 // ---------- AI box ----------
@@ -1101,20 +1678,23 @@ function setBusy(b) {
 }
 
 let aiResult = null;
+let draftClashes = [];
 
-async function submitQuick() {
+async function submitQuick(fromClipboard) {
   const text = $("quick").value.trim();
   if (busy) return;
-  if (!text) { if (drafts.length) addDrafts(); else if (aiResult) applyAI(); return; }
+  if (!text && !attachment && fromClipboard !== true) { if (drafts.length) addDrafts(); else if (aiResult) applyAI(); return; }
   setBusy(true);
   try {
-    const r = await go("Ask", text);
+    const r = fromClipboard === true ? await go("FromClipboard") : attachment ? await go("AskWith", text, attachment) : await go("Ask", text);
     $("quick").value = "";
+    clearAttachment();
     if (r.kind === "add") {
       aiResult = null;
       drafts = r.drafts;
+      draftClashes = r.clashes || [];
       if (r.offline && r.answer) toast(r.answer);
-      if (!S.confirmBeforeAdd && !r.offline) { await addDrafts(); return; }
+      if (!S.confirmBeforeAdd && !r.offline && !draftClashes.some((c) => c && c.length) && drafts.length === 1) { await addDrafts(); return; }
       renderDrafts();
     } else {
       drafts = [];
@@ -1134,15 +1714,19 @@ function renderAI() {
   box.innerHTML = "";
   const r = aiResult;
   if (!r) return;
-  const card = el("div", "ai-card " + r.kind);
+  const card = el("div", "ai-card ai-" + r.kind);
   const head = el("div", "ai-head");
-  head.append(el("span", "ai-badge", r.kind === "answer" ? "✦ Answer" : r.kind === "update" ? "✦ Change" : "✦ Delete"));
+  head.append(el("span", "ai-badge", { answer: "✦ Answer", update: "✦ Change", delete: "✦ Delete", slots: "✦ Free times", todo: "✦ To-do" }[r.kind] || "✦"));
   const x = el("button", "icon-btn small", "✕");
   x.title = "Dismiss";
   x.onclick = clearDrafts;
   head.append(x);
   card.append(head);
   if (r.answer) card.append(el("div", "ai-answer", r.answer));
+  const actions = el("div", "draft-actions");
+  const cancel = el("button", "btn", r.kind === "answer" || r.kind === "slots" ? "Close" : "Cancel");
+  cancel.onclick = clearDrafts;
+
   if (r.kind === "answer" && r.refs.length) {
     const refs = el("div", "ai-refs");
     withDates(r.refs).forEach((e) => refs.append(eventRow(e, new Date())));
@@ -1153,32 +1737,85 @@ function renderAI() {
     const cmp = el("div", "ai-compare");
     cmp.innerHTML = `<div class="was"><span class="muted small">Now</span><b>${esc(t.title)}</b><div>${esc(whenText(t.start, t.end, t.allDay))}</div>${t.location ? `<div class="muted">📍 ${esc(t.location)}</div>` : ""}</div>
       <div class="arrow">→</div>
-      <div class="will"><span class="muted small">After</span><b>${esc(d.title)}</b><div>${esc(whenText(d.start, d.end, d.allDay))}</div>${d.location ? `<div class="muted">📍 ${esc(d.location)}</div>` : ""}</div>`;
+      <div class="will"><span class="muted small">After</span><b>${esc(d.title)}</b><div>${esc(whenText(d.start, d.end, d.allDay))}</div>${d.location ? `<div class="muted">📍 ${esc(d.location)}</div>` : ""}${d.repeatText ? `<div class="muted">🔁 ${esc(d.repeatText)}</div>` : ""}</div>`;
     card.append(cmp);
+    if (t.recurring) card.append(el("div", "muted small", r.allFuture ? "Applies to this and all future events" : "Applies to this occurrence only"));
+    const cl = (r.clashes || [])[0] || [];
+    if (cl.length) card.append(el("div", "clash", `⚠️ Overlaps ${cl.map((c) => `“${c.title}”`).join(", ")}`));
   }
   if (r.kind === "delete" && r.target) {
     card.append(eventRow(withDates([r.target])[0], new Date()));
+    if (r.target.recurring) card.append(el("div", "muted small", r.allFuture ? "Deletes this and all future events" : "Deletes this occurrence only"));
   }
-  if (r.kind !== "answer") {
-    const actions = el("div", "draft-actions");
-    const cancel = el("button", "btn", "Cancel");
-    cancel.onclick = clearDrafts;
-    const ok = el("button", "btn " + (r.kind === "delete" ? "danger" : "primary"), r.kind === "delete" ? "Delete ↩" : "Apply ↩");
+  if (r.kind === "slots") {
+    const list = el("div", "slots");
+    (r.slots || []).forEach((s) => {
+      const b = el("button", "slot");
+      b.innerHTML = `<span>${esc(slotLabel(s))}</span><b>Book</b>`;
+      b.onclick = async () => {
+        try {
+          const res = await go("Add", [s]);
+          applyState(res.state); afterChange(); celebrate("add");
+          clearDrafts();
+          toastAction(`Booked “${s.title}” ${slotLabel(s)}`, "Undo", () => undoAdd(res.created, [false]));
+        } catch (err) { toast(errMsg(err), true); }
+      };
+      list.append(b);
+    });
+    card.append(list);
+  }
+  if (r.kind === "todo") {
+    const list = el("div", "todo-drafts");
+    r.todos.forEach((t) => {
+      const due = t.due ? new Date(t.due) : null;
+      list.append(el("div", "todo-draft", `☐ ${t.title}${due ? "  ·  " + dayLabel(due) + " " + due.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + (t.hasTime ? " " + fmtTime(due) : "") : ""}`));
+    });
+    card.append(list);
+    if (S.remindersAccess !== "full") card.append(el("div", "muted small", "Smart Cal will ask for access to Reminders."));
+  }
+  if (r.kind !== "answer" && r.kind !== "slots") {
+    const ok = el("button", "btn " + (r.kind === "delete" ? "danger" : "primary"),
+      r.kind === "delete" ? "Delete ↩" : r.kind === "todo" ? (r.todos.length > 1 ? `Add ${r.todos.length} to-dos ↩` : "Add to-do ↩") : "Apply ↩");
     ok.onclick = applyAI;
     actions.append(cancel, ok);
-    card.append(actions);
-  }
+  } else actions.append(cancel);
+  card.append(actions);
   box.append(card);
 }
 
 async function applyAI() {
   const r = aiResult;
-  if (!r || busy || r.kind === "answer") return;
+  if (!r || busy || r.kind === "answer" || r.kind === "slots") return;
   setBusy(true);
   try {
-    if (r.kind === "update") applyState(await go("UpdateEvent", r.target.id, r.target.start, r.draft));
-    if (r.kind === "delete") applyState(await go("Delete", r.target.id, r.target.start));
-    toast(r.kind === "update" ? `Updated “${r.draft.title}”` : `Deleted “${r.target.title}”`);
+    if (r.kind === "update") {
+      let prev = draftFromDetail(r.target);
+      try { prev = draftFromDetail(await go("GetEvent", r.target.id, r.target.start)); } catch (_) {}
+      if (!r.draft.setRepeat) r.draft.notes = r.draft.notes || prev.notes;
+      applyState(await go("UpdateEvent", r.target.id, r.target.start, r.draft, !!r.allFuture));
+      toastAction(`Updated “${r.draft.title}”`, "Undo", async () => {
+        try { applyState(await go("UpdateEvent", r.target.id, r.draft.start, prev, !!r.allFuture)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
+      });
+    }
+    if (r.kind === "delete") {
+      let full = r.target;
+      try { full = await go("GetEvent", r.target.id, r.target.start); } catch (_) {}
+      applyState(await go("Delete", r.target.id, r.target.start, !!r.allFuture));
+      if (r.allFuture) toast(`Deleted “${r.target.title}” and future ones`);
+      else toastAction(`Deleted “${r.target.title}”`, "Undo", async () => {
+        try { const a = await go("Add", [draftFromDetail(full)]); applyState(a.state); afterChange(); toast("Restored"); } catch (err) { toast(errMsg(err), true); }
+      });
+    }
+    if (r.kind === "todo") {
+      if (S.remindersAccess !== "full") applyState(await go("AllowReminders"));
+      const ids = await go("AddTodos", r.todos);
+      sound("pop");
+      toastAction(ids.length > 1 ? `Added ${ids.length} to-dos` : "To-do added", "Undo", async () => {
+        for (const id of ids) await go("DeleteTodo", id);
+        go("Refresh").then(applyState);
+      });
+      go("Refresh").then(applyState);
+    }
     aiResult = null;
     renderAI();
     afterChange();
@@ -1200,21 +1837,21 @@ function renderDrafts() {
     t.onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); addDrafts(); } };
     card.append(t, el("div", "draft-when", whenText(d.start, d.end, d.allDay)));
     const meta = [];
+    if (d.repeatText || repeats(d.repeat)) meta.push("🔁 " + (d.repeatText || repeatText(d.repeat)));
     if (d.location) meta.push("📍 " + d.location);
+    const tz = tzNote(d);
+    if (tz) meta.push("🌍 " + tz);
     if (d.reminderMinutes > 0) meta.push(`🔔 ${dur(d.reminderMinutes * 60000)} before`);
     if (d.notes) meta.push("📝 " + d.notes);
     if (meta.length) card.append(el("div", "draft-meta", meta.join("   ")));
+    const cl = draftClashes[i] || [];
+    if (cl.length) card.append(el("div", "clash", `⚠️ Overlaps ${cl.map((c) => `“${c.title}” ${fmtTime(new Date(c.start))}`).join(", ")}`));
     if (writable.length > 1) {
       const row = el("div", "draft-cal");
       const sw = el("span");
       sw.style.cssText = "width:8px;height:8px;border-radius:50%;display:inline-block";
       const sel = el("select");
-      writable.forEach((c) => {
-        const o = el("option", "", c.name);
-        o.value = c.id;
-        if (c.id === d.calendarId) o.selected = true;
-        sel.append(o);
-      });
+      writable.forEach((c) => { const o = el("option", "", c.name); o.value = c.id; if (c.id === d.calendarId) o.selected = true; sel.append(o); });
       const paint = () => { sw.style.background = (writable.find((c) => c.id === sel.value) || {}).color || "var(--accent)"; };
       sel.onchange = () => { drafts[i].calendarId = sel.value; paint(); };
       paint();
@@ -1233,20 +1870,21 @@ function renderDrafts() {
   box.append(actions);
 }
 
-function clearDrafts() { drafts = []; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
+function clearDrafts() { drafts = []; draftClashes = []; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
 
 async function addDrafts() {
   if (busy || !drafts.length) return;
   setBusy(true);
-  const n = drafts.length, first = drafts[0];
+  const list = drafts, n = list.length, first = list[0];
   try {
-    const st = await go("Add", drafts);
+    const r = await go("Add", list);
     drafts = [];
+    draftClashes = [];
     renderDrafts();
-    applyState(st);
+    applyState(r.state);
     afterChange();
     celebrate("add");
-    toast(n === 1 ? `Added “${first.title}”` : `Added ${n} events`);
+    toastAction(n === 1 ? `Added “${first.title}”` : `Added ${n} events`, "Undo", () => undoAdd(r.created, list.map((d) => repeats(d.repeat))));
     flashDay(new Date(first.start));
   } catch (err) {
     toast(errMsg(err), true);
@@ -1415,6 +2053,19 @@ async function openSettings() {
   $("sConfetti").checked = settingsCache.confetti !== false;
   $("sSounds").checked = !!settingsCache.sounds;
   $("playfulOpts").classList.toggle("off", !$("sPlayful").checked);
+  $("sDefAlarm").value = settingsCache.defaultAlarm || "15";
+  $("sAllDayAlarm").value = settingsCache.allDayAlarm || "dayBefore9";
+  $("sTravel").value = settingsCache.travelFrom || "";
+  $("sTodos").checked = settingsCache.showTodos !== false;
+  $("sHotkey").value = settingsCache.hotkey || "Ctrl+Alt+C";
+  $("sTextSize").value = String(settingsCache.textSize || 100);
+  const tl = $("sTodoList"); tl.innerHTML = "";
+  const dflt = el("option", "", "Default list"); dflt.value = ""; tl.append(dflt);
+  (settingsCache.todoLists || []).forEach((l) => { const o = el("option", "", l.name); o.value = l.id; tl.append(o); });
+  tl.value = settingsCache.todoList || "";
+  renderRemStatus();
+  showTab(openTab || "calendar");
+  openTab = null;
   pendingAccent = null;
   showSetupDetails = false;
   editingKey = false;
@@ -1451,7 +2102,14 @@ function arrangeSettings() {
   $("sKey").placeholder = S.hasKey ? "Paste a new key to replace the saved one" : "Paste your OpenRouter key  sk-or-…";
 }
 
+let openTab = null;
+function renderRemStatus() {
+  const a = S.remindersAccess;
+  $("remStatus").textContent = a === "full" ? "Reminders connected ✓" : a === "notDetermined" ? "Not connected yet" : "Access is off";
+  $("allowRem").classList.toggle("hidden", a === "full");
+}
 function focusAI() {
+  showTab("ai");
   const g = $("aiGroup");
   document.querySelector(".settings-body").scrollTo({ top: g.offsetTop - 70, behavior: "smooth" });
   g.classList.remove("flash"); void g.offsetWidth; g.classList.add("flash");
@@ -1529,6 +2187,13 @@ async function saveSettings() {
     weatherCity: $("sCity").value.trim(),
     confetti: $("sConfetti").checked,
     sounds: $("sSounds").checked,
+    defaultAlarm: $("sDefAlarm").value,
+    allDayAlarm: $("sAllDayAlarm").value,
+    travelFrom: $("sTravel").value.trim(),
+    showTodos: $("sTodos").checked,
+    todoList: $("sTodoList").value,
+    hotkey: $("sHotkey").value,
+    textSize: parseInt($("sTextSize").value, 10),
   };
   try {
     pendingAccent = null;
@@ -1550,19 +2215,10 @@ function wire() {
   $("quick").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submitQuick(); }
   });
-  const goMonth = (n) => {
-    viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1);
-    renderMiniCal(); loadMonth(viewMonth);
-    if (playful()) {
-      const g = $("grid");
-      g.classList.remove("flip-next", "flip-prev"); void g.offsetWidth;
-      g.classList.add(n > 0 ? "flip-next" : "flip-prev");
-      sound("flip");
-    }
-  };
-  $("prevMonth").onclick = () => goMonth(-1);
-  $("nextMonth").onclick = () => goMonth(1);
-  $("todayBtn").onclick = () => { viewMonth = startOfMonth(new Date()); closeDay(); };
+  $("prevMonth").onclick = () => stepPeriod(-1);
+  $("nextMonth").onclick = () => stepPeriod(1);
+  $("todayBtn").onclick = goToday;
+  document.querySelectorAll("#views button").forEach((b) => { b.onclick = () => setView(b.dataset.view); });
   $("searchBtn").onclick = () => ($("searchBar").classList.contains("hidden") ? openSearch() : closeSearch());
   $("searchInput").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch($("searchInput").value), 220); });
   $("searchInput").addEventListener("keydown", (ev) => {
@@ -1574,6 +2230,27 @@ function wire() {
   $("openSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("returnBtn").onclick = closeSettings;
+  document.querySelectorAll("#tabs button").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+  $("allowRem").onclick = async () => { try { applyState(await go("AllowReminders")); renderRemStatus(); } catch (err) { toast(errMsg(err), true); } };
+  $("clipBtn").onclick = () => submitQuick(true);
+  $("attachX").onclick = clearAttachment;
+  $("quick").addEventListener("paste", (ev) => {
+    const items = [...((ev.clipboardData && ev.clipboardData.items) || [])];
+    const img = items.find((it) => it.type && it.type.startsWith("image/"));
+    if (img) { ev.preventDefault(); attachImage(img.getAsFile()); }
+  });
+  const shell = document.querySelector(".shell");
+  shell.addEventListener("dragover", (ev) => { ev.preventDefault(); shell.classList.add("dropping"); });
+  shell.addEventListener("dragleave", (ev) => { if (ev.target === shell) shell.classList.remove("dropping"); });
+  shell.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    shell.classList.remove("dropping");
+    const f = [...(ev.dataTransfer.files || [])].find((x) => x.type.startsWith("image/"));
+    if (f) { attachImage(f); return; }
+    const t = ev.dataTransfer.getData("text/plain");
+    if (t) { $("quick").value = t; $("quick").focus(); }
+  });
+  Events.On("ui:textsize", () => go("GetState").then(applyState));
   $("sRegion").onchange = () => {
     const r = REGIONS[$("sRegion").value];
     if (r) { $("sWeekStart").value = String(r[0]); renderWeekendChips(r[1]); }
@@ -1607,6 +2284,7 @@ function wire() {
       if (sheetOpen) { closeSheet(); return; }
       if (inSettings) { closeSettings(); return; }
       if (drafts.length || aiResult) { clearDrafts(); return; }
+      if (attachment) { clearAttachment(); return; }
       if ($("quick").value) { $("quick").value = ""; return; }
       if (!$("searchBar").classList.contains("hidden")) { closeSearch(); return; }
       if (listMode === "day") { closeDay(); return; }
@@ -1627,33 +2305,37 @@ function wire() {
         if (rows[kbIndex] && rows[kbIndex]._ev.writable !== false) { ev.preventDefault(); deleteEvent(rows[kbIndex]._ev); }
       }
       if (!typing && ev.key === "/") { ev.preventDefault(); openSearch(); }
-      if (!typing && ev.key === "ArrowLeft" && !ev.metaKey) { ev.preventDefault(); openDay(addDays(selectedDay || new Date(), -1)); }
-      if (!typing && ev.key === "ArrowRight" && !ev.metaKey) { ev.preventDefault(); openDay(addDays(selectedDay || new Date(), 1)); }
+      if (!typing && ev.key === "ArrowLeft" && !ev.metaKey) { ev.preventDefault(); calView === "month" ? openDay(addDays(selectedDay || new Date(), -1)) : stepPeriod(-1); }
+      if (!typing && ev.key === "ArrowRight" && !ev.metaKey) { ev.preventDefault(); calView === "month" ? openDay(addDays(selectedDay || new Date(), 1)) : stepPeriod(1); }
     }
     if (ev.metaKey && ev.key.toLowerCase() === "f") { ev.preventDefault(); openSearch(); }
+    if (ev.metaKey && ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); go("OpenWeek"); }
     if (ev.metaKey && ev.key === ",") { ev.preventDefault(); openSettings(); }
     if (ev.metaKey && ev.key.toLowerCase() === "r") { ev.preventDefault(); refresh(); }
     if (ev.metaKey && ev.key.toLowerCase() === "n") { ev.preventDefault(); closeSettings(); }
-    if (ev.metaKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); go("Hide"); }
+    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); go("Hide"); }
     if (ev.metaKey && ev.key.toLowerCase() === "t") { ev.preventDefault(); $("todayBtn").click(); }
   });
 
   Events.On("state", (ev) => applyState(ev.data));
   Events.On("update", (ev) => renderUpdate(ev.data));
   Events.On("update:progress", (ev) => { renderUpdate(null, ev.data); toast(ev.data); });
-  Events.On("ui:updates", () => { openSettings().then(() => { $("updatesGroup").scrollIntoView({ behavior: "smooth" }); checkUpdate(); }); });
+  Events.On("ui:updates", () => { openTab = "about"; openSettings().then(() => checkUpdate()); });
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
-  $("updatePill").onclick = () => { openSettings().then(() => $("updatesGroup").scrollIntoView({ behavior: "smooth" })); };
+  $("updatePill").onclick = () => { openTab = "about"; openSettings(); };
   Events.On("ui:settings", () => openSettings());
   Events.On("alert", (ev) => {
     const a = ev.data;
     toast(`⏰ ${a.title} — ${a.body}`);
   });
   Events.On("popover:shown", () => {
-    viewMonth = startOfMonth(new Date());
+    const now = new Date();
+    viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
     selectedDay = null;
     if (listMode === "day") { listMode = "upcoming"; dayView = null; }
+    if (calView === "day") { selectedDay = now; openDay(now, true); }
+    else if (calView === "week") { listMode = "week"; loadWeekList(); }
     renderMiniCal();
     renderList();
     if ($("settings").classList.contains("hidden")) setTimeout(() => $("quick").focus(), 30);
@@ -1679,3 +2361,4 @@ renderMiniCal();
 go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
 go("LatestUpdate").then((u) => renderUpdate(u)).catch(() => {});
 setTimeout(refreshGreeting, 400);
+setTimeout(() => { if (calView !== "month") setView(calView); }, 300);

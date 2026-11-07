@@ -5,13 +5,17 @@
 A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and uses **OpenAI or OpenRouter** to understand plain-English event entry.
 
 - **Menu bar** shows the next event (`Mon 09:00 · Follow up`, `Standup in 12m`, `● Lunch · 25m left`) — or just the date, or icon only.
-- **Panel** (click the icon or press **⌃⌥C**): month view with highlighted event days (any month, weekends shaded, holiday days underlined), the AI box, an *Up next* card with countdown + **Join**, and your upcoming events by day. Holidays show as small tags.
+- **Panel** (click the icon or press **⌃⌥C**, configurable): the AI box on top, then Year / Month / Week / Day views with highlighted event days (any month, weekends shaded, holiday days underlined), the AI box, an *Up next* card with countdown + **Join**, and your upcoming events by day. Holidays show as small tags.
 - **Click a day** for that day's agenda; **click an event** for its card — time, place (opens Maps), notes, attendees, Join — with **Edit / Duplicate / Delete / Open in Calendar**.
 - **AI box** (OpenRouter): add (`dinner with Sara Thursday 8pm at Mais Alghanim`), ask (`what's on Thursday?`, `am I free tomorrow afternoon?`) or change (`move lunch to 3pm`, `cancel Friday's dentist`) — changes show a before/after preview first. Simple lines work offline without a key.
 - **Search** (⌘F or `/`) across the past month and the next year.
 - **Meeting alerts** with a Join button, **starts at login**, **highlight colour** of your choice, self-**updates** from GitHub.
 - **Playful mode** (one switch): a mascot whose mood follows your day, an AI greeting, emojis on events, weather, countdowns (pin events; birthdays automatic), a weekly recap, confetti, optional sounds, and a choice of AI voice.
 - **Day timeline**: drag events to move them, drag the bottom edge to resize, Undo, double-click to add.
+- **Repeating events, clash warnings and free-slot finding**, by typing or in the editor; editing a repeat asks "this one or all future".
+- **Paste or drop** text and screenshots (flight bookings, invites) to create events; **Undo** for every change.
+- **To-dos** from Apple Reminders, default alerts, and **Leave now** alerts from Apple Maps drive time.
+- **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
 - Keys: `⌃⌥C` toggle · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` back/close.
 
