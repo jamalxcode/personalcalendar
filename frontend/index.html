@@ -98,7 +98,15 @@
         <div class="group ai-group" id="aiGroup">
           <div class="group-title">✦ AI quick add <span class="muted small">powered by OpenRouter</span> <span class="key-state" id="keyState"></span></div>
           <div class="small muted" id="aiIntro">Type events in plain English — the AI turns them into calendar entries. It runs through <b>OpenRouter</b>: paste your OpenRouter key below once (an OpenAI key also works).</div>
-          <label class="field"><span>Key</span>
+          <div class="key-saved hidden" id="keySaved">
+            <span class="ok-dot">✓</span>
+            <div class="ks-body">
+              <div class="ks-title" id="keyProvider">OpenRouter key saved</div>
+              <div class="muted small" id="keyMasked"></div>
+            </div>
+            <button class="btn" id="changeKey">Change</button>
+          </div>
+          <label class="field" id="keyField"><span>Key</span>
             <input id="sKey" type="password" placeholder="OpenRouter key  sk-or-…" spellcheck="false"></label>
           <label class="field"><span>Model</span>
             <input id="sModel" type="text" spellcheck="false"></label>

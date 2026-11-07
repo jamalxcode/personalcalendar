@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.3.2
+
+- After pasting your AI key you now see a green "Key saved ✓" card (provider + masked key) with a Change button — no more blank box, no Save needed
+
 ## v1.3.1
 
 - Fixed: Settings buttons overlapping text when scrolled to the bottom

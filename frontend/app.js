@@ -535,12 +535,14 @@ async function openSettings() {
   $("sDays").value = String(settingsCache.daysAhead);
   pendingAccent = null;
   showSetupDetails = false;
+  editingKey = false;
   renderSwatches();
   renderGoogleBox();
   document.querySelector(".settings-body").scrollTop = 0;
 }
 
 let showSetupDetails = false;
+let editingKey = false;
 function arrangeSettings() {
   const body = document.querySelector(".settings-body");
   const setupDone = S.connected && S.hasGoogle;
@@ -559,7 +561,12 @@ function arrangeSettings() {
   ks.className = "key-state " + (S.hasKey ? "ok" : "missing");
   $("aiIntro").classList.toggle("hidden", S.hasKey);
   const hint = (settingsCache && settingsCache.openaiKeyHint) || "";
-  $("sKey").placeholder = S.hasKey ? `${hint || "Key"} — saved on this Mac` : "Paste your OpenRouter key  sk-or-…";
+  const showSaved = S.hasKey && !editingKey;
+  $("keySaved").classList.toggle("hidden", !showSaved);
+  $("keyField").classList.toggle("hidden", showSaved);
+  $("keyProvider").textContent = (hint.startsWith("sk-or") ? "OpenRouter" : "OpenAI") + " key saved";
+  $("keyMasked").innerHTML = `<code>${esc(hint || "key")}</code> · stored on this Mac`;
+  $("sKey").placeholder = S.hasKey ? "Paste a new key to replace the saved one" : "Paste your OpenRouter key  sk-or-…";
 }
 
 function focusAI() {
@@ -633,7 +640,9 @@ async function saveSettings() {
     settingsCache = await go("GetSettings");
     const keyJustSaved = !!payload.openaiKey;
     $("sKey").value = "";
+    if (keyJustSaved) editingKey = false;
     arrangeSettings();
+    if (keyJustSaved) { const k = $("keySaved"); k.classList.remove("just"); void k.offsetWidth; k.classList.add("just"); }
     toast(keyJustSaved ? "Key saved on this Mac ✓ — quick add is ready" : "Saved ✓");
   } catch (err) { toast(errMsg(err), true); }
 }
@@ -647,6 +656,7 @@ function wire() {
   $("openSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("returnBtn").onclick = closeSettings;
+  $("changeKey").onclick = () => { editingKey = true; arrangeSettings(); $("sKey").focus(); };
   $("showSetup").onclick = (ev) => { ev.preventDefault(); showSetupDetails = !showSetupDetails; arrangeSettings(); $("showSetup").textContent = showSetupDetails ? "hide" : "details"; };
   $("sKey").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); saveSettings(); } });
   // paste the key → it's saved immediately; no need to press Save
