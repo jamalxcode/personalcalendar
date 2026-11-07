@@ -2179,7 +2179,7 @@ async function openSettings() {
   $("s24").checked = settingsCache.use24h;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
-  $("sMenuBar").value = settingsCache.menuBarStyle || "next";
+  $("sMenuBar").value = settingsCache.menuBarStyle || "emoji";
   $("sAlert").value = settingsCache.alertMode || "1";
   $("sLogin").checked = !!settingsCache.launchAtLogin;
   $("sHolRows").checked = !!settingsCache.showHolidayRows;
@@ -2503,3 +2503,16 @@ go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
 go("LatestUpdate").then((u) => renderUpdate(u)).catch(() => {});
 setTimeout(refreshGreeting, 400);
 setTimeout(() => { if (calView !== "month") setView(calView); }, 300);
+
+// send the panel's emoji for upcoming events to the menu bar label ("👥 2h Meet")
+let lastLabelEmojis = "";
+function pushLabelEmojis() {
+  const m = {};
+  for (const e of evs().slice(0, 12)) if (!e.allDay && !e.holiday) m[e.title] = emojiFor(e) || (flightOf(e.title, e.location) ? "✈️" : "");
+  const j = JSON.stringify(m);
+  if (j === lastLabelEmojis) return;
+  lastLabelEmojis = j;
+  go("SetLabelEmojis", m).catch(() => {});
+}
+setInterval(pushLabelEmojis, 20000);
+setTimeout(pushLabelEmojis, 1500);

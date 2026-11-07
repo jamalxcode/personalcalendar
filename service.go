@@ -309,7 +309,7 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 		c.Accent = strings.ToUpper(in.Accent)
 	}
 	switch in.MenuBarStyle {
-	case "next", "soon", "date", "icon":
+	case "emoji", "next", "soon", "date", "icon":
 		c.MenuBarStyle = in.MenuBarStyle
 	}
 	switch in.AlertMode {
@@ -750,4 +750,13 @@ func (s *CalService) OpenWeek() {
 // so the next request shows the system prompt again.
 func resetCalendarPermission() {
 	_ = exec.Command("/usr/bin/tccutil", "reset", "Calendar", "company.sala.personalcalendar").Run()
+}
+
+// SetLabelEmojis receives the emoji the panel shows for each event title (rules + AI picks),
+// so the menu bar label can use the same one.
+func (s *CalService) SetLabelEmojis(m map[string]string) {
+	s.a.mu.Lock()
+	s.a.labelEmoji = m
+	s.a.mu.Unlock()
+	s.a.updateLabel()
 }

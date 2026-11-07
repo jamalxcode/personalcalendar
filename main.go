@@ -47,6 +47,7 @@ type App struct {
 	week         *application.WebviewWindow
 	travel       map[string]int // "id|unix" → driving minutes (guarded by mu)
 	travelAt     map[string]time.Time
+	labelEmoji   map[string]string // title → emoji, sent by the panel
 	leaveAlerted map[string]bool
 	hotkeyOn     string // currently registered shortcut
 	extras       extras // weather + countdowns, refreshed with events
@@ -497,6 +498,11 @@ func nextEvent(evs []Event, now time.Time) (Event, bool) {
 func (a *App) updateLabel() {
 	evs, _ := a.snapshot()
 	now := time.Now()
+	if a.cfg.MenuBarStyle == "emoji" {
+		a.tray.SetLabel(a.emojiLabel(evs, now))
+		a.badge(evs, now)
+		return
+	}
 	date := now.Format("Mon 2 Jan")
 	label := date
 	style := a.cfg.MenuBarStyle
@@ -523,7 +529,11 @@ func (a *App) updateLabel() {
 	}
 	a.tray.SetLabel(label)
 
-	// badge the menu bar icon in the 5 minutes before a meeting
+	a.badge(evs, now)
+}
+
+// badge the menu bar icon in the 5 minutes before a meeting
+func (a *App) badge(evs []Event, now time.Time) {
 	soon := false
 	if e, ok := nextEvent(evs, now); ok && !a.cfg.NoPlayful {
 		d := e.Start.Sub(now)
@@ -582,4 +592,91 @@ func sameDay(a, b time.Time) bool {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()
 	return ay == by && am == bm && ad == bd
+}
+
+// emojiLabel is the compact menu bar text: "👥 2h Meet", "🦷 25m Dentist", "👥 now Meet", "✈️ Su 8a KU101".
+func (a *App) emojiLabel(evs []Event, now time.Time) string {
+	e, ok := nextEvent(evs, now)
+	if !ok {
+		return ""
+	}
+	a.mu.Lock()
+	em := a.labelEmoji[e.Title]
+	a.mu.Unlock()
+	if em == "" {
+		em = "📅"
+	}
+	var when string
+	d := e.Start.Sub(now)
+	switch {
+	case d <= 0:
+		when = "now"
+	case d < time.Hour:
+		when = fmt.Sprintf("%dm", int(d.Round(time.Minute).Minutes()))
+	case d < 24*time.Hour:
+		h := int(d.Hours())
+		if h < 3 && int(d.Minutes())%60 >= 30 {
+			when = fmt.Sprintf("%dh½", h)
+		} else {
+			when = fmt.Sprintf("%dh", h)
+		}
+	default:
+		when = e.Start.Format("Mon")[:2] + " " + compactClock(e.Start)
+	}
+	if w := shortWord(e.Title); w != "" {
+		return em + " " + when + " " + w
+	}
+	return em + " " + when
+}
+
+// compactClock: 10:00 → "10a", 13:30 → "1:30p".
+func compactClock(t time.Time) string {
+	h, m := t.Hour(), t.Minute()
+	ap := "a"
+	if h >= 12 {
+		ap = "p"
+	}
+	if h = h % 12; h == 0 {
+		h = 12
+	}
+	if m == 0 {
+		return fmt.Sprintf("%d%s", h, ap)
+	}
+	return fmt.Sprintf("%d:%02d%s", h, m, ap)
+}
+
+// shortWord picks the first meaningful word of a title, at most 8 characters.
+func shortWord(title string) string {
+	skip := map[string]bool{"the": true, "a": true, "an": true, "my": true, "with": true, "to": true, "at": true, "and": true, "&": true, "-": true, "·": true}
+	ws := strings.Fields(title)
+	for i, w := range ws {
+		w = strings.Trim(w, ".,:;!?()[]\"'")
+		if len(w) == 2 && strings.ToUpper(w) == w && i+1 < len(ws) && isDigits(ws[i+1]) && len(ws[i+1]) <= 4 {
+			return w + ws[i+1] // flight number: "KU 101" → "KU101"
+		}
+		if w == "" || skip[strings.ToLower(w)] {
+			continue
+		}
+		r := []rune(w)
+		if r[0] > 0x2000 && len(r) <= 2 { // a leading emoji
+			continue
+		}
+		if len(r) > 8 {
+			return string(r[:7]) + "…"
+		}
+		return w
+	}
+	return ""
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

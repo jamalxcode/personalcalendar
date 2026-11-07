@@ -75,3 +75,17 @@ func TestFreeSlots(t *testing.T) {
 		t.Fatal("clash count")
 	}
 }
+
+func TestCompactLabelBits(t *testing.T) {
+	cases := map[string]string{"Meet friends": "Meet", "KU 101 to Dubai": "KU101", "🦷 Dentist": "Dentist",
+		"The quarterly review": "quarter…", "Lunch with Ali": "Lunch", "": ""}
+	for in, want := range cases {
+		if got := shortWord(in); got != want {
+			t.Errorf("shortWord(%q) = %q, want %q", in, got, want)
+		}
+	}
+	d := time.Date(2026, 11, 8, 10, 0, 0, 0, time.Local)
+	if compactClock(d) != "10a" || compactClock(d.Add(3*time.Hour+30*time.Minute)) != "1:30p" {
+		t.Errorf("compactClock wrong: %s %s", compactClock(d), compactClock(d.Add(3*time.Hour+30*time.Minute)))
+	}
+}

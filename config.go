@@ -18,7 +18,7 @@ type Config struct {
 	HiddenCalendars  []string `json:"hidden_calendars"` // calendar IDs not shown
 	DefaultCalendar  string   `json:"default_calendar"` // calendar ID for new events ("" = primary)
 	Accent           string   `json:"accent"`           // highlight colour, #RRGGBB
-	MenuBarStyle     string   `json:"menubar_style"`    // next | soon | date | icon
+	MenuBarStyle     string   `json:"menubar_style"`    // emoji | next | soon | date | icon
 	AlertMode        string   `json:"alert_mode"`       // minutes before a meeting to notify: off | 0 | 1 | 5 | 10
 	LaunchAtLogin    bool     `json:"launch_at_login"`
 	LoginConfigured  bool     `json:"login_configured"`  // first-run default applied
@@ -46,6 +46,7 @@ type Config struct {
 	DefaultAlarm string `json:"default_alarm"` // new timed events: none | 0 | 5 | 10 | 15 | 30 | 60
 	AllDayAlarm  string `json:"all_day_alarm"` // new all-day events: none | dayBefore9 | sameDay9
 	AlarmsSet    bool   `json:"alarms_set"`    // defaults applied once
+	EmojiBarSet  bool   `json:"emoji_bar_set"` // compact emoji menu bar applied once
 	TravelFrom   string `json:"travel_from"`   // address for "leave now" driving times ("" = off)
 	NoTodos      bool   `json:"no_todos"`      // hide the to-do section
 	TodoList     string `json:"todo_list"`     // Reminders list for new to-dos ("" = default)
@@ -85,8 +86,14 @@ func loadConfig() *Config {
 	if c.OpenAIModel == "" {
 		c.OpenAIModel = "gpt-4o-mini"
 	}
+	if !c.EmojiBarSet { // v1.8.7: the compact "👥 2h Meet" label becomes the default
+		if c.MenuBarStyle == "" || c.MenuBarStyle == "next" {
+			c.MenuBarStyle = "emoji"
+		}
+		c.EmojiBarSet = true
+	}
 	switch c.MenuBarStyle {
-	case "next", "soon", "date", "icon":
+	case "emoji", "next", "soon", "date", "icon":
 	default:
 		c.MenuBarStyle = "next"
 	}
