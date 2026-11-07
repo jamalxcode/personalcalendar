@@ -271,7 +271,7 @@ function renderBanner() {
     return;
   }
   const parts = [];
-  if (!S.hasGoogle) parts.push(`No Google account on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
+  if (!S.hasGoogle && !S.calendars.length) parts.push(`No calendars on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
   if (!S.hasKey) parts.push(`Add an AI key for quick add — <a href="#" id="bannerGo">Settings</a>`);
   if (S.error) parts.push(esc(S.error));
   if (!parts.length) { b.classList.add("hidden"); return; }
@@ -428,8 +428,14 @@ function renderGoogleBox() {
     : S.access === "notDetermined" ? "macOS will ask once — click <b>Allow</b>."
     : "It was turned off — click Allow to open the switch in System Settings.";
   $("step2").classList.toggle("done", S.hasGoogle);
-  $("step2Hint").innerHTML = S.hasGoogle ? esc(S.googleAccounts.join(", ")) + " ✓"
+  $("step2").classList.toggle("waiting", !S.connected);
+  const accounts = [...new Set(S.calendars.map((c) => c.account).filter(Boolean))];
+  $("step2Hint").innerHTML = !S.connected
+    ? "Do step 1 first — the app can't see any calendars until access is allowed."
+    : S.hasGoogle ? esc(S.googleAccounts.join(", ")) + " ✓"
+    : accounts.length ? `Found ${esc(accounts.join(", "))} but no Google calendars. Already added Google in System Settings? Click <a href="#" id="recheck">Check again</a>.`
     : "Sign in with Google once and keep <b>Calendars</b> ticked. It appears here by itself.";
+  if ($("recheck")) $("recheck").onclick = (ev) => { ev.preventDefault(); refresh().then(() => toast(S.hasGoogle ? "Google calendars found" : "Still no Google calendars — open the Calendar app once so macOS syncs")); };
 
   const list = $("calList");
   list.innerHTML = "";
@@ -520,6 +526,7 @@ function wire() {
     renderMiniCal();
     renderUpNext();
     if ($("settings").classList.contains("hidden")) setTimeout(() => $("quick").focus(), 30);
+    go("Refresh").then(applyState).catch(() => {});
   });
   window.addEventListener("focus", () => { if ($("settings").classList.contains("hidden")) $("quick").focus(); });
 
@@ -528,7 +535,6 @@ function wire() {
 }
 
 async function refresh() {
-  $("refreshBtn").classList.add("spin");
   try { applyState(await go("Refresh")); } catch (err) { toast(errMsg(err), true); }
 }
 

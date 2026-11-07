@@ -30,11 +30,30 @@ static NSString *hexColor(CGColorRef c) {
             (int)lround(col.blueComponent * 255)];
 }
 
-static BOOL isGoogle(EKSource *src) {
+static BOOL looksGoogle(NSString *s) {
+    s = s.lowercaseString ?: @"";
+    return [s containsString:@"google"] || [s containsString:@"gmail"] || [s containsString:@"googlemail"];
+}
+
+// Google accounts added in Internet Accounts show up as CalDAV sources titled with the
+// account email (or "Google"); the primary calendar is usually named after the email too.
+static BOOL isGoogle(EKCalendar *c) {
+    EKSource *src = c.source;
     if (!src) return NO;
-    NSString *t = src.title.lowercaseString ?: @"";
-    return src.sourceType == EKSourceTypeCalDAV &&
-           ([t containsString:@"google"] || [t containsString:@"gmail"] || [t containsString:@"googlemail"]);
+    if (looksGoogle(src.title) || looksGoogle(c.title)) return YES;
+    return NO;
+}
+
+static NSString *sourceTypeName(EKSourceType t) {
+    switch (t) {
+        case EKSourceTypeLocal: return @"local";
+        case EKSourceTypeExchange: return @"exchange";
+        case EKSourceTypeCalDAV: return @"caldav";
+        case EKSourceTypeMobileMe: return @"icloud";
+        case EKSourceTypeSubscribed: return @"subscribed";
+        case EKSourceTypeBirthdays: return @"birthdays";
+        default: return @"other";
+    }
 }
 
 void ek_init(void) {
@@ -94,7 +113,8 @@ char *ek_calendars(void) {
             @"writable": @(c.allowsContentModifications),
             @"primary": @(def && [c.calendarIdentifier isEqualToString:def.calendarIdentifier]),
             @"account": c.source.title ?: @"",
-            @"google": @(isGoogle(c.source)),
+            @"google": @(isGoogle(c)),
+            @"sourceType": sourceTypeName(c.source.sourceType),
         }];
     }
     return cstr(toJSON(out));

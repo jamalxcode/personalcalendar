@@ -2,6 +2,8 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
+	"path/filepath"
 	"fmt"
 	"io/fs"
 	"log"
@@ -16,6 +18,10 @@ import (
 
 //go:embed all:frontend
 var frontendFS embed.FS
+
+// diagDir is set by build.sh (-X main.diagDir=...) to <source>/.diag so the developer
+// can read what the app sees (calendar access, accounts found) without screen access.
+var diagDir string
 
 // Global hotkey that toggles the popover from anywhere.
 const hotkey = "Ctrl+Alt+C"
@@ -158,7 +164,27 @@ func (a *App) doRefresh() State {
 	a.updateLabel()
 	st := a.state()
 	a.wa.Event.Emit("state", st)
+	writeDiag(st)
 	return st
+}
+
+func writeDiag(st State) {
+	if diagDir == "" {
+		return
+	}
+	_ = os.MkdirAll(diagDir, 0o755)
+	type calLine struct{ Name, Account, Source string; Google, Writable, Primary bool }
+	var cals []calLine
+	for _, c := range st.Calendars {
+		cals = append(cals, calLine{c.Name, c.Account, c.Source, c.Google, c.Writable, c.Primary})
+	}
+	d := map[string]any{
+		"time": time.Now().Format(time.RFC3339), "access": st.Access, "hasGoogle": st.HasGoogle,
+		"googleAccounts": st.GoogleAccounts, "events": len(st.Events), "error": st.Error,
+		"hasKey": st.HasKey, "calendars": cals,
+	}
+	b, _ := json.MarshalIndent(d, "", "  ")
+	_ = os.WriteFile(filepath.Join(diagDir, "status.json"), b, 0o644)
 }
 
 func (a *App) snapshot() ([]Event, error) {

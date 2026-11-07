@@ -14,7 +14,7 @@ go mod tidy
 echo "→ compiling"
 mkdir -p build
 # production = embedded runtime; private_mac_apis = transparent webview over the frosted backdrop
-go build -tags production,private_mac_apis -ldflags "-s -w" -o build/PersonalCalendar .
+go build -tags production,private_mac_apis -ldflags "-s -w -X main.diagDir=$(pwd)/.diag" -o build/PersonalCalendar .
 
 echo "→ bundling"
 rm -rf "build/$APP"

@@ -279,3 +279,5 @@ a:hover { text-decoration: underline; }
 .setup-step .step-title { font-weight: 600; font-size: 12.5px; }
 .setup-step.done .btn { display: none; }
 .banner .btn { margin-left: 6px; padding: 3px 10px; }
+.setup-step.waiting { opacity: .55; }
+.setup-step.waiting .btn { display: none; }

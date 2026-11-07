@@ -50,6 +50,7 @@ type CalendarInfo struct {
 	Writable bool   `json:"writable"`
 	Account  string `json:"account"`
 	Google   bool   `json:"google"`
+	Source   string `json:"sourceType"`
 }
 
 var errNoAccess = errors.New("calendar access not allowed yet — open Settings")
