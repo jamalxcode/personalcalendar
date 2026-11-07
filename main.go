@@ -96,7 +96,7 @@ func main() {
 	})
 
 	a.tray = a.wa.SystemTray.New()
-	a.tray.SetTemplateIcon(trayIconPNG())
+	a.tray.SetIcon(trayIconPNG()) // full-colour icon (not a template, so macOS doesn't flatten it)
 	a.tray.SetTooltip("Personal Calendar  (" + hotkey + ")")
 	a.tray.SetMenu(a.buildMenu())
 	a.tray.AttachWindow(a.win).WindowOffset(6)

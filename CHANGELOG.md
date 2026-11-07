@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.4.0
+
+- New app and menu bar icon: the smiling calendar with the magic wand
+
 ## v1.3.3
 
 - AI quick add box: 2 lines, bold accent border and a magic-wand AI icon (Return adds, Shift+Return for a new line)

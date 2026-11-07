@@ -64,6 +64,7 @@ a:hover { text-decoration: underline; }
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
   padding: 10px 14px 0; flex: none;
 }
+.brand-icon { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; }
 .brand-name { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--accent); }
 .brand-by { font-size: 10.5px; color: var(--muted); }
 .brand-by a { font-weight: 600; }
