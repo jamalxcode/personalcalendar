@@ -19,3 +19,4 @@
 - **List upcoming events with `timeMin = now`** — Google filters by *end* time, so in-progress meetings and today's all-day events are still returned.
 - **Native file picker from Go without cgo glue:** `osascript -e 'POSIX path of (choose file …)'`.
 - **Builds happen on the Mac.** Fyne needs cgo + Apple frameworks; cross-compiling from Linux isn't worth it.
+- **ObjC → JSON booleans:** `@(a && b)` boxes an *int*, so NSJSONSerialization writes `1`/`0` and Go's `bool` unmarshal fails. Use `cond ? @YES : @NO`. (Found via the `.diag/status.json` the dev build writes — worth having when you can't see the app.)

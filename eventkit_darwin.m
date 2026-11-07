@@ -110,10 +110,11 @@ char *ek_calendars(void) {
             @"id": c.calendarIdentifier ?: @"",
             @"name": c.title ?: @"",
             @"color": hexColor(c.CGColor),
-            @"writable": @(c.allowsContentModifications),
-            @"primary": @(def && [c.calendarIdentifier isEqualToString:def.calendarIdentifier]),
+            @"writable": c.allowsContentModifications ? @YES : @NO,
+            // `&&` yields an int, which would serialise as 1/0 instead of true/false
+            @"primary": (def && [c.calendarIdentifier isEqualToString:def.calendarIdentifier]) ? @YES : @NO,
             @"account": c.source.title ?: @"",
-            @"google": @(isGoogle(c)),
+            @"google": isGoogle(c) ? @YES : @NO,
             @"sourceType": sourceTypeName(c.source.sourceType),
         }];
     }
@@ -167,7 +168,7 @@ char *ek_events(double from, double to, const char *hiddenJSON) {
             @"location": e.location ?: @"",
             @"start": @(s.timeIntervalSince1970),
             @"end": @(en.timeIntervalSince1970),
-            @"allDay": @(e.allDay),
+            @"allDay": e.allDay ? @YES : @NO,
             @"url": e.URL.absoluteString ?: @"",
             @"notes": notes,
         }];
