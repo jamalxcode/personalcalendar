@@ -262,12 +262,12 @@ function renderWeekStrip() {
       : `${weekAnchor.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
     $("yearName").textContent = String(end.getFullYear());
   }
+  $("dow").innerHTML = "";
+  $("grid").innerHTML = "";
+  const inToday0 = now >= weekAnchor && now < addDays(weekAnchor, 7);
+  setTodayDot(calView === "day" ? !(selectedDay && sameDay(selectedDay, now)) : !inToday0);
+  return; // week = one line per day, day = one line per hour (both drawn in the list below)
   const dow = $("dow");
-  dow.innerHTML = "";
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(weekAnchor, i);
-    dow.append(el("span", wk.has(d.getDay()) ? "wknd" : "", "SMTWTFS"[d.getDay()]));
-  }
   const counts = new Map();
   const src = (weekView && +weekView.start === +weekAnchor && weekView.events) || monthEvents();
   for (const e of src) {
@@ -348,6 +348,102 @@ function goToday() {
   if (calView === "day") { selectedDay = now; openDay(now, true); return; }
   if (calView === "week") { loadWeekList(); renderMiniCal(); return; }
   closeDay();
+}
+
+
+// ---------- week view: one line per day ----------
+function renderWeekRows(list, start, events) {
+  const now = new Date(), wk = new Set(S.weekendDays ?? [5, 6]);
+  const box = el("div", "wrows");
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i), d1 = addDays(d, 1);
+    const row = el("div", "wrow");
+    if (wk.has(d.getDay())) row.classList.add("wknd");
+    if (sameDay(d, now)) row.classList.add("today");
+    const lab = el("div", "wrow-day");
+    lab.append(el("div", "wrow-dn", d.toLocaleDateString("en-GB", { weekday: "short" })), el("div", "wrow-num", d.getDate()));
+    const w = weatherFor(d);
+    if (w) lab.append(el("div", "wrow-wx", `${WX(w.code)}${Math.round(w.max)}°`));
+    const items = el("div", "wrow-items");
+    const day = events.filter((e) => e.s < d1 && e.e > d && (S.showHolidayRows || !e.holiday)).sort((a, b) => (b.allDay - a.allDay) || (a.s - b.s));
+    const hols = events.filter((e) => e.holiday && !S.showHolidayRows && e.s < d1 && e.e > d);
+    for (const h of hols) items.append(el("span", "wrow-hol", h.title));
+    if (!day.length && !hols.length) items.append(el("span", "wrow-free muted", "Free"));
+    for (const e of day) {
+      const it = el("button", "wrow-ev" + (e.e < now ? " past" : ""));
+      it.style.setProperty("--c", e.color || "var(--accent)");
+      it.append(el("span", "wrow-t", e.allDay ? "All day" : fmtTime(e.s)), el("span", "wrow-ttl", withEmoji(e)));
+      it.onclick = (ev) => { ev.stopPropagation(); openEvent(e); };
+      items.append(it);
+    }
+    row.append(lab, items);
+    row.onclick = () => { selectedDay = d; setView("day"); };
+    row.title = "Open this day";
+    box.append(row);
+  }
+  list.append(box);
+}
+
+// ---------- day view: one line per hour ----------
+function renderHourRows(list, d, events) {
+  const now = new Date(), day0 = startOfDay(d), day1 = addDays(day0, 1);
+  const shown = events.filter((e) => S.showHolidayRows || !e.holiday);
+  const hols = events.filter((e) => e.holiday && !S.showHolidayRows);
+  if (hols.length) list.append(holidayTags(hols));
+  const allDay = shown.filter((e) => e.allDay);
+  if (allDay.length) {
+    const ad = el("div", "hrow hrow-allday");
+    ad.append(el("div", "hrow-h", "All day"));
+    const items = el("div", "hrow-items");
+    for (const e of allDay) items.append(hourItem(e));
+    ad.append(items);
+    list.append(ad);
+  }
+  const timed = shown.filter((e) => !e.allDay);
+  const box = el("div", "hrows");
+  let scrollTo = null;
+  for (let h = 0; h < 24; h++) {
+    const hs = new Date(day0.getTime() + h * 36e5), he = new Date(hs.getTime() + 36e5);
+    const row = el("div", "hrow");
+    if (h < 7 || h >= 22) row.classList.add("night");
+    const isNow = sameDay(d, now) && now >= hs && now < he;
+    if (isNow) row.classList.add("now");
+    if (he <= now && sameDay(d, now)) row.classList.add("past");
+    row.append(el("div", "hrow-h", fmtTime(hs)));
+    const items = el("div", "hrow-items");
+    for (const e of timed) {
+      const startsHere = e.s >= hs && e.s < he || (h === 0 && e.s < day0 && e.e > day0);
+      const continues = !startsHere && e.s < hs && e.e > hs;
+      if (startsHere) items.append(hourItem(e));
+      else if (continues) { const c = el("button", "hrow-cont", `↳ ${e.title}`); c.style.setProperty("--c", e.color || "var(--accent)"); c.onclick = (ev) => { ev.stopPropagation(); openEvent(e); }; items.append(c); }
+    }
+    row.append(items);
+    row.onclick = () => {
+      const def = S.defaultCalendar || (S.calendars.find((x) => x.primary) || {}).id || "";
+      renderEdit({ title: "", start: hs.toISOString(), end: he.toISOString(), allDay: false, location: "", notes: "", calendarId: def, color: "" }, "new");
+    };
+    row.title = "Click to add an event at " + fmtTime(hs);
+    if (isNow) scrollTo = row;
+    box.append(row);
+  }
+  list.append(box);
+  // scroll to now (today) or to the first event / 7 am
+  const first = timed.length ? Math.min(...timed.map((e) => (e.s < day0 ? 0 : e.s.getHours()))) : 7;
+  const target = scrollTo || box.children[Math.min(first, 7)];
+  requestAnimationFrame(() => {
+    const sc = $("scroll");
+    sc.scrollTop += target.getBoundingClientRect().top - sc.getBoundingClientRect().top - 70;
+  });
+}
+
+function hourItem(e) {
+  const it = el("button", "hrow-ev");
+  it.style.setProperty("--c", e.color || "var(--accent)");
+  it.append(el("span", "hrow-ttl", withEmoji(e)));
+  const sub = e.allDay ? (e.location || "") : `${fmtTime(e.s)} – ${fmtTime(e.e)}${e.location ? " · " + e.location : ""}`;
+  if (sub) it.append(el("span", "hrow-sub", sub));
+  it.onclick = (ev) => { ev.stopPropagation(); openEvent(e); };
+  return it;
 }
 
 // ---------- list modes: upcoming | day | search ----------
@@ -443,8 +539,7 @@ function renderList() {
     head.append(big);
     list.append(head);
     if (!weekView.events) { list.append(emptyState("⏳", "Loading…")); return; }
-    if (!weekView.events.filter((e) => S.showHolidayRows || !e.holiday).length) { list.append(emptyState("☀️", "Nothing planned this week.")); return; }
-    renderGroups(list, weekView.events, { now, showPast: true, spread: true, from: weekView.start });
+    renderWeekRows(list, weekView.start, weekView.events);
     return;
   }
 
@@ -460,7 +555,7 @@ function renderList() {
     list.append(head);
     if (!dayView.events) { list.append(emptyState("⏳", "Loading…")); return; }
     const evsDay = dayView.events;
-    if (!evsDay.filter((e) => S.showHolidayRows || !e.holiday).length) {
+    if (calView !== "day" && !evsDay.filter((e) => S.showHolidayRows || !e.holiday).length) {
       const hol = evsDay.filter((e) => e.holiday);
       if (hol.length) list.append(holidayTags(hol));
       const em = emptyState("☀️", "Nothing planned.");
@@ -470,7 +565,7 @@ function renderList() {
       list.append(em);
       return;
     }
-    renderTimeline(list, d, evsDay);
+    if (calView === "day") renderHourRows(list, d, evsDay); else renderTimeline(list, d, evsDay);
     return;
   }
 
