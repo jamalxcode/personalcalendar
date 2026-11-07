@@ -6,6 +6,7 @@
   <title>Smart Cal</title>
   <link rel="stylesheet" href="style.css">
   <script type="module" src="/wails/runtime.js"></script>
+  <script src="i18n.js"></script>
   <script type="module" src="app.js"></script>
 </head>
 <body>
@@ -98,7 +99,7 @@
         <span style="width:58px"></span>
       </header>
       <div class="tabs" id="tabs">
-        <button data-tab="calendar" class="on">Calendar</button><button data-tab="ai">AI</button><button data-tab="look">Look</button><button data-tab="menubar">Menu bar</button><button data-tab="alerts">Alerts</button><button data-tab="about">About</button>
+        <button data-tab="calendar" class="on"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span data-i18n>Calendar</span></button><button data-tab="ai"><svg viewBox="0 0 24 24"><path d="M5 19 15 9M14 4l1 2.5L17.5 7.5 15 8.5 14 11l-1-2.5L10.5 7.5 13 6.5zM19 12l.6 1.4 1.4.6-1.4.6L19 16l-.6-1.4-1.4-.6 1.4-.6z"/></svg><span data-i18n>AI</span></button><button data-tab="look"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" class="fillc"/></svg><span data-i18n>Look</span></button><button data-tab="menubar"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 9h19M15 7h3"/></svg><span data-i18n>Menu bar</span></button><button data-tab="alerts"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></svg><span data-i18n>Alerts</span></button><button data-tab="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.5v.5"/></svg><span data-i18n>About</span></button>
       </div>
       <div class="scroll settings-body">
         <div data-tab="calendar" class="connected-line hidden" id="connectedLine">
@@ -207,7 +208,9 @@
           <div class="mb-row"><span>Show emoji</span><input type="checkbox" class="switch" id="mbEmoji"></div>
           <div class="mb-row"><span>Hide during a meeting<small>Instead of “now” (shows the icon)</small></span><input type="checkbox" class="switch" id="mbHide"></div>
           <div class="mb-row"><span>Orange dot before meetings</span><select id="mbDot"><option value="off">Off</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option></select></div>
-          <div class="muted small">With text showing, the app icon is hidden to save space; it comes back when there's nothing to show.</div>
+          <div class="mb-row"><span>Menu bar icon<small>Monochrome matches Apple's own icons</small></span><div class="seg" id="mbIcon" data-k="trayIcon"><button data-v="color">Colour</button><button data-v="mono">Monochrome</button></div></div>
+          <div class="mb-row"><span>Also show in the Dock<small>Handy if the menu bar is crowded or hidden by the notch</small></span><input type="checkbox" class="switch" id="sDock"></div>
+          <div class="muted small">With text showing, the app icon is hidden to save space; it comes back when there's nothing to show. ⌃⌥C always opens Smart Cal.</div>
         </div>
 
         <div data-tab="alerts" class="group">
@@ -249,7 +252,10 @@
 
         <div data-tab="look" class="group">
           <div class="group-title">Display</div>
-          <label class="check"><input type="checkbox" id="s24"> 24-hour clock</label>
+          <label class="field"><span>Clock</span>
+            <select id="sClock"><option value="system">Same as the Mac</option><option value="12">12-hour (3:00 PM)</option><option value="24">24-hour (15:00)</option></select></label>
+          <label class="field"><span>Language</span>
+            <select id="sLang"><option value="auto">Same as the Mac</option><option value="en">English</option><option value="ar">العربية (Arabic)</option></select></label>
           <label class="check"><input type="checkbox" id="sConfirm"> Preview before adding</label>
           <label class="check"><input type="checkbox" id="sHolRows"> Show holidays as full rows (instead of small tags)</label>
           <label class="field"><span>Text size</span>
@@ -270,6 +276,18 @@
           </div>
           <ul id="updNotes" class="upd-notes hidden"></ul>
           <button class="btn primary hidden" id="installUpdBtn">Update now</button>
+        </div>
+
+        <div data-tab="about" class="group about-group">
+          <img src="icon.png" alt="" class="about-icon">
+          <div class="about-name">Smart Cal</div>
+          <div class="muted small" id="aboutVer"></div>
+          <div class="muted small">from <a href="#" data-open="https://go.sala.company">go.sala.company</a></div>
+          <div class="about-btns">
+            <button class="btn" id="aboutBtn">About Smart Cal</button>
+            <button class="btn" id="helpBtn">Help &amp; shortcuts</button>
+            <button class="btn danger-ghost" id="quitBtn2">Quit Smart Cal</button>
+          </div>
         </div>
 
       </div>

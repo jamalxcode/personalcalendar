@@ -65,15 +65,15 @@ function render() {
   const wk = new Set(S.weekendDays ?? [5, 6]);
   const last = days[6];
   $("wkTitle").textContent = weekStart.getMonth() === last.getMonth()
-    ? `${weekStart.getDate()}–${last.getDate()} ${last.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}`
-    : `${weekStart.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
+    ? `${weekStart.getDate()}–${last.getDate()} ${last.toLocaleDateString(LOC(), { month: "long", year: "numeric" })}`
+    : `${weekStart.toLocaleDateString(LOC(), { day: "numeric", month: "short" })} – ${last.toLocaleDateString(LOC(), { day: "numeric", month: "short", year: "numeric" })}`;
 
   // header
   const head = $("wkHead");
   head.innerHTML = "<div></div>";
   days.forEach((d) => {
     const h = el("div", sameDay(d, now) ? "today" : "");
-    h.innerHTML = `${d.toLocaleDateString("en-GB", { weekday: "short" })}<span class="num">${d.getDate()}</span>`;
+    h.innerHTML = `${d.toLocaleDateString(LOC(), { weekday: "short" })}<span class="num">${d.getDate()}</span>`;
     const w = (S.weather || []).find((x) => x.date === dateVal(d));
     if (w && S.playful !== false) h.insertAdjacentHTML("beforeend", `<span class="wx">${wxIcon(w.code)} ${Math.round(w.max)}°</span>`);
     head.append(h);
@@ -161,7 +161,7 @@ function block(e, day, col, cols) {
     }
     const ns = new Date(e.s.getTime() + (mode === "move" ? dm * 6e4 + dd * 864e5 : 0));
     const ne = new Date(e.e.getTime() + (mode === "move" ? dm * 6e4 + dd * 864e5 : de * 6e4));
-    m.textContent = `${fmtTime(ns)} – ${fmtTime(ne)}${dd ? " · " + ns.toLocaleDateString("en-GB", { weekday: "short" }) : ""}`;
+    m.textContent = `${fmtTime(ns)} – ${fmtTime(ne)}${dd ? " · " + ns.toLocaleDateString(LOC(), { weekday: "short" }) : ""}`;
   };
   b.onpointerup = async () => {
     const md = mode; mode = null;
@@ -214,7 +214,7 @@ async function moveEvent(e, ns, ne) {
     await go("UpdateEvent", e.id, e.start, next, allFuture);
     let note = "";
     try { const cl = await go("CheckClashes", next, e.id); if (cl.length) note = ` · overlaps “${cl[0].title}”`; } catch (_) {}
-    toast(`Moved to ${ns.toLocaleDateString("en-GB", { weekday: "short" })} ${fmtTime(ns)}${note}`, false, {
+    toast(`Moved to ${ns.toLocaleDateString(LOC(), { weekday: "short" })} ${fmtTime(ns)}${note}`, false, {
       label: "Undo", fn: async () => { try { await go("UpdateEvent", e.id, next.start, prev, allFuture); load(); } catch (err) { toast(errMsg(err), true); } },
     });
   } catch (err) { toast(errMsg(err), true); }
@@ -231,8 +231,8 @@ async function openDrawer(e) {
   const { full, draft } = await fullDraft(e);
   if (selected !== e) return;
   const s = new Date(full.start), en = new Date(full.end);
-  const when = full.allDay ? s.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
-    : `${s.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} · ${fmtTime(s)} – ${fmtTime(en)}`;
+  const when = full.allDay ? s.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" })
+    : `${s.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" })} · ${fmtTime(s)} – ${fmtTime(en)}`;
   dr.innerHTML = `
     <div class="sheet-head"><button class="pill-btn" id="drClose">✕ Close</button><span class="sheet-dot" style="background:${esc(full.color || "var(--accent)")}"></span></div>
     <div class="sheet-body">
@@ -357,11 +357,13 @@ function applyState(st) {
   if (!st) return;
   const firstLoad = !weekStart;
   S = st;
+  if ((S.lang || "en") !== LANG) i18nApply(S.lang || "en");
+  document.body.classList.toggle("reduce-motion", !!S.reduceMotion);
   applyAccent(S.accent);
   if (firstLoad) weekStart = weekStartOf(new Date());
   load().then(() => { if (firstLoad) scrollToMorning(); });
 }
-Events.On("state", (ev) => { S = ev.data; applyAccent(S.accent); if (weekStart) load(); });
+Events.On("state", (ev) => { S = ev.data; if ((S.lang || "en") !== LANG) i18nApply(S.lang || "en"); applyAccent(S.accent); if (weekStart) load(); });
 Events.On("week:shown", () => { go("GetState").then(applyState); });
 go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
 setInterval(render, 60000);

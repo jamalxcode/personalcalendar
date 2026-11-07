@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="44" height="44">
+  <defs><mask id="m"><rect width="64" height="64" fill="#fff"/>
+    <rect x="9" y="27" width="40" height="27" rx="5" fill="#000"/>
+    <path d="M17 19q4-5 8 0M33 19q4-5 8 0" fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round"/>
+    <g transform="rotate(-45 50 50)"><rect x="44.5" y="32" width="11" height="34" rx="5.5" fill="#000"/></g>
+    <path d="M43 27l3.4 7.6 7.6 3.4-7.6 3.4L43 49l-3.4-7.6-7.6-3.4 7.6-3.4z" fill="#000" transform="translate(0 1) scale(1)"/>
+  </mask></defs>
+  <g mask="url(#m)">
+    <rect x="4" y="9" width="50" height="49" rx="12" fill="#000"/>
+    <rect x="13" y="2" width="8" height="14" rx="4" fill="#000"/><rect x="37" y="2" width="8" height="14" rx="4" fill="#000"/>
+  </g>
+  <rect x="13" y="32" width="9" height="7" rx="2" fill="#000"/><rect x="25" y="32" width="9" height="7" rx="2" fill="#000"/>
+  <rect x="13" y="43" width="9" height="7" rx="2" fill="#000"/>
+  <g transform="rotate(-45 50 50)"><rect x="47" y="35" width="6" height="28" rx="3" fill="#000"/></g>
+  <path d="M43 30l2.4 5.6 5.6 2.4-5.6 2.4L43 46l-2.4-5.6-5.6-2.4 5.6-2.4z" fill="#000"/>
+</svg>

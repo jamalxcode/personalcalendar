@@ -195,7 +195,7 @@ func (a *App) greeting(ctx context.Context) string {
 	for _, e := range dayEvents {
 		sig.WriteString(e.ID + e.Start.Format("1504") + "|")
 	}
-	key := now.Format("2006-01-02") + part + sig.String() + a.cfg.Voice + a.cfg.Name
+	key := now.Format("2006-01-02") + part + sig.String() + a.cfg.Voice + a.cfg.Name + a.cfg.lang()
 	greet.mu.Lock()
 	if greet.key == key && greet.text != "" {
 		t := greet.text
@@ -318,9 +318,10 @@ func (a *App) aiGreeting(ctx context.Context, now time.Time, part string, focus 
 It is %s, %s (the %s). Summarise %s's schedule below: how many things, the first time, a free stretch if useful.
 Mention the weather only if notable (very hot, rain, sandstorm-dusty). The weekend is %s; mention it if it's close.
 %s
-Max 24 words, one line, start with a greeting that fits the time of day.`,
+Max 24 words, one line, start with a greeting that fits the time of day.%s`,
 		now.Format("Monday 2 January 15:04"), now.Location().String(), part,
-		map[bool]string{true: "today", false: "tomorrow"}[sameDay(focus, now)], a.cfg.WeekendText(), voiceLine(a.cfg))
+		map[bool]string{true: "today", false: "tomorrow"}[sameDay(focus, now)], a.cfg.WeekendText(), voiceLine(a.cfg),
+		map[bool]string{true: "\nWrite it in Arabic (Gulf-friendly Modern Standard Arabic).", false: ""}[a.cfg.lang() == "ar"])
 	content, err := callAI(ctx, a.cfg, sys, b.String()+weather, "greeting", greetSchema)
 	if err != nil {
 		return "", err

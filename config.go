@@ -22,11 +22,11 @@ type Config struct {
 	BarTitle         string   `json:"bar_title"`        // none | word | short | full
 	BarAhead         string   `json:"bar_ahead"`        // hour | today | any
 	BarNoEmoji       bool     `json:"bar_no_emoji"`
-	BarTime          string   `json:"bar_time"`         // countdown | clock
+	BarTime          string   `json:"bar_time"` // countdown | clock
 	BarHideInMeeting bool     `json:"bar_hide_in_meeting"`
-	BarDot           string   `json:"bar_dot"`          // minutes before a meeting for the orange dot: off | 5 | 10 | 15
-	BarSet           bool     `json:"bar_set"`          // v1.9 menu bar options migrated
-	AlertMode        string   `json:"alert_mode"`       // minutes before a meeting to notify: off | 0 | 1 | 5 | 10
+	BarDot           string   `json:"bar_dot"`    // minutes before a meeting for the orange dot: off | 5 | 10 | 15
+	BarSet           bool     `json:"bar_set"`    // v1.9 menu bar options migrated
+	AlertMode        string   `json:"alert_mode"` // minutes before a meeting to notify: off | 0 | 1 | 5 | 10
 	LaunchAtLogin    bool     `json:"launch_at_login"`
 	LoginConfigured  bool     `json:"login_configured"`  // first-run default applied
 	ShowHolidayRows  bool     `json:"show_holiday_rows"` // false = holidays appear as small day tags
@@ -61,14 +61,14 @@ type Config struct {
 	TextSize     int    `json:"text_size"`     // 100 | 115 | 130 (%)
 
 	// Mac conventions (v2.0)
-	ClockMode   string `json:"clock_mode"`   // system | 12 | 24
-	TrayIcon    string `json:"tray_icon"`    // color | mono
-	ShowInDock  bool   `json:"show_in_dock"` // also show a Dock icon
-	LoginAsked  bool   `json:"login_asked"`  // asked "start at login?" (or decided before v2.0)
-	Language    string `json:"language"`     // auto | en | ar
-	WeekBounds  *Rect  `json:"week_bounds,omitempty"`
-	SetBounds   *Rect  `json:"settings_bounds,omitempty"`
-	MacSet      bool   `json:"mac_set"` // v2.0 defaults applied
+	ClockMode  string `json:"clock_mode"`   // system | 12 | 24
+	TrayIcon   string `json:"tray_icon"`    // color | mono
+	ShowInDock bool   `json:"show_in_dock"` // also show a Dock icon
+	LoginAsked bool   `json:"login_asked"`  // asked "start at login?" (or decided before v2.0)
+	Language   string `json:"language"`     // auto | en | ar
+	WeekBounds *Rect  `json:"week_bounds,omitempty"`
+	SetBounds  *Rect  `json:"settings_bounds,omitempty"`
+	MacSet     bool   `json:"mac_set"` // v2.0 defaults applied
 }
 
 // Pin is an event pinned as a countdown.

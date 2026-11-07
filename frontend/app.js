@@ -29,7 +29,7 @@ function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMont
 function dayKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
 
 function fmtTime(d) {
-  if (S.use24h) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (S.use24h) return d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
   const h = d.getHours() % 12 || 12, m = d.getMinutes(), ap = d.getHours() < 12 ? "AM" : "PM";
   return m === 0 ? `${h} ${ap}` : `${h}:${String(m).padStart(2, "0")} ${ap}`;
 }
@@ -41,17 +41,17 @@ function dur(ms) {
   return r ? `${h}h ${r}m` : `${h}h`;
 }
 function dayLabel(d, now = new Date()) {
-  if (sameDay(d, now) || d < now) return "Today";
-  if (sameDay(d, addDays(now, 1))) return "Tomorrow";
-  return d.toLocaleDateString("en-GB", { weekday: "long" });
+  if (sameDay(d, now) || d < now) return tr("Today");
+  if (sameDay(d, addDays(now, 1))) return tr("Tomorrow");
+  return d.toLocaleDateString(LOC(), { weekday: "long" });
 }
 function dayHead(d) {
   const now = new Date();
   const lbl = dayLabel(d, now);
-  const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  if (lbl === "Today" || lbl === "Tomorrow") return `${lbl} · ${d.toLocaleDateString("en-GB", { weekday: "short" })} ${date}`;
+  const date = d.toLocaleDateString(LOC(), { day: "numeric", month: "short" });
+  if (lbl === "Today" || lbl === "Tomorrow") return `${lbl} · ${d.toLocaleDateString(LOC(), { weekday: "short" })} ${date}`;
   if (d - now < 6 * 864e5) return `${lbl} · ${date}`;
-  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
+  return d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "short" });
 }
 function whenText(start, end, allDay) {
   const s = new Date(start), e = new Date(end);
@@ -108,7 +108,7 @@ function monthEvents() {
 
 function renderMonthGrid() {
   const now = new Date();
-  $("monthName").textContent = viewMonth.toLocaleDateString("en-GB", { month: "long" });
+  $("monthName").textContent = viewMonth.toLocaleDateString(LOC(), { month: "long" });
   $("yearName").textContent = viewMonth.getFullYear();
 
   const ws = S.weekStart ?? 6;
@@ -117,7 +117,7 @@ function renderMonthGrid() {
   dow.innerHTML = "";
   for (let i = 0; i < 7; i++) {
     const wd = (ws + i) % 7;
-    dow.append(el("span", wk.has(wd) ? "wknd" : "", "SMTWTFS"[wd]));
+    dow.append(el("span", wk.has(wd) ? "wknd" : "", LANG === "ar" ? new Date(2026, 0, 4 + wd).toLocaleDateString(LOC(), { weekday: "narrow" }) : "SMTWTFS"[wd]));
   }
 
   const dots = new Map(), counts = new Map(), hols = new Map();
@@ -169,7 +169,7 @@ function renderMonthGrid() {
     cell.onclick = () => openDay(d);
     cell.ondblclick = () => {
       const q = $("quick");
-      q.value = `${q.value ? q.value + " " : ""}on ${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} `;
+      q.value = `${q.value ? q.value + " " : ""}on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `;
       q.focus();
     };
     grid.append(cell);
@@ -234,7 +234,7 @@ function renderYearGrid() {
   for (let m = 0; m < 12; m++) {
     const first = new Date(viewYear, m, 1);
     const box = el("button", "ym" + (m === now.getMonth() && viewYear === now.getFullYear() ? " cur" : ""));
-    box.append(el("div", "ym-name", first.toLocaleDateString("en-GB", { month: "short" })));
+    box.append(el("div", "ym-name", first.toLocaleDateString(LOC(), { month: "short" })));
     const g = el("div", "ym-grid");
     const lead = (first.getDay() - ws + 7) % 7;
     for (let i = 0; i < lead; i++) g.append(el("i", "pad"));
@@ -276,12 +276,12 @@ function renderWeekStrip() {
   const now = new Date(), wk = new Set(S.weekendDays ?? [5, 6]);
   const end = addDays(weekAnchor, 6);
   if (calView === "day" && selectedDay) {
-    $("monthName").textContent = selectedDay.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    $("monthName").textContent = selectedDay.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
     $("yearName").textContent = String(selectedDay.getFullYear());
   } else {
     $("monthName").textContent = weekAnchor.getMonth() === end.getMonth()
-      ? `${weekAnchor.getDate()}–${end.getDate()} ${end.toLocaleDateString("en-GB", { month: "short" })}`
-      : `${weekAnchor.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+      ? `${weekAnchor.getDate()}–${end.getDate()} ${end.toLocaleDateString(LOC(), { month: "short" })}`
+      : `${weekAnchor.toLocaleDateString(LOC(), { day: "numeric", month: "short" })} – ${end.toLocaleDateString(LOC(), { day: "numeric", month: "short" })}`;
     $("yearName").textContent = String(end.getFullYear());
   }
   $("dow").innerHTML = "";
@@ -383,7 +383,7 @@ function renderWeekRows(list, start, events) {
     if (wk.has(d.getDay())) row.classList.add("wknd");
     if (sameDay(d, now)) row.classList.add("today");
     const lab = el("div", "wrow-day");
-    lab.append(el("div", "wrow-dn", d.toLocaleDateString("en-GB", { weekday: "short" })), el("div", "wrow-num", d.getDate()));
+    lab.append(el("div", "wrow-dn", d.toLocaleDateString(LOC(), { weekday: "short" })), el("div", "wrow-num", d.getDate()));
     const w = weatherFor(d);
     if (w) lab.append(el("div", "wrow-wx", `${WX(w.code)}${Math.round(w.max)}°`));
     const items = el("div", "wrow-items");
@@ -561,7 +561,7 @@ function renderList() {
 
   if (listMode === "week" && weekView) {
     const head = el("div", "mode-head");
-    head.append(el("span", "", "This week" === "" ? "" : `Week of ${weekView.start.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`));
+    head.append(el("span", "", "This week" === "" ? "" : `Week of ${weekView.start.toLocaleDateString(LOC(), { day: "numeric", month: "short" })}`));
     const big = el("button", "pill-btn", "⤢ Big week view");
     big.title = "Open the week window (⌘⇧W)";
     big.onclick = () => go("OpenWeek");
@@ -575,7 +575,7 @@ function renderList() {
   if (listMode === "day" && dayView) {
     const d = dayView.d;
     const head = el("div", "mode-head");
-    const ttl = el("span", "", d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }));
+    const ttl = el("span", "", d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" }));
     const back = el("button", "pill-btn", "Upcoming ›");
     back.onclick = closeDay;
     const wxd = weatherChip(d);
@@ -589,7 +589,7 @@ function renderList() {
       if (hol.length) list.append(holidayTags(hol));
       const em = emptyState("☀️", "Nothing planned.");
       const add = el("button", "btn", "Add something this day");
-      add.onclick = () => { const q = $("quick"); q.value = `on ${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
+      add.onclick = () => { const q = $("quick"); q.value = `on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
       em.append(add);
       list.append(em);
       return;
@@ -1068,6 +1068,13 @@ function renderBanner() {
     $("bannerAllow").onclick = allowAccess;
     return;
   }
+  if (S.askLogin && !SETTINGS_WIN) {
+    b.innerHTML = `<b>${esc(tr("Start Smart Cal when you log in?"))}</b> <span class="muted">${esc(tr("So your next event is always in the menu bar."))}</span> <button class="btn primary" id="loginYes">${esc(tr("Yes"))}</button> <button class="btn" id="loginNo">${esc(tr("Not now"))}</button>`;
+    b.classList.remove("hidden");
+    $("loginYes").onclick = async () => { try { applyState(await go("AnswerLogin", true)); toast("Smart Cal will start when you log in"); } catch (err) { toast(errMsg(err), true); } };
+    $("loginNo").onclick = async () => { applyState(await go("AnswerLogin", false)); };
+    return;
+  }
   const parts = [];
   if (!S.hasGoogle && !S.calendars.length) parts.push(`No calendars on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
   if (!S.hasKey) parts.push(`Add your OpenRouter key for smarter AI (simple lines work without it) — <a href="#" id="bannerGo">Settings</a>`);
@@ -1075,7 +1082,7 @@ function renderBanner() {
   if (!parts.length) { b.classList.add("hidden"); return; }
   b.innerHTML = parts.join("<br>");
   b.classList.remove("hidden");
-  if ($("bannerGo")) $("bannerGo").onclick = (ev) => { ev.preventDefault(); openSettings().then(focusAI); };
+  if ($("bannerGo")) $("bannerGo").onclick = (ev) => { ev.preventDefault(); openSettings("ai"); };
   if ($("bannerGoogle")) $("bannerGoogle").onclick = () => go("AddGoogleAccount");
 }
 
@@ -1088,6 +1095,9 @@ function renderFooter() {
 function applyState(st) {
   if (!st) return;
   S = st;
+  if ((S.lang || "en") !== LANG) i18nApply(S.lang || "en");
+  document.body.classList.toggle("reduce-motion", !!S.reduceMotion);
+  document.body.classList.toggle("more-contrast", !!S.contrast);
   if (!pendingAccent) applyAccent(S.accent);
   renderMiniCal();
   renderList();
@@ -1344,7 +1354,7 @@ async function renderRecap(container, force = false) {
   };
   try {
     const r = await buildRecap();
-    const range = `${r.ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${addDays(r.ws, 6).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+    const range = `${r.ws.toLocaleDateString(LOC(), { day: "numeric", month: "short" })} – ${addDays(r.ws, 6).toLocaleDateString(LOC(), { day: "numeric", month: "short" })}`;
     card.querySelector(".muted").remove();
     const body = el("div", "recap-body");
     body.innerHTML = `
@@ -1354,8 +1364,8 @@ async function renderRecap(container, force = false) {
         <div><b>${r.hours.toFixed(r.hours < 10 ? 1 : 0)}h</b><span>scheduled</span></div>
         <div><b>${Math.round(r.free)}h</b><span>free (8–18)</span></div>
       </div>
-      ${r.busiest ? `<div class="recap-line">📈 Busiest: <b>${r.busiest.d.toLocaleDateString("en-GB", { weekday: "long" })}</b> (${r.busiest.n})</div>` : ""}
-      ${r.longest.d ? `<div class="recap-line">🌿 Longest free stretch: <b>${dur(r.longest.m * 6e4)}</b> on ${r.longest.d.toLocaleDateString("en-GB", { weekday: "long" })} from ${fmtTime(r.longest.from)}</div>` : ""}
+      ${r.busiest ? `<div class="recap-line">📈 Busiest: <b>${r.busiest.d.toLocaleDateString(LOC(), { weekday: "long" })}</b> (${r.busiest.n})</div>` : ""}
+      ${r.longest.d ? `<div class="recap-line">🌿 Longest free stretch: <b>${dur(r.longest.m * 6e4)}</b> on ${r.longest.d.toLocaleDateString(LOC(), { weekday: "long" })} from ${fmtTime(r.longest.from)}</div>` : ""}
       <div class="recap-quip">${r.quip}</div>`;
     card.append(body);
   } catch (err) { card.remove(); }
@@ -1363,7 +1373,7 @@ async function renderRecap(container, force = false) {
 
 // ---------- confetti & sounds ----------
 function confetti(power = 1) {
-  if (!S.confetti) return;
+  if (!S.confetti || S.reduceMotion) return;
   const c = $("confetti");
   const ctx = c.getContext("2d");
   const W = (c.width = c.offsetWidth * 2), H = (c.height = c.offsetHeight * 2);
@@ -1442,14 +1452,34 @@ function checkDayClear() {
 }
 
 // ---------- toast with an action (Undo) ----------
-function toastAction(msg, label, fn) {
-  const t = $("toast");
-  t.innerHTML = "";
-  t.className = "toast";
-  t.append(el("span", "", msg));
+// ⌘Z undoes the last change that offered "Undo"; ⌘⇧Z puts it back where the change can be replayed.
+const undoStack = [], redoStack = [];
+async function undoLast() {
+  const u = undoStack.pop();
+  if (!u) { toast(tr("Nothing to undo")); return; }
+  try { await u.fn(); toast(tr("Undone") + ": " + u.msg); if (u.redo) redoStack.push(u); } catch (err) { toast(errMsg(err), true); }
+}
+async function redoLast() {
+  const r = redoStack.pop();
+  if (!r) { toast(tr("Nothing to redo")); return; }
+  try { await r.redo(); toast(tr("Redone") + ": " + r.msg); } catch (err) { toast(errMsg(err), true); }
+}
+function toastAction(msg, label, fn, redo) {
+  if (label === "Undo") {
+    const entry = { msg, fn, redo };
+    undoStack.push(entry); if (undoStack.length > 30) undoStack.shift();
+    redoStack.length = 0;
+    const orig = fn;
+    fn = async () => { const i = undoStack.indexOf(entry); if (i >= 0) undoStack.splice(i, 1); await orig(); if (redo) redoStack.push(entry); };
+    label = tr("Undo");
+  }
+  const box = $("toast");
+  box.innerHTML = "";
+  box.className = "toast";
+  box.append(el("span", "", msg));
   const b = el("button", "toast-btn", label);
-  b.onclick = () => { t.classList.add("hidden"); fn(); };
-  t.append(b);
+  b.onclick = () => { box.classList.add("hidden"); fn(); };
+  box.append(b);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add("hidden"), 6000);
 }
@@ -1562,7 +1592,7 @@ function timelineBlock(e, col, cols, h0, day0) {
       const undo = { ...draft, start: e.start, end: e.end };
       toastAction(`Moved to ${fmtTime(ns)}–${fmtTime(ne)}`, "Undo", async () => {
         try { applyState(await go("UpdateEvent", e.id, draft.start, undo, allFuture)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
-      });
+      }, async () => { applyState(await go("UpdateEvent", e.id, undo.start, draft, allFuture)); afterChange(); });
       afterChange();
     } catch (err) { toast(errMsg(err), true); afterChange(); }
   };
@@ -1588,7 +1618,7 @@ function repeatText(r) {
       : "Every " + (d.length > 1 ? d.slice(0, -1).join(", ") + " & " + d[d.length - 1] : d[0]);
   } else if (n === 1) s = { daily: "Every day", weekly: "Every week", monthly: "Every month", yearly: "Every year" }[r.freq];
   else s = `Every ${n} ${{ daily: "days", weekly: "weeks", monthly: "months", yearly: "years" }[r.freq]}`;
-  if (r.until) s += " until " + new Date(r.until + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (r.until) s += " until " + new Date(r.until + "T00:00").toLocaleDateString(LOC(), { day: "numeric", month: "short", year: "numeric" });
   else if (r.count > 0) s += `, ${r.count} times`;
   return s;
 }
@@ -1598,8 +1628,8 @@ function tzNote(e, when) {
   if (!e.timeZone || e.allDay || e.timeZone === localTZ) return "";
   try {
     const t = new Date(when || e.start);
-    const loc = t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: !S.use24h, timeZone: e.timeZone });
-    const local = t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: !S.use24h });
+    const loc = t.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit", hour12: !S.use24h, timeZone: e.timeZone });
+    const local = t.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit", hour12: !S.use24h });
     if (loc === local) return "";
     return `${loc} ${e.timeZone.split("/").pop().replace(/_/g, " ")}`;
   } catch (_) { return ""; }
@@ -1774,7 +1804,7 @@ function todoRow(t, sod) {
   const due = todoDue(t);
   const meta = [];
   if (due) {
-    const lbl = sameDay(due, new Date()) ? (t.hasTime ? fmtTime(due) : "Today") : due < sod ? "Overdue · " + due.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+    const lbl = sameDay(due, new Date()) ? (t.hasTime ? fmtTime(due) : "Today") : due < sod ? "Overdue · " + due.toLocaleDateString(LOC(), { day: "numeric", month: "short" })
       : dayLabel(due) + (t.hasTime ? " " + fmtTime(due) : "");
     meta.push(lbl);
     if (due < sod) r.classList.add("overdue");
@@ -1797,7 +1827,10 @@ function todoRow(t, sod) {
 }
 
 // ---------- settings tabs ----------
+let lastTab = (() => { try { return localStorage.getItem("settingsTab"); } catch (_) { return null; } })();
 function showTab(tab) {
+  lastTab = tab;
+  try { localStorage.setItem("settingsTab", tab); } catch (_) {}
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
   document.querySelectorAll(".settings-body [data-tab]").forEach((g) => g.classList.toggle("tab-off", g.dataset.tab !== tab));
   document.querySelector(".settings-body").scrollTop = 0;
@@ -1805,7 +1838,7 @@ function showTab(tab) {
 
 function slotLabel(s) {
   const a = new Date(s.start), b = new Date(s.end);
-  return `${dayLabel(a)} ${a.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · ${fmtTime(a)}–${fmtTime(b)}`;
+  return `${dayLabel(a)} ${a.toLocaleDateString(LOC(), { day: "numeric", month: "short" })} · ${fmtTime(a)}–${fmtTime(b)}`;
 }
 
 // ---------- AI box ----------
@@ -1906,7 +1939,7 @@ function renderAI() {
     const list = el("div", "todo-drafts");
     r.todos.forEach((t) => {
       const due = t.due ? new Date(t.due) : null;
-      list.append(el("div", "todo-draft", `☐ ${t.title}${due ? "  ·  " + dayLabel(due) + " " + due.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + (t.hasTime ? " " + fmtTime(due) : "") : ""}`));
+      list.append(el("div", "todo-draft", `☐ ${t.title}${due ? "  ·  " + dayLabel(due) + " " + due.toLocaleDateString(LOC(), { day: "numeric", month: "short" }) + (t.hasTime ? " " + fmtTime(due) : "") : ""}`));
     });
     card.append(list);
     if (S.remindersAccess !== "full") card.append(el("div", "muted small", "Smart Cal will ask for access to Reminders."));
@@ -2080,8 +2113,15 @@ function applyAccent(hex) {
 function renderSwatches() {
   const box = $("swatches");
   box.innerHTML = "";
-  const cur = (pendingAccent || S.accent || "#4169E1").toUpperCase();
+  const raw = (pendingAccent || (settingsCache && settingsCache.accent) || S.accent || "#4169E1");
+  const cur = raw.toUpperCase();
   let named = false;
+  const sys = el("button", "swatch swatch-system" + (raw === "system" ? " on" : ""));
+  sys.title = "System (follows your Mac's accent colour)";
+  sys.setAttribute("aria-label", "System accent colour");
+  sys.onclick = () => { pendingAccent = "system"; applyAccent((settingsCache && settingsCache.systemAccent) || "#007AFF"); renderSwatches(); };
+  box.append(sys);
+  if (raw === "system") { named = true; $("accentName").textContent = tr("System") + " (macOS)"; }
   for (const [name, hex] of ACCENTS) {
     const b = el("button", "swatch");
     b.style.background = hex;
@@ -2098,6 +2138,7 @@ function renderSwatches() {
   pick.oninput = () => { pendingAccent = pick.value.toUpperCase(); applyAccent(pendingAccent); $("accentName").textContent = "Custom " + pendingAccent; };
   box.append(pick);
   if (!named) $("accentName").textContent = "Custom " + cur;
+  if (raw === "system") pick.value = ((settingsCache && settingsCache.systemAccent) || "#007AFF").toLowerCase();
 }
 
 // ---------- updates ----------
@@ -2170,13 +2211,24 @@ function matchRegion() {
 }
 
 // ---------- settings ----------
-async function openSettings() {
+// Settings live in their own window (index.html?settings=1). From the panel, ask Go to open it.
+const SETTINGS_WIN = new URLSearchParams(location.search).has("settings");
+function openSettings(tab) {
+  if (SETTINGS_WIN) return loadSettings(tab);
+  return go("OpenSettings", typeof tab === "string" ? tab : "").catch(() => {});
+}
+
+let loadingSettings = false;
+async function loadSettings(tab) {
+  loadingSettings = true;
   $("main").classList.add("hidden");
   $("settings").classList.remove("hidden");
   settingsCache = await go("GetSettings");
   $("sKey").value = "";
   $("sModel").value = settingsCache.openaiModel;
-  $("s24").checked = settingsCache.use24h;
+  $("sClock").value = settingsCache.clockMode || "system";
+  $("sLang").value = settingsCache.language || "auto";
+  $("sDock").checked = !!settingsCache.showInDock;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
   loadMenuBarSettings(settingsCache);
@@ -2205,7 +2257,8 @@ async function openSettings() {
   (settingsCache.todoLists || []).forEach((l) => { const o = el("option", "", l.name); o.value = l.id; tl.append(o); });
   tl.value = settingsCache.todoList || "";
   renderRemStatus();
-  showTab(openTab || "calendar");
+  const t = (typeof tab === "string" && tab) || openTab || lastTab || "calendar";
+  showTab(t.replace("-check", ""));
   openTab = null;
   pendingAccent = null;
   showSetupDetails = false;
@@ -2213,6 +2266,10 @@ async function openSettings() {
   renderSwatches();
   renderGoogleBox();
   document.querySelector(".settings-body").scrollTop = 0;
+  $("aboutVer").textContent = "Version " + ((await go("Version").catch(() => "")) || "");
+  loadingSettings = false;
+  if (tab === "ai") focusAI();
+  if (tab === "about-check") checkUpdate();
 }
 
 let showSetupDetails = false;
@@ -2296,24 +2353,34 @@ function renderGoogleBox() {
 }
 
 function closeSettings() {
+  if (SETTINGS_WIN) { go("CloseSettings"); return; }
   if (pendingAccent) { pendingAccent = null; applyAccent(S.accent); }
   $("settings").classList.add("hidden");
   $("main").classList.remove("hidden");
   $("quick").focus();
 }
 
-async function saveSettings() {
+// Settings save as you change them (Mac style) — no Save button.
+let autoSaveTimer = null;
+function autoSave() {
+  if (loadingSettings || !settingsCache) return;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => saveSettings(true), 350);
+}
+async function saveSettings(silent) {
   const hidden = [...document.querySelectorAll("#calList input[type=checkbox]")].filter((c) => !c.checked).map((c) => c.dataset.cal);
   const def = (document.querySelector("#calList input[type=radio]:checked") || {}).value || "";
   const payload = {
     openaiKey: $("sKey").value.trim(),
     openaiModel: $("sModel").value.trim(),
-    use24h: $("s24").checked,
+    clockMode: $("sClock").value,
+    language: $("sLang").value,
+    showInDock: $("sDock").checked,
     confirmBeforeAdd: $("sConfirm").checked,
     daysAhead: parseInt($("sDays").value, 10),
     hiddenCalendars: hidden,
     defaultCalendar: def,
-    accent: pendingAccent || S.accent || "#4169E1",
+    accent: pendingAccent || settingsCache.accent || S.accent || "#4169E1",
     ...menuBarValues(),
     alertMode: $("sAlert").value,
     launchAtLogin: $("sLogin").checked,
@@ -2340,12 +2407,15 @@ async function saveSettings() {
     pendingAccent = null;
     applyState(await go("SaveSettings", payload));
     settingsCache = await go("GetSettings");
+    renderSwatches();
     const keyJustSaved = !!payload.openaiKey;
     $("sKey").value = "";
     if (keyJustSaved) editingKey = false;
     arrangeSettings();
     if (keyJustSaved) { const k = $("keySaved"); k.classList.remove("just"); void k.offsetWidth; k.classList.add("just"); }
-    toast(keyJustSaved ? "Key saved on this Mac ✓ — quick add is ready" : "Saved ✓");
+    if (keyJustSaved) toast("Key saved on this Mac ✓ — quick add is ready");
+    else if (!silent) toast("Saved ✓");
+    else flashSaved();
   } catch (err) { toast(errMsg(err), true); }
 }
 
@@ -2368,9 +2438,17 @@ function wire() {
     if (ev.key === "Enter") { ev.preventDefault(); $("searchInput").blur(); kbIndex = -1; kbMove(1); kbOpen(); }
   });
   $("searchClose").onclick = closeSearch;
-  $("openSettings").onclick = openSettings;
-  $("closeSettings").onclick = closeSettings;
-  $("returnBtn").onclick = closeSettings;
+  $("openSettings").onclick = () => openSettings();
+  $("closeSettings").onclick = () => (SETTINGS_WIN ? go("CloseSettings") : closeSettings());
+  $("returnBtn").onclick = () => (SETTINGS_WIN ? go("CloseSettings") : closeSettings());
+  // instant save: any change inside Settings
+  const sb = document.querySelector(".settings-body");
+  sb.addEventListener("change", (ev) => { if (ev.target.id !== "sKey") autoSave(); });
+  sb.addEventListener("click", (ev) => { if (ev.target.closest(".mb-opt, .seg button, .swatch, #sWeekend button")) autoSave(); });
+  $("aboutBtn").onclick = () => go("ShowAbout");
+  $("helpBtn").onclick = () => (SETTINGS_WIN ? showHelp() : showHelp());
+  $("quitBtn2").onclick = () => go("Quit");
+  document.querySelectorAll(".about-group [data-open]").forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); go("OpenURL", a.dataset.open); }; });
   document.querySelectorAll("#tabs button").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
   $("allowRem").onclick = async () => { try { applyState(await go("AllowReminders")); renderRemStatus(); } catch (err) { toast(errMsg(err), true); } };
   $("clipBtn").onclick = () => submitQuick(true);
@@ -2406,7 +2484,7 @@ function wire() {
     const v = $("sKey").value.trim();
     if (/^sk-[A-Za-z0-9_-]{20,}$/.test(v)) saveSettings();
   });
-  $("saveSettings").onclick = saveSettings;
+  $("saveSettings").onclick = () => saveSettings();
   $("refreshBtn").onclick = refresh;
   $("quitBtn").onclick = () => go("Quit");
   $("allowBtn").onclick = allowAccess;
@@ -2453,18 +2531,25 @@ function wire() {
     if (ev.metaKey && ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); go("OpenWeek"); }
     if (ev.metaKey && ev.key === ",") { ev.preventDefault(); openSettings(); }
     if (ev.metaKey && ev.key.toLowerCase() === "r") { ev.preventDefault(); refresh(); }
-    if (ev.metaKey && ev.key.toLowerCase() === "n") { ev.preventDefault(); closeSettings(); }
-    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); go("Hide"); }
+    if (ev.metaKey && ev.key.toLowerCase() === "n" && !SETTINGS_WIN) { ev.preventDefault(); newEventNow(); }
+    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); SETTINGS_WIN ? go("CloseSettings") : go("Hide"); }
+    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "z" && !typing && !SETTINGS_WIN) { ev.preventDefault(); undoLast(); }
+    if (ev.metaKey && ev.shiftKey && ev.key.toLowerCase() === "z" && !typing && !SETTINGS_WIN) { ev.preventDefault(); redoLast(); }
+    if (ev.metaKey && ["1", "2", "3", "4"].includes(ev.key) && !SETTINGS_WIN) { ev.preventDefault(); setView(["year", "month", "week", "day"][+ev.key - 1]); }
+    if ((ev.metaKey && ev.key === "?") || (ev.key === "?" && !typing)) { ev.preventDefault(); showHelp(); }
     if (ev.metaKey && ev.key.toLowerCase() === "t") { ev.preventDefault(); $("todayBtn").click(); }
   });
 
   Events.On("state", (ev) => applyState(ev.data));
   Events.On("update", (ev) => renderUpdate(ev.data));
   Events.On("update:progress", (ev) => { renderUpdate(null, ev.data); toast(ev.data); });
-  Events.On("ui:updates", () => { openTab = "about"; openSettings().then(() => checkUpdate()); });
+  Events.On("ui:updates", () => openSettings("about-check"));
+  Events.On("settings:open", (ev) => { if (SETTINGS_WIN) loadSettings(ev.data || ""); });
+  Events.On("ui:new", () => { if (!SETTINGS_WIN) newEventNow(); });
+  Events.On("ui:help", () => { if (!SETTINGS_WIN) showHelp(); });
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
-  $("updatePill").onclick = () => { openTab = "about"; openSettings(); };
+  $("updatePill").onclick = () => openSettings("about");
   Events.On("ui:settings", () => openSettings());
   Events.On("alert", (ev) => {
     const a = ev.data;
@@ -2497,8 +2582,13 @@ async function refresh() {
   try { applyState(await go("Refresh")); } catch (err) { toast(errMsg(err), true); }
 }
 
+if (SETTINGS_WIN) {
+  document.body.classList.add("settings-win");
+  $("closeSettings").textContent = "Done";
+}
 wire();
 renderMiniCal();
+if (SETTINGS_WIN) loadSettings("");
 go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
 go("LatestUpdate").then((u) => renderUpdate(u)).catch(() => {});
 setTimeout(refreshGreeting, 400);
@@ -2535,7 +2625,7 @@ function loadMenuBarSettings(c) {
 function menuBarValues() { return { ...mb }; }
 
 const mbClock = (d) => {
-  if (S.use24h) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (S.use24h) return d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
   let h = d.getHours(); const m = d.getMinutes(), ap = h >= 12 ? "p" : "a";
   h = h % 12 || 12;
   return m ? `${h}:${String(m).padStart(2, "0")}${ap}` : `${h}${ap}`;
@@ -2557,7 +2647,7 @@ const mbTrunc = (s, n) => ([...s].length > n ? [...s].slice(0, n - 1).join("") +
 
 // mirrors App.barLabel in main.go
 function barLabel(c, e, now) {
-  const dateL = now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+  const dateL = now.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
   if (c.menuBarStyle === "icon") return "";
   if (c.menuBarStyle === "date") return dateL;
   if (c.menuBarStyle === "full") {
@@ -2566,7 +2656,7 @@ function barLabel(c, e, now) {
     if (d <= 0) return c.barHideInMeeting ? "" : `● ${t} · ${dur(e.e - now)} left`;
     if (d <= 36e5) return `${t} in ${dur(d)}`;
     if (sameDay(e.s, now)) return `${fmtTime(e.s)} · ${t}`;
-    const day = sameDay(e.s, addDays(now, 1)) ? "Tomorrow" : e.s.toLocaleDateString("en-GB", { weekday: "short" });
+    const day = sameDay(e.s, addDays(now, 1)) ? "Tomorrow" : e.s.toLocaleDateString(LOC(), { weekday: "short" });
     return `${day} ${fmtTime(e.s)} · ${t}`;
   }
   let part = "";
@@ -2585,7 +2675,7 @@ function barLabel(c, e, now) {
       if (emoji) p.push(emojiFor(e) || (flightOf(e.title, e.location) ? "✈️" : "") || "📅");
       let when;
       if (d <= 0) when = "now";
-      else if (!sameDay(e.s, now) && d >= 12 * 36e5) when = e.s.toLocaleDateString("en-GB", { weekday: "short" }).slice(0, 2) + " " + mbClock(e.s);
+      else if (!sameDay(e.s, now) && d >= 12 * 36e5) when = e.s.toLocaleDateString(LOC(), { weekday: "short" }).slice(0, 2) + " " + mbClock(e.s);
       else if (mode === "clock") when = mbClock(e.s);
       else if (d < 36e5) when = Math.round(d / 6e4) + "m";
       else if (d < 3 * 36e5 && Math.floor(d / 6e4) % 60 >= 30) when = Math.floor(d / 36e5) + "h½";
@@ -2597,7 +2687,7 @@ function barLabel(c, e, now) {
       part = p.join(" ");
     }
   }
-  if (c.menuBarStyle === "datecompact") return part ? now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" }).replace(",", "") + " · " + part : dateL;
+  if (c.menuBarStyle === "datecompact") return part ? now.toLocaleDateString(LOC(), { weekday: "short", day: "numeric" }).replace(",", "") + " · " + part : dateL;
   return part;
 }
 
@@ -2638,3 +2728,63 @@ function renderMenuBarSettings() {
   $("mbHide").checked = mb.barHideInMeeting; $("mbHide").onchange = () => { mb.barHideInMeeting = $("mbHide").checked; renderMenuBarSettings(); };
   $("mbDot").value = mb.barDot; $("mbDot").onchange = () => { mb.barDot = $("mbDot").value; };
 }
+
+// ======================= Mac conventions =======================
+// ⌘N: new event at the next full hour
+function newEventNow() {
+  const s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1);
+  const def = S.defaultCalendar || ((S.calendars || []).find((x) => x.primary) || {}).id || "";
+  renderEdit({ title: "", start: s.toISOString(), end: new Date(+s + 36e5).toISOString(), allDay: false, location: "", notes: "", calendarId: def, color: "" }, "new");
+}
+
+// small "Saved" tick in the Settings title bar (settings save as you change them)
+let savedTimer = null;
+function flashSaved() {
+  let tag = $("savedTag");
+  if (!tag) { tag = el("span", "saved-tag", "✓ " + tr("Saved")); tag.id = "savedTag"; document.querySelector("#settings header.top").append(tag); }
+  tag.classList.add("show");
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => tag.classList.remove("show"), 1400);
+}
+
+// Help & keyboard shortcuts (menu: Smart Cal Help, or ?)
+const HELP_KEYS = [
+  ["⌃⌥C", "Open or close Smart Cal (anywhere)"], ["⌘N", "New event"], ["⌘F  or  /", "Search"], ["⌘1 – ⌘4", "Year · Month · Week · Day view"],
+  ["← →", "Previous / next day (or period)"], ["↑ ↓  ↩", "Move through events · open"], ["⌫", "Delete the selected event"],
+  ["⌘Z  ·  ⌘⇧Z", "Undo · redo"], ["⌘T", "Back to today"], ["⌘R", "Refresh"], ["⌘⇧W", "Big week window"], ["⌘,", "Settings"],
+  ["?", "This help"], ["Esc", "Back / close"], ["⌘Q", "Quit Smart Cal"],
+];
+function showHelp() {
+  const sh = $("sheet");
+  sh.innerHTML = "";
+  sh.className = "sheet";
+  const head = el("div", "sheet-head");
+  const back = el("button", "pill-btn", "‹ " + tr("Back")); back.onclick = closeSheet;
+  head.append(back);
+  const body = el("div", "sheet-body");
+  body.append(el("div", "sheet-title", tr("Keyboard shortcuts")));
+  const tbl = el("div", "help-keys");
+  for (const [k, d] of HELP_KEYS) { tbl.append(el("kbd", "", k), el("span", "", d)); }
+  body.append(tbl);
+  const tips = el("div", "help-tips");
+  tips.innerHTML = `<b>Tips</b><ul>
+    <li>Type naturally in the AI box: “dentist Tue 4pm”, “what's on Friday?”, “move lunch to 3”.</li>
+    <li>Paste or drop a screenshot of a booking or invite to turn it into events.</li>
+    <li>Click a flight's ✈︎ to follow it live on Flightradar24.</li>
+    <li>Drag events in the Day view to move them; drag the bottom edge to resize.</li></ul>`;
+  body.append(tips);
+  const more = el("button", "btn", "Online guide · go.sala.company");
+  more.onclick = () => go("OpenURL", "https://go.sala.company");
+  body.append(more);
+  sh.append(head, body);
+  if (SETTINGS_WIN) sh.classList.add("in-settings");
+}
+
+// VoiceOver: icon-only buttons get their tooltip as a spoken label
+function labelIconButtons(root = document) {
+  root.querySelectorAll("button[title]:not([aria-label])").forEach((b) => {
+    if (!b.textContent.trim() || /^[^\w؀-ۿ]+$/.test(b.textContent.trim())) b.setAttribute("aria-label", b.title);
+  });
+}
+new MutationObserver(() => labelIconButtons()).observe(document.body, { childList: true, subtree: true });
+labelIconButtons();

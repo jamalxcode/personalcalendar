@@ -466,7 +466,7 @@ func (s *CalService) InstallUpdate() error {
 	go func() {
 		time.Sleep(400 * time.Millisecond)
 		go func() { time.Sleep(3 * time.Second); os.Exit(0) }() // never let a stuck quit block the update
-		s.a.wa.Quit() // the swap script waits for us to exit, then relaunches the new version
+		s.a.wa.Quit()                                           // the swap script waits for us to exit, then relaunches the new version
 	}()
 	return nil
 }

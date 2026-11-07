@@ -64,3 +64,6 @@ html, body.week-page { overflow: hidden; background: var(--sheet); }
 .wk-modal-card .row > * { flex: 1; min-width: 0; }
 .wk-modal-card .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .week-page .toast { bottom: 22px; }
+
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after { animation: none !important; transition: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
