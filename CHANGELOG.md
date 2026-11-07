@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.3
+
+- New, cleaner icon everywhere (app, menu bar, panel): the smiling calendar mascot holding the AI magic wand
+
 ## v1.8.2
 
 - Fixed: "Allow" for calendar access could do nothing after an update. Smart Cal now clears macOS's stale answer and asks again, shows "Waiting for macOS…", and opens the right Settings page if the prompt still doesn't appear
