@@ -170,17 +170,22 @@ func installUpdate(ctx context.Context, info UpdateInfo, progress func(string)) 
 	script := filepath.Join(tmp, "swap.sh")
 	body := fmt.Sprintf(`#!/bin/bash
 PID=%d
-OLD=%q
-NEW=%q
-TARGET=%q
+OLD=%s
+NEW=%s
+TARGET=%s
+TMPD=%s
 for i in $(seq 1 150); do kill -0 $PID 2>/dev/null || break; sleep 0.1; done
 kill -0 $PID 2>/dev/null && { kill -9 $PID 2>/dev/null; sleep 0.5; }   # old copy still up: stop it so "open" starts the new one
-rm -rf "$OLD.previous"
-mv "$OLD" "$OLD.previous" && mv "$NEW" "$TARGET" || { mv "$OLD.previous" "$OLD" 2>/dev/null; open "$OLD"; exit 1; }
-rm -rf "$OLD.previous"
+rm -rf "$OLD.previous" "$TARGET.previous"
+# a second copy already at the target name (e.g. old "Personal Calendar.app" running beside "Smart Cal.app"):
+# move it aside, otherwise mv would put the new app *inside* it
+if [ "$TARGET" != "$OLD" ] && [ -e "$TARGET" ]; then mv "$TARGET" "$TARGET.previous"; fi
+mv "$OLD" "$OLD.previous" && mv "$NEW" "$TARGET" || { mv "$OLD.previous" "$OLD" 2>/dev/null; [ -e "$TARGET.previous" ] && mv "$TARGET.previous" "$TARGET"; open "$OLD"; exit 1; }
+rm -rf "$OLD.previous" "$TARGET.previous"
 xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
 open "$TARGET"
-`, os.Getpid(), bundle, newApp, target)
+rm -rf "$TMPD"
+`, os.Getpid(), shq(bundle), shq(newApp), shq(target), shq(tmp))
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		return err
 	}
@@ -212,3 +217,6 @@ func download(ctx context.Context, url, dest string) error {
 	_, err = io.Copy(f, resp.Body)
 	return err
 }
+
+// shq single-quotes a path for bash (safe with spaces, $, backticks and non-ASCII names).
+func shq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

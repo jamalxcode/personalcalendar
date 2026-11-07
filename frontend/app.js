@@ -1125,6 +1125,11 @@ function applyState(st) {
   document.body.classList.toggle("reduce-motion", !!S.reduceMotion);
   document.body.classList.toggle("more-contrast", !!S.contrast);
   if (!pendingAccent) applyAccent(S.accent);
+  if (SETTINGS_WIN) { // the Settings window only needs its own sections refreshed
+    document.documentElement.style.setProperty("--z", String((S.textSize || 100) / 100));
+    if (settingsCache) { renderGoogleBox(); renderRemStatus(); }
+    return;
+  }
   renderMiniCal();
   renderList();
   renderBanner();

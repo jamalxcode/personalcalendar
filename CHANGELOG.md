@@ -2,6 +2,14 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.0.2 — second review
+
+- Fixed: ⌘⇧W was registered as a system-wide shortcut, so it stole "Close Window" from Safari, Chrome, Finder and other apps. It now works only inside Smart Cal
+- Fixed: updating could put the new app *inside* an existing "Smart Cal.app" if an old copy was still around; the old copy is now moved aside first. The updater also handles unusual folder names safely and cleans up its download
+- Leave-now: places that can't be found (e.g. "Zoom") are no longer looked up again every 3 minutes
+- The Settings window no longer redraws the hidden calendar on every refresh
+- Meeting-alert memory is trimmed so it can't grow forever
+
 ## v2.0.1 — review fixes
 
 - Fixed: typing your AI key while another setting saved could store a half-typed key (the key now saves only on Enter or paste)

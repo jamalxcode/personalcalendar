@@ -289,6 +289,15 @@ func (a *App) checkAlerts() {
 	lead, _ := strconv.Atoi(mode)
 	evs, _ := a.snapshot()
 	now := time.Now()
+	if len(a.alerted) > 500 { // keep the "already alerted" memory small: drop events no longer upcoming
+		keep := map[string]bool{}
+		for _, e := range evs {
+			if k := e.ID + e.Start.Format(time.RFC3339); a.alerted[k] {
+				keep[k] = true
+			}
+		}
+		a.alerted = keep
+	}
 	for _, e := range evs {
 		if e.AllDay || e.Holiday {
 			continue
@@ -350,7 +359,8 @@ func (a *App) setHotkey(accel string) error {
 		a.hotkeyOn = accel
 	}
 	a.cfg.Hotkey = accel
-	a.wa.GlobalShortcut.Register("CmdOrCtrl+Shift+W", func() { a.showWeek() }) //nolint:errcheck // best effort
+	// (⌘⇧W for the week window is handled inside Smart Cal only — registering it globally
+	// would steal "Close Window" from Safari, Chrome, Finder…)
 	return nil
 }
 
@@ -462,7 +472,10 @@ func (a *App) checkTravel() {
 		a.mu.Unlock()
 		if time.Since(last) > 10*time.Minute {
 			d := a.cal.driveTime(from, e.ID, e.Start)
-			if d < 0 {
+			if d < 0 { // unknown place (e.g. "Zoom"): remember the miss so it isn't geocoded every 3 minutes
+				a.mu.Lock()
+				a.travelAt[key] = time.Now()
+				a.mu.Unlock()
 				continue
 			}
 			mins = int(d.Round(time.Minute).Minutes())
@@ -471,7 +484,7 @@ func (a *App) checkTravel() {
 			a.mu.Unlock()
 			a.wa.Event.Emit("state", a.state())
 		}
-		if mins <= 0 || a.leaveAlerted[key] {
+		if mins <= 0 || a.leaveAlerted[key] { // mins is 0 for a cached miss too
 			continue
 		}
 		leaveAt := e.Start.Add(-time.Duration(mins+5) * time.Minute) // 5 min to get to the car

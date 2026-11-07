@@ -57,3 +57,7 @@
 - **Re-renders must not steal scroll.** Auto-scroll only when the view's subject (the day) changes, not on every state update.
 - **Keep network waits out of locks.** Do the quick store lookup under the EventKit lock, then geocode/ETA outside it; cache geocodes (Apple rate-limits them).
 - **Write config atomically** (temp file + rename) when it holds the only copy of a user's API key.
+- **Never register common app shortcuts (⌘⇧W, ⌘W, ⌘N…) as global hotkeys** — global registration steals them from every other app. Handle them in your own windows/menu instead.
+- **`mv src dst` moves *into* dst if dst is an existing directory** — when swapping app bundles, move any existing target aside first.
+- **Quote paths for bash with single quotes**, not Go's `%q` (which leaves `$` and backticks live and escapes non-ASCII in a way bash doesn't understand).
+- **Cache failures too** (e.g. a place that can't be geocoded), or the retry loop hammers a rate-limited service.
