@@ -175,6 +175,26 @@ function renderMonthGrid() {
 }
 
 
+// ---------- flights: "KU 101", "EK857", "flight QR1077" → Flightradar24 ----------
+const AIRLINES = new Set(("KU EK QR EY GF WY SV J9 FZ G9 XY F3 MS RJ ME TK PC BA VS LH LX OS SN AF KL IB VY FR U2 W6 AZ " +
+  "LO SK AY TP A3 SU PS AA DL UA AC AS B6 WN SQ CX NH JL KE OZ TG MH GA PR CI BR QF NZ VA EI PK AI 6E UK SG " +
+  "IX WB UL KQ ET SA AT ZH MU CA CZ HU HX 3U KC HY FJ LY RO JU OU FB BG").split(" "));
+const FLIGHT_RE = /\b([A-Z][A-Z0-9]|[0-9][A-Z])\s?-?(\d{1,4})\b/g;
+function flightOf(...texts) {
+  const txt = texts.filter(Boolean).join("  ");
+  const ctx = /flight|✈|airport|depart|arriv|boarding|terminal|gate\b|رحلة/i.test(txt);
+  for (const m of txt.matchAll(FLIGHT_RE)) {
+    const code = m[1], num = m[2];
+    if (/^\d+$/.test(code)) continue;
+    if (AIRLINES.has(code) || (ctx && /^[A-Z]{2}$/.test(code))) {
+      return { code: code + num, label: `${code} ${num}`, url: `https://www.flightradar24.com/data/flights/${(code + num).toLowerCase()}` };
+    }
+  }
+  return null;
+}
+// in the air (or about to be): from 1 h before departure to 1 h after the event ends
+const flyingSoon = (e) => { const n = Date.now(); return !e.allDay && n >= +e.s - 36e5 && n <= +e.e + 36e5; };
+
 // ---------- calendar views: year | month | week | day ----------
 let calView = (() => { try { return localStorage.getItem("calView") || "month"; } catch (_) { return "month"; } })();
 let viewYear = new Date().getFullYear();
@@ -505,6 +525,13 @@ function renderUpNext() {
     j.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", next.meetLink); };
     card.append(j);
   }
+  const nfl = flightOf(next.title, next.location);
+  if (nfl) {
+    const f = el("button", "join", flyingSoon(next) ? `✈︎ Live ${nfl.label}` : `✈︎ ${nfl.label}`);
+    f.title = "Track on Flightradar24";
+    f.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", nfl.url); };
+    card.append(f);
+  }
   card.onclick = () => openEvent(next);
   box.append(card);
 }
@@ -647,6 +674,13 @@ function eventRow(e, now) {
   const meta = [tzNote(e) ? "🌍 " + tzNote(e) : "", e.location, e.meetLink && !e.location ? "Online meeting" : "", S.calendars.length > 1 ? e.calendar : ""].filter(Boolean).join(" · ");
   if (meta) body.append(el("div", "meta", meta));
   const tools = el("div", "tools");
+  const fl = flightOf(e.title, e.location);
+  if (fl) {
+    const f = el("button", "flight-btn" + (flyingSoon(e) ? " live" : ""), "✈︎");
+    f.title = `Track ${fl.label} on Flightradar24`;
+    f.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", fl.url); };
+    tools.append(f);
+  }
   if (e.meetLink) {
     const j = el("button", "", "▶︎");
     j.title = "Join";
@@ -757,6 +791,11 @@ function renderDetail(d) {
     const key = `${d.id}|${Math.floor(s / 1000)}`;
     const m = (S.travel || {})[key];
     addRow("📍", `<a href="#" data-open="https://maps.apple.com/?q=${encodeURIComponent(d.location)}">${esc(d.location)}</a>${m ? `<div class="muted small">🚗 ~${m} min drive · leave by ${fmtTime(new Date(s - (m + 5) * 6e4))}</div>` : ""}`);
+  }
+  const dfl = flightOf(d.title, d.location, d.notes);
+  if (dfl) {
+    const live = flyingSoon({ s: new Date(d.start), e: new Date(d.end), allDay: d.allDay });
+    addRow("✈️", `<button class="btn primary small-btn" data-open="${esc(dfl.url)}">${live ? "Track live" : "Track"} ${esc(dfl.label)} on Flightradar24</button>${live ? `<div class="muted small">In the air or about to depart — see where it is now</div>` : ""}`);
   }
   if (d.meetLink) addRow("🎥", `<button class="btn primary small-btn" data-open="${esc(d.meetLink)}">Join meeting</button>`).classList.add("join-row");
   if (d.organizer) addRow("👤", `Organised by ${esc(d.organizer)}`);
@@ -1097,6 +1136,8 @@ let emojiTimer;
 function emojiFor(e) {
   if (!playful() || !e || !e.title) return "";
   if (e.holiday) return "🎉";
+  if (/^✈/.test(e.title)) return "";
+  if (flightOf(e.title, e.location)) return "✈️";
   const t = e.title.toLowerCase();
   for (const [re, em] of EMOJI_RULES) if (re.test(t)) return em;
   if (aiEmoji.has(e.title)) return aiEmoji.get(e.title);

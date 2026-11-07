@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.4
+
+- **Flight tracking:** events with a flight number (KU 101, EK857, "flight QR 1077"…) get a ✈︎ button that opens the flight on Flightradar24. From an hour before take-off until an hour after landing it says **Track live** and the button pulses, so you can see where the plane is
+- Works on the Up next card, in the event list, in the event details and in the big week window; flights get a ✈️ emoji
+
 ## v1.8.3
 
 - New, cleaner icon everywhere (app, menu bar, panel): the smiling calendar mascot holding the AI magic wand
