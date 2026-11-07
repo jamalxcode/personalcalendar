@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.8.6
+
+- "You are here" highlights in every view: the current month in Year view, the current week (a tinted band) in Month view, today in Week view and the current hour in Day view
+
 ## v1.8.5
 
 - The Year · Month · Week · Day buttons now sit on the left and never move; the title follows them, and the arrows, search and gear stay put too

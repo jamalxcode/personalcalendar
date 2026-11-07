@@ -140,6 +140,7 @@ function renderMonthGrid() {
   const lead = (first.getDay() - ws + 7) % 7;
   const start = addDays(first, -lead);
   const weeks = Math.ceil((lead + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
+  const curWk = weekStartFor(now);
   for (let i = 0; i < weeks * 7; i++) {
     const d = addDays(start, i);
     const k = dayKey(d);
@@ -147,6 +148,7 @@ function renderMonthGrid() {
     if (d.getMonth() !== first.getMonth()) cell.classList.add("out");
     if (wk.has(d.getDay())) cell.classList.add("wknd");
     if (sameDay(d, now)) cell.classList.add("today");
+    if (d >= curWk && d < addDays(curWk, 7)) cell.classList.add("curweek", i % 7 === 0 ? "cw-first" : i % 7 === 6 ? "cw-last" : "cw-mid");
     if (selectedDay && sameDay(d, selectedDay)) cell.classList.add("sel");
     cell.append(el("span", "num", d.getDate()));
     const n = counts.get(k) || 0;
