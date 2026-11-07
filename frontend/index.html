@@ -34,9 +34,16 @@
       </div>
 
       <form id="quickForm" class="quick" autocomplete="off">
-        <span class="spark" id="spark">✦</span>
-        <input id="quick" type="text" spellcheck="false"
-               placeholder="Lunch with Ali tomorrow 1pm at Avenues">
+        <span class="spark" id="spark" title="AI quick add">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 19 15.5 8.5" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+            <path class="star" d="M17 2.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/>
+            <path class="star" d="M9 3l.6 1.6 1.6.6-1.6.6L9 7.4l-.6-1.6-1.6-.6 1.6-.6z"/>
+            <path class="star" d="M19.5 12l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/>
+          </svg>
+        </span>
+        <textarea id="quick" rows="2" spellcheck="false"
+                  placeholder="Type an event in plain English…&#10;e.g. Lunch with Ali tomorrow 1pm"></textarea>
         <kbd class="enter-hint">↩</kbd>
       </form>
 

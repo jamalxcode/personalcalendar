@@ -650,6 +650,10 @@ async function saveSettings() {
 // ---------- wiring ----------
 function wire() {
   $("quickForm").onsubmit = (ev) => { ev.preventDefault(); submitQuick(); };
+  // 2-line box: Return adds, Shift+Return makes a new line
+  $("quick").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submitQuick(); }
+  });
   $("prevMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderMiniCal(); };
   $("nextMonth").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderMiniCal(); };
   $("todayBtn").onclick = () => { viewMonth = startOfMonth(new Date()); jumpToDay(new Date()); };

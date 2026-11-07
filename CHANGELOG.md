@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.3.3
+
+- AI quick add box: 2 lines, bold accent border and a magic-wand AI icon (Return adds, Shift+Return for a new line)
+- Bigger, easier-to-spot settings gear
+
 ## v1.3.2
 
 - After pasting your AI key you now see a green "Key saved ✓" card (provider + masked key) with a Change button — no more blank box, no Save needed
