@@ -1,6 +1,10 @@
 :root {
-  --accent: #e5484d;
-  --accent-soft: rgba(229, 72, 77, .14);
+  /* highlight colour — set from Settings → Appearance (default royal blue) */
+  --accent: #4169e1;
+  --accent-rgb: 65, 105, 225;
+  --accent-2: #6f8ff0;      /* lighter partner for the Up next gradient */
+  --accent-ink: #2f4fbf;    /* darker, for text on white */
+  --accent-soft: rgba(var(--accent-rgb), .14);
   --fg: #1d1d1f;
   --muted: #6e6e73;
   --faint: rgba(0, 0, 0, .06);
@@ -23,7 +27,7 @@
     --card-hover: rgba(255, 255, 255, .11);
     --input: rgba(255, 255, 255, .08);
     --shadow: none;
-    --accent-soft: rgba(229, 72, 77, .22);
+    --accent-soft: rgba(var(--accent-rgb), .24);
   }
 }
 
@@ -105,7 +109,7 @@ a:hover { text-decoration: underline; }
 .day .dots i { width: 5px; height: 5px; border-radius: 50%; }
 /* days with events: tinted, bold number so they stand out at a glance */
 .day.has .num { background: var(--accent-soft); color: var(--fg); font-weight: 700; }
-.day.has.busy .num { background: rgba(229, 72, 77, .30); }
+.day.has.busy .num { background: rgba(var(--accent-rgb), .32); }
 .day.has.out .num { opacity: .5; }
 .day.today.has .num { background: var(--accent); color: #fff; }
 
@@ -174,7 +178,7 @@ a:hover { text-decoration: underline; }
 
 .upnext {
   border-radius: 14px; padding: 12px 14px; margin-bottom: 12px;
-  background: linear-gradient(135deg, rgba(229, 72, 77, .95), rgba(232, 107, 72, .92));
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #fff; display: flex; gap: 10px; align-items: center;
 }
 .upnext:hover { filter: brightness(1.04); }
@@ -184,7 +188,7 @@ a:hover { text-decoration: underline; }
 .upnext .grow { flex: 1; min-width: 0; }
 .upnext .ttl, .upnext .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .join {
-  background: rgba(255, 255, 255, .95); color: #c92f35; font-weight: 700; font-size: 12px;
+  background: rgba(255, 255, 255, .95); color: var(--accent-ink); font-weight: 700; font-size: 12px;
   padding: 6px 12px; border-radius: 8px;
 }
 
@@ -311,3 +315,20 @@ a:hover { text-decoration: underline; }
   background: var(--input); border-radius: 8px; padding: 8px 10px; -webkit-user-select: text; user-select: text;
 }
 #installUpdBtn { align-self: flex-start; }
+
+/* ---------- appearance ---------- */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.swatch {
+  width: 26px; height: 26px; border-radius: 50%; position: relative;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12);
+}
+.swatch.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor; }
+.swatch.on::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 800; }
+.swatch-custom {
+  width: 26px; height: 26px; border: 0; padding: 0; border-radius: 50%; overflow: hidden; background: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.swatch-custom::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch-custom::-webkit-color-swatch { border: 0; border-radius: 50%; opacity: 0; }
+.swatch-custom { background: conic-gradient(#e5484d, #f0c42e, #2fa36b, #12a4a4, #4169e1, #8b5cf6, #e0559a, #e5484d); }
+.accent-name { font-size: 12px; color: var(--muted); }

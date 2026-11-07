@@ -307,6 +307,7 @@ function renderFooter() {
 function applyState(st) {
   if (!st) return;
   S = st;
+  if (!pendingAccent) applyAccent(S.accent);
   renderMiniCal();
   renderUpNext();
   renderList();
@@ -426,6 +427,54 @@ async function allowAccess() {
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
 }
 
+// ---------- highlight colour ----------
+const ACCENTS = [
+  ["Royal blue", "#4169E1"], ["Red", "#E5484D"], ["Orange", "#F0802E"], ["Green", "#2FA36B"],
+  ["Teal", "#12A4A4"], ["Purple", "#8B5CF6"], ["Pink", "#E0559A"], ["Graphite", "#5B6270"],
+];
+let pendingAccent = null;
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+const mix = (rgb, to, t) => rgb.map((c, i) => Math.round(c + (to[i] - c) * t));
+const toHex = (rgb) => "#" + rgb.map((c) => c.toString(16).padStart(2, "0")).join("");
+
+function applyAccent(hex) {
+  const rgb = hexToRgb(hex) || hexToRgb("#4169E1");
+  const r = document.documentElement.style;
+  r.setProperty("--accent", toHex(rgb));
+  r.setProperty("--accent-rgb", rgb.join(", "));
+  r.setProperty("--accent-2", toHex(mix(rgb, [255, 255, 255], 0.28)));
+  r.setProperty("--accent-ink", toHex(mix(rgb, [0, 0, 0], 0.25)));
+}
+
+function renderSwatches() {
+  const box = $("swatches");
+  box.innerHTML = "";
+  const cur = (pendingAccent || S.accent || "#4169E1").toUpperCase();
+  let named = false;
+  for (const [name, hex] of ACCENTS) {
+    const b = el("button", "swatch");
+    b.style.background = hex;
+    b.style.color = hex;
+    b.title = name;
+    if (hex === cur) { b.classList.add("on"); named = true; $("accentName").textContent = name; }
+    b.onclick = () => { pendingAccent = hex; applyAccent(hex); renderSwatches(); };
+    box.append(b);
+  }
+  const pick = el("input", "swatch-custom");
+  pick.type = "color";
+  pick.value = cur.toLowerCase();
+  pick.title = "Custom colour";
+  pick.oninput = () => { pendingAccent = pick.value.toUpperCase(); applyAccent(pendingAccent); $("accentName").textContent = "Custom " + pendingAccent; };
+  box.append(pick);
+  if (!named) $("accentName").textContent = "Custom " + cur;
+}
+
 // ---------- updates ----------
 let U = null;
 function renderUpdate(info, statusMsg) {
@@ -480,6 +529,8 @@ async function openSettings() {
   $("s24").checked = settingsCache.use24h;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
+  pendingAccent = null;
+  renderSwatches();
   renderGoogleBox();
 }
 
@@ -521,6 +572,7 @@ function renderGoogleBox() {
 }
 
 function closeSettings() {
+  if (pendingAccent) { pendingAccent = null; applyAccent(S.accent); }
   $("settings").classList.add("hidden");
   $("main").classList.remove("hidden");
   $("quick").focus();
@@ -537,8 +589,10 @@ async function saveSettings() {
     daysAhead: parseInt($("sDays").value, 10),
     hiddenCalendars: hidden,
     defaultCalendar: def,
+    accent: pendingAccent || S.accent || "#4169E1",
   };
   try {
+    pendingAccent = null;
     applyState(await go("SaveSettings", payload));
     settingsCache = await go("GetSettings");
     $("sKey").value = "";

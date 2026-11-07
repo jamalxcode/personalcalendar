@@ -7,7 +7,7 @@ import (
 	"image/png"
 )
 
-var accent = color.NRGBA{R: 0xE5, G: 0x48, B: 0x4D, A: 0xFF}
+var accent = color.NRGBA{R: 0x41, G: 0x69, B: 0xE1, A: 0xFF} // royal blue
 
 // trayIconPNG draws a calendar glyph as a macOS template image (black + alpha),
 // so the menu bar recolours it for light/dark mode. 36px = 18pt @2x.

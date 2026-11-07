@@ -4,12 +4,12 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"path/filepath"
 	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -204,7 +204,10 @@ func writeDiag(st State) {
 		return
 	}
 	_ = os.MkdirAll(diagDir, 0o755)
-	type calLine struct{ Name, Account, Source string; Google, Writable, Primary bool }
+	type calLine struct {
+		Name, Account, Source     string
+		Google, Writable, Primary bool
+	}
 	var cals []calLine
 	for _, c := range st.Calendars {
 		cals = append(cals, calLine{c.Name, c.Account, c.Source, c.Google, c.Writable, c.Primary})

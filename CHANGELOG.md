@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.2.0
+
+- New default highlight colour: royal blue
+- Settings → Highlight colour: pick from 8 presets or any custom colour (live preview)
+
 ## v1.1.0
 
 - Days with events are highlighted in the month view (busier days darker)

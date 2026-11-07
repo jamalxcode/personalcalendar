@@ -25,6 +25,7 @@ type State struct {
 	DefaultCalendar  string         `json:"defaultCalendar"`
 	Error            string         `json:"error"`
 	Hotkey           string         `json:"hotkey"`
+	Accent           string         `json:"accent"`
 	Now              time.Time      `json:"now"`
 }
 
@@ -41,6 +42,7 @@ func (a *App) state() State {
 		Calendars:        cals,
 		DefaultCalendar:  a.cfg.DefaultCalendar,
 		Hotkey:           hotkey,
+		Accent:           a.cfg.Accent,
 		Now:              time.Now(),
 		GoogleAccounts:   []string{},
 	}
@@ -154,6 +156,7 @@ type Settings struct {
 	DaysAhead        int      `json:"daysAhead"`
 	HiddenCalendars  []string `json:"hiddenCalendars"`
 	DefaultCalendar  string   `json:"defaultCalendar"`
+	Accent           string   `json:"accent"`
 }
 
 func (s *CalService) GetSettings() Settings {
@@ -168,7 +171,7 @@ func (s *CalService) GetSettings() Settings {
 	}
 	return Settings{OpenAIKeyHint: hint, OpenAIModel: c.OpenAIModel, Use24h: c.Use24h,
 		ConfirmBeforeAdd: c.ConfirmBeforeAdd, DaysAhead: c.DaysAhead,
-		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar}
+		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent}
 }
 
 func (s *CalService) SaveSettings(in Settings) (State, error) {
@@ -186,6 +189,9 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	}
 	c.HiddenCalendars = in.HiddenCalendars
 	c.DefaultCalendar = in.DefaultCalendar
+	if validHex(in.Accent) {
+		c.Accent = strings.ToUpper(in.Accent)
+	}
 	if err := c.Save(); err != nil {
 		return s.a.state(), err
 	}

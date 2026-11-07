@@ -22,9 +22,9 @@ static NSString *toJSON(id obj) {
 static NSString *str(const char *c) { return c ? [NSString stringWithUTF8String:c] : @""; }
 
 static NSString *hexColor(CGColorRef c) {
-    if (!c) return @"#E5484D";
+    if (!c) return @"#4169E1";
     NSColor *col = [[NSColor colorWithCGColor:c] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-    if (!col) return @"#E5484D";
+    if (!col) return @"#4169E1";
     return [NSString stringWithFormat:@"#%02X%02X%02X",
             (int)lround(col.redComponent * 255), (int)lround(col.greenComponent * 255),
             (int)lround(col.blueComponent * 255)];
