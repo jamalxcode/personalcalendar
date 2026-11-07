@@ -274,8 +274,8 @@ function renderWeekStrip() {
   const now = new Date(), wk = new Set(S.weekendDays ?? [5, 6]);
   const end = addDays(weekAnchor, 6);
   if (calView === "day" && selectedDay) {
-    $("monthName").textContent = selectedDay.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" });
-    $("yearName").textContent = "";
+    $("monthName").textContent = selectedDay.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    $("yearName").textContent = String(selectedDay.getFullYear());
   } else {
     $("monthName").textContent = weekAnchor.getMonth() === end.getMonth()
       ? `${weekAnchor.getDate()}–${end.getDate()} ${end.toLocaleDateString("en-GB", { month: "short" })}`
