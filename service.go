@@ -45,6 +45,10 @@ type State struct {
 	ShowTodos        bool           `json:"showTodos"`
 	Travel           map[string]int `json:"travel"` // "id|unixStart" → driving minutes
 	TextSize         int            `json:"textSize"`
+	Lang             string         `json:"lang"`
+	ReduceMotion     bool           `json:"reduceMotion"`
+	Contrast         bool           `json:"contrast"`
+	AskLogin         bool           `json:"askLogin"`
 	Now              time.Time      `json:"now"`
 }
 
@@ -54,14 +58,14 @@ func (a *App) state() State {
 	st := State{
 		Access:           a.cal.Access(),
 		HasKey:           strings.TrimSpace(a.cfg.OpenAIKey) != "",
-		Use24h:           a.cfg.Use24h,
+		Use24h:           a.cfg.is24h(),
 		ConfirmBeforeAdd: a.cfg.ConfirmBeforeAdd,
 		DaysAhead:        a.cfg.DaysAhead,
 		Events:           evs,
 		Calendars:        cals,
 		DefaultCalendar:  a.cfg.DefaultCalendar,
 		Hotkey:           a.cfg.Hotkey,
-		Accent:           a.cfg.Accent,
+		Accent:           a.cfg.accent(),
 		ShowHolidayRows:  a.cfg.ShowHolidayRows,
 		AIProvider:       aiProvider(a.cfg.OpenAIKey),
 		WeekStart:        a.cfg.WeekStart,
@@ -72,6 +76,10 @@ func (a *App) state() State {
 		Name:             a.cfg.Name,
 		WeatherCity:      a.cfg.WeatherCity,
 		RemindersAccess:  a.cal.RemindersAccess(),
+		Lang:             a.cfg.lang(),
+		ReduceMotion:     sysCache.ReduceMotion,
+		Contrast:         sysCache.Contrast,
+		AskLogin:         !a.cfg.LoginAsked,
 		ShowTodos:        !a.cfg.NoTodos,
 		TextSize:         a.cfg.TextSize,
 		Now:              time.Now(),
@@ -273,6 +281,11 @@ type Settings struct {
 	TodoLists        []TodoList `json:"todoLists"`
 	Hotkey           string     `json:"hotkey"`
 	TextSize         int        `json:"textSize"`
+	ClockMode        string     `json:"clockMode"`
+	TrayIcon         string     `json:"trayIcon"`
+	ShowInDock       bool       `json:"showInDock"`
+	Language         string     `json:"language"`
+	SystemAccent     string     `json:"systemAccent"` // read-only: the Mac's accent colour
 }
 
 func (s *CalService) GetSettings() Settings {
@@ -294,7 +307,8 @@ func (s *CalService) GetSettings() Settings {
 		Playful: !c.NoPlayful, Confetti: !c.NoConfetti, Sounds: c.Sounds, Voice: c.Voice, Name: c.Name,
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
 		TravelFrom: c.TravelFrom, ShowTodos: !c.NoTodos, TodoList: c.TodoList, TodoLists: s.a.cal.ReminderLists(),
-		Hotkey: c.Hotkey, TextSize: c.TextSize}
+		Hotkey: c.Hotkey, TextSize: c.TextSize, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
+		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent}
 }
 
 func (s *CalService) SaveSettings(in Settings) (State, error) {
@@ -305,7 +319,6 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	if m := strings.TrimSpace(in.OpenAIModel); m != "" {
 		c.OpenAIModel = m
 	}
-	c.Use24h = in.Use24h
 	c.ConfirmBeforeAdd = in.ConfirmBeforeAdd
 	if in.DaysAhead > 0 {
 		c.DaysAhead = in.DaysAhead
@@ -314,6 +327,23 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	c.DefaultCalendar = in.DefaultCalendar
 	if validHex(in.Accent) {
 		c.Accent = strings.ToUpper(in.Accent)
+	} else if in.Accent == "system" {
+		c.Accent = "system"
+	}
+	if m := oneOf(in.ClockMode, "", "system", "12", "24"); m != "" {
+		c.ClockMode = m
+		c.Use24h = c.is24h()
+	}
+	if t := oneOf(in.TrayIcon, "", "color", "mono"); t != "" && t != c.TrayIcon {
+		c.TrayIcon = t
+		s.a.iconKey = "" // re-set the icon on the next label update
+	}
+	if in.ShowInDock != c.ShowInDock {
+		c.ShowInDock = in.ShowInDock
+		setDockVisible(c.ShowInDock)
+	}
+	if l := oneOf(in.Language, "", "auto", "en", "ar"); l != "" {
+		c.Language = l
 	}
 	if validBarStyle(in.MenuBarStyle) {
 		c.MenuBarStyle = in.MenuBarStyle
@@ -771,4 +801,33 @@ func (s *CalService) SetLabelEmojis(m map[string]string) {
 	s.a.labelEmoji = m
 	s.a.mu.Unlock()
 	s.a.updateLabel()
+}
+
+// ======================= Mac conventions =======================
+
+// OpenSettings shows the Settings window (tab: "", "ai", "about", "about-check", …).
+func (s *CalService) OpenSettings(tab string) { s.a.showSettings(tab) }
+
+// CloseSettings hides the Settings window.
+func (s *CalService) CloseSettings() { s.a.settings.Hide() }
+
+// ShowAbout opens the standard macOS About panel.
+func (s *CalService) ShowAbout() { s.a.showAboutPanel() }
+
+// AnswerLogin records the first-run "Start Smart Cal when you log in?" answer.
+func (s *CalService) AnswerLogin(yes bool) (State, error) {
+	c := s.a.cfg
+	c.LoginAsked = true
+	var err error
+	if yes {
+		err = s.a.wa.Autostart.Enable()
+	} else if s.loginEnabled() {
+		err = s.a.wa.Autostart.Disable()
+	}
+	c.LaunchAtLogin = yes && err == nil
+	_ = c.Save()
+	if err != nil {
+		return s.a.state(), fmt.Errorf("couldn't change Start at login: %v", err)
+	}
+	return s.a.state(), nil
 }

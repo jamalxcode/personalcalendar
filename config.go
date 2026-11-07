@@ -59,6 +59,16 @@ type Config struct {
 	TodoList     string `json:"todo_list"`     // Reminders list for new to-dos ("" = default)
 	Hotkey       string `json:"hotkey"`        // global shortcut ("off" = none)
 	TextSize     int    `json:"text_size"`     // 100 | 115 | 130 (%)
+
+	// Mac conventions (v2.0)
+	ClockMode   string `json:"clock_mode"`   // system | 12 | 24
+	TrayIcon    string `json:"tray_icon"`    // color | mono
+	ShowInDock  bool   `json:"show_in_dock"` // also show a Dock icon
+	LoginAsked  bool   `json:"login_asked"`  // asked "start at login?" (or decided before v2.0)
+	Language    string `json:"language"`     // auto | en | ar
+	WeekBounds  *Rect  `json:"week_bounds,omitempty"`
+	SetBounds   *Rect  `json:"settings_bounds,omitempty"`
+	MacSet      bool   `json:"mac_set"` // v2.0 defaults applied
 }
 
 // Pin is an event pinned as a countdown.
@@ -127,9 +137,21 @@ func loadConfig() *Config {
 	default:
 		c.AlertMode = "1"
 	}
-	if !validHex(c.Accent) {
+	if !validHex(c.Accent) && c.Accent != "system" {
 		c.Accent = "#4169E1" // royal blue
 	}
+	if !c.MacSet {
+		if c.Use24h {
+			c.ClockMode = "24" // keep an explicit choice
+		} else {
+			c.ClockMode = "system"
+		}
+		c.LoginAsked = c.LoginConfigured // existing installs already decided
+		c.MacSet = true
+	}
+	c.ClockMode = oneOf(c.ClockMode, "system", "system", "12", "24")
+	c.TrayIcon = oneOf(c.TrayIcon, "color", "color", "mono")
+	c.Language = oneOf(c.Language, "auto", "auto", "en", "ar")
 	if !c.WeekSet {
 		c.Region, c.WeekStart, c.WeekendDays = "kw", 6, []int{5, 6} // Saturday start, Fri+Sat weekend
 	}
@@ -234,4 +256,37 @@ func oneOf(v, def string, allowed ...string) string {
 		}
 	}
 	return def
+}
+
+// Rect is a remembered window frame.
+type Rect struct{ X, Y, W, H int }
+
+// sysCache holds the Mac's own settings, refreshed with the events.
+var sysCache = SysPrefs{Accent: "#4169E1", Lang: "en"}
+
+func (c *Config) is24h() bool {
+	switch c.ClockMode {
+	case "12":
+		return false
+	case "24":
+		return true
+	}
+	return sysCache.H24
+}
+
+func (c *Config) accent() string {
+	if c.Accent == "system" {
+		return sysCache.Accent
+	}
+	return c.Accent
+}
+
+func (c *Config) lang() string {
+	if c.Language == "auto" {
+		if strings.HasPrefix(sysCache.Lang, "ar") {
+			return "ar"
+		}
+		return "en"
+	}
+	return c.Language
 }

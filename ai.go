@@ -180,7 +180,7 @@ func askAI(ctx context.Context, cfg *Config, text, imageB64 string, cals []Calen
 		}
 	}
 	timeFmt := "3:04 PM"
-	if cfg.Use24h {
+	if cfg.is24h() {
 		timeFmt = "15:04"
 	}
 	var list strings.Builder

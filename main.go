@@ -44,6 +44,8 @@ type App struct {
 	notifOK      bool
 	alerted      map[string]bool // event+start already notified
 	badged       bool            // tray shows the "starting soon" badge
+	iconKey      string          // current tray image (soon|style)
+	settings     *application.WebviewWindow
 	week         *application.WebviewWindow
 	travel       map[string]int // "id|unix" → driving minutes (guarded by mu)
 	travelAt     map[string]time.Time
@@ -143,6 +145,32 @@ func main() {
 		a.week.Hide()
 		e.Cancel()
 	})
+
+	// Settings: its own window, like every Mac app (⌘, from anywhere in Smart Cal)
+	a.settings = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:      "settings",
+		Title:     "Settings",
+		Width:     620,
+		Height:    720,
+		MinWidth:  520,
+		MinHeight: 480,
+		Hidden:    true,
+		URL:       "/?settings=1",
+		Mac: application.MacWindow{
+			TitleBar: application.MacTitleBar{AppearsTransparent: true, FullSizeContent: true},
+		},
+	})
+	a.settings.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		a.settings.Hide()
+		e.Cancel()
+	})
+	a.rememberFrame(a.week, &a.cfg.WeekBounds)
+	a.rememberFrame(a.settings, &a.cfg.SetBounds)
+
+	// clicking the Dock icon (when shown) opens the panel
+	a.wa.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
+		a.tray.ShowWindow()
+	})
 	// size the drop-down to the screen once the app (and its screen list) is up
 	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		a.applyTextSize()
@@ -170,22 +198,30 @@ func main() {
 }
 
 func (a *App) buildMenu() *application.Menu {
+	// Apple's order: About · updates · settings, then the app's own items, then Help and Quit.
 	m := a.wa.NewMenu()
+	m.Add("About Smart Cal").OnClick(func(*application.Context) { a.showAboutPanel() })
+	m.Add("Check for Updates…").OnClick(func(*application.Context) { a.showSettings("about-check") })
+	m.AddSeparator()
+	m.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { a.showSettings("") })
+	m.AddSeparator()
 	m.Add("Open Smart Cal").OnClick(func(*application.Context) { a.tray.ShowWindow() })
-	m.Add("Open Week View").OnClick(func(*application.Context) { a.showWeek() })
-	m.Add("Refresh").OnClick(func(*application.Context) { a.RequestRefresh() })
-	m.Add("Settings…").OnClick(func(*application.Context) {
+	m.Add("Open Week View").SetAccelerator("CmdOrCtrl+Shift+W").OnClick(func(*application.Context) { a.showWeek() })
+	m.Add("New Event…").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
 		a.tray.ShowWindow()
-		a.wa.Event.Emit("ui:settings")
+		a.wa.Event.Emit("ui:new")
 	})
+	m.Add("Refresh").SetAccelerator("CmdOrCtrl+R").OnClick(func(*application.Context) { a.RequestRefresh() })
+	m.AddSeparator()
 	m.Add("Open Calendar App").OnClick(func(*application.Context) { openURL("ical://") })
 	m.Add("Open Google Calendar (web)").OnClick(func(*application.Context) { openURL("https://calendar.google.com") })
 	m.AddSeparator()
-	m.Add("Check for Updates…").OnClick(func(*application.Context) {
+	m.Add("Smart Cal Help").OnClick(func(*application.Context) {
 		a.tray.ShowWindow()
-		a.wa.Event.Emit("ui:updates")
+		a.wa.Event.Emit("ui:help")
 	})
-	m.Add("Quit Smart Cal").OnClick(func(*application.Context) { a.wa.Quit() })
+	m.AddSeparator()
+	m.Add("Quit Smart Cal").SetAccelerator("CmdOrCtrl+Q").OnClick(func(*application.Context) { a.wa.Quit() })
 	return m
 }
 
@@ -195,20 +231,19 @@ func (a *App) loop() {
 		_ = a.wa.Autostart.Disable()
 		_ = a.wa.Autostart.Enable() // re-register the login item at the new path
 	}
-	if !a.cfg.LoginConfigured { // first run: start at login by default
-		if err := a.wa.Autostart.Enable(); err == nil {
-			a.cfg.LaunchAtLogin = true
-		}
+	if !a.cfg.LoginConfigured { // first run: don't add a login item silently — the panel asks
 		a.cfg.LoginConfigured = true
 		_ = a.cfg.Save()
+	}
+	if a.cfg.ShowInDock {
+		setDockVisible(true)
 	}
 	if a.cal.Access() == "notDetermined" {
 		a.cal.RequestAccess() // first launch: macOS asks "allow access to Calendars?"
 	}
 	a.doRefresh()
-	if !a.cal.Connected() { // a missing AI key only shows a banner; the calendar view comes first
+	if !a.cal.Connected() { // first run: show the panel with its one-click Allow banner
 		a.tray.ShowWindow()
-		a.wa.Event.Emit("ui:settings")
 	}
 	fetch := time.NewTicker(2 * time.Minute)
 	tick := time.NewTicker(15 * time.Second)
@@ -336,6 +371,42 @@ func (a *App) applyTextSize() {
 	a.wa.Event.Emit("ui:textsize", a.cfg.TextSize)
 }
 
+// showSettings opens the Settings window on a tab ("" = last one).
+func (a *App) showSettings(tab string) {
+	a.win.Hide()
+	appActivate()
+	a.settings.Show()
+	a.settings.Focus()
+	a.wa.Event.Emit("settings:open", tab)
+}
+
+func (a *App) showAboutPanel() {
+	a.win.Hide()
+	showAbout(version, "Smart Cal — your calendar in the menu bar, with AI quick add.\nfrom go.sala.company")
+}
+
+// rememberFrame restores a window's last size and position and saves it when it changes.
+func (a *App) rememberFrame(w *application.WebviewWindow, slot **Rect) {
+	if r := *slot; r != nil && r.W > 300 && r.H > 300 {
+		w.SetBounds(application.Rect{X: r.X, Y: r.Y, Width: r.W, Height: r.H})
+	}
+	var t *time.Timer
+	save := func(*application.WindowEvent) {
+		if t != nil {
+			t.Stop()
+		}
+		t = time.AfterFunc(800*time.Millisecond, func() {
+			b := w.Bounds()
+			if b.Width > 300 && b.Height > 300 {
+				*slot = &Rect{X: b.X, Y: b.Y, W: b.Width, H: b.Height}
+				_ = a.cfg.Save()
+			}
+		})
+	}
+	w.OnWindowEvent(events.Common.WindowDidMove, save)
+	w.OnWindowEvent(events.Common.WindowDidResize, save)
+}
+
 func (a *App) showWeek() {
 	a.week.Show()
 	a.week.Focus()
@@ -438,6 +509,7 @@ func (a *App) RequestRefresh() {
 }
 
 func (a *App) doRefresh() State {
+	sysCache = sysPrefs()
 	evs, err := a.cal.Upcoming(a.cfg, a.cfg.DaysAhead)
 	ex := extras{Weather: a.weather(), Countdowns: a.countdowns()}
 	if !a.cfg.NoTodos {
@@ -592,7 +664,7 @@ func (a *App) composeLabel(e Event, now time.Time) string {
 func (a *App) barWhen(e Event, now time.Time, mode string) string {
 	d := e.Start.Sub(now)
 	clock := compactClock(e.Start)
-	if a.cfg.Use24h {
+	if a.cfg.is24h() {
 		clock = e.Start.Format("15:04")
 	}
 	switch {
@@ -666,18 +738,27 @@ func (a *App) meetingSoon(evs []Event, now time.Time) bool {
 
 // badge the menu bar icon (orange dot) when a meeting is about to start
 func (a *App) badge(soon bool) {
-	if soon != a.badged {
-		a.badged = soon
-		if soon {
-			a.tray.SetIcon(trayIconAlert)
-		} else {
-			a.tray.SetIcon(trayIconPNG())
-		}
+	key := fmt.Sprintf("%v|%s", soon, a.cfg.TrayIcon)
+	if key == a.iconKey {
+		return
 	}
+	a.iconKey = key
+	a.badged = soon
+	mono := a.cfg.TrayIcon == "mono"
+	img := trayIcon
+	switch {
+	case mono && soon:
+		img = trayIconMonoAlert
+	case mono:
+		img = trayIconMono
+	case soon:
+		img = trayIconAlert
+	}
+	traySetImage(img, mono) // monochrome = template image: black/white like Apple's own icons
 }
 
 func (a *App) fmtTime(t time.Time) string {
-	if a.cfg.Use24h {
+	if a.cfg.is24h() {
 		return t.Format("15:04")
 	}
 	if t.Minute() == 0 {

@@ -22,6 +22,11 @@ char *ek_rem_save(const char *json);
 char *ek_rem_delete(const char *rid);
 char *clip_read(void);
 void tray_show_image(int show);
+void tray_set_image(const void *data, int len, int tmpl);
+void show_about(const char *version, const char *credits);
+void set_dock_visible(int show);
+void app_activate(void);
+char *sys_prefs(void);
 double ek_eta(const char *from, const char *eventId, double start);
 */
 import "C"
@@ -500,4 +505,49 @@ func trayShowImage(show bool) {
 		v = 1
 	}
 	C.tray_show_image(C.int(v))
+}
+
+func showAbout(version, credits string) {
+	v, c := C.CString(version), C.CString(credits)
+	C.show_about(v, c)
+	C.free(unsafe.Pointer(v))
+	C.free(unsafe.Pointer(c))
+}
+
+func setDockVisible(show bool) {
+	v := 0
+	if show {
+		v = 1
+	}
+	C.set_dock_visible(C.int(v))
+}
+
+func appActivate() { C.app_activate() }
+
+// SysPrefs is the Mac's own look and locale settings.
+type SysPrefs struct {
+	Accent       string `json:"accent"`
+	H24          bool   `json:"h24"`
+	FirstWeekday int    `json:"firstWeekday"`
+	ReduceMotion bool   `json:"reduceMotion"`
+	Contrast     bool   `json:"contrast"`
+	Lang         string `json:"lang"`
+}
+
+func sysPrefs() SysPrefs {
+	var p SysPrefs
+	_ = json.Unmarshal([]byte(takeString(C.sys_prefs())), &p)
+	return p
+}
+
+// traySetImage replaces the menu bar icon (template = monochrome that follows the menu bar's colour).
+func traySetImage(png []byte, template bool) {
+	if len(png) == 0 {
+		return
+	}
+	t := 0
+	if template {
+		t = 1
+	}
+	C.tray_set_image(unsafe.Pointer(&png[0]), C.int(len(png)), C.int(t))
 }

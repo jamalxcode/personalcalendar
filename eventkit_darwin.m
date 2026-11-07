@@ -608,6 +608,22 @@ static NSButton *findStatusButton(NSView *v) {
     return nil;
 }
 
+void tray_set_image(const void *data, int len, int tmpl) {
+    NSData *d = [NSData dataWithBytes:data length:len];
+    dispatch_async(dispatch_get_main_queue(), ^{ dispatch_async(dispatch_get_main_queue(), ^{ dispatch_async(dispatch_get_main_queue(), ^{
+        NSImage *img = [[NSImage alloc] initWithData:d];
+        CGFloat t = [[NSStatusBar systemStatusBar] thickness];
+        [img setSize:NSMakeSize(t, t)];
+        [img setTemplate:tmpl ? YES : NO];
+        for (NSWindow *w in [NSApp windows]) {
+            if (![NSStringFromClass([w class]) containsString:@"StatusBar"]) continue;
+            NSButton *b = findStatusButton(w.contentView);
+            if (!b && [w.contentView isKindOfClass:[NSButton class]]) b = (NSButton *)w.contentView;
+            if (b) b.image = img;
+        }
+    }); }); });
+}
+
 void tray_show_image(int show) {
     // queued a few hops deep so it lands after any icon change Wails has queued
     dispatch_async(dispatch_get_main_queue(), ^{ dispatch_async(dispatch_get_main_queue(), ^{ dispatch_async(dispatch_get_main_queue(), ^{
@@ -618,4 +634,58 @@ void tray_show_image(int show) {
             if (b) b.imagePosition = show ? NSImageLeft : NSNoImage;
         }
     }); }); });
+}
+
+// ---- Mac conventions ----
+void show_about(const char *version, const char *credits) {
+    NSString *v = [NSString stringWithUTF8String:version];
+    NSString *c = [NSString stringWithUTF8String:credits];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableParagraphStyle *ps = [[NSMutableParagraphStyle alloc] init];
+        ps.alignment = NSTextAlignmentCenter;
+        NSAttributedString *cr = [[NSAttributedString alloc] initWithString:c attributes:@{
+            NSFontAttributeName: [NSFont systemFontOfSize:11], NSParagraphStyleAttributeName: ps,
+            NSForegroundColorAttributeName: [NSColor secondaryLabelColor]}];
+        [NSApp activateIgnoringOtherApps:YES];
+        [NSApp orderFrontStandardAboutPanelWithOptions:@{
+            @"ApplicationName": @"Smart Cal", @"ApplicationVersion": v, @"Version": @"",
+            @"Credits": cr, @"Copyright": @"© 2026 go.sala.company"}];
+        for (NSWindow *w in [NSApp windows]) {
+            if ([NSStringFromClass([w class]) containsString:@"About"] || [w.title containsString:@"About"]) {
+                [w setLevel:NSFloatingWindowLevel]; [w makeKeyAndOrderFront:nil];
+            }
+        }
+    });
+}
+
+void set_dock_visible(int show) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSApp setActivationPolicy:show ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory];
+        if (show) [NSApp activateIgnoringOtherApps:YES];
+    });
+}
+
+void app_activate(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{ [NSApp activateIgnoringOtherApps:YES]; });
+}
+
+// system look & locale: {"accent":"#RRGGBB","h24":true,"firstWeekday":0..6,"reduceMotion":bool,"contrast":bool,"lang":"en"}
+char *sys_prefs(void) {
+    __block NSString *out = @"{}";
+    void (^work)(void) = ^{
+        NSColor *c = [[NSColor controlAccentColor] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+        NSString *hex = [NSString stringWithFormat:@"#%02X%02X%02X", (int)lround(c.redComponent * 255), (int)lround(c.greenComponent * 255), (int)lround(c.blueComponent * 255)];
+        NSString *fmt = [NSDateFormatter dateFormatFromTemplate:@"j" options:0 locale:[NSLocale currentLocale]];
+        BOOL h24 = [fmt rangeOfString:@"a"].location == NSNotFound;
+        NSInteger fw = [[NSCalendar currentCalendar] firstWeekday] - 1; // 1=Sun → 0
+        NSWorkspace *ws = [NSWorkspace sharedWorkspace];
+        NSString *lang = [[NSLocale preferredLanguages] firstObject] ?: @"en";
+        NSDictionary *d = @{@"accent": hex, @"h24": h24 ? @YES : @NO, @"firstWeekday": @(fw),
+            @"reduceMotion": ws.accessibilityDisplayShouldReduceMotion ? @YES : @NO,
+            @"contrast": ws.accessibilityDisplayShouldIncreaseContrast ? @YES : @NO, @"lang": lang};
+        NSData *j = [NSJSONSerialization dataWithJSONObject:d options:0 error:nil];
+        out = [[NSString alloc] initWithData:j encoding:NSUTF8StringEncoding];
+    };
+    if ([NSThread isMainThread]) work(); else dispatch_sync(dispatch_get_main_queue(), work);
+    return strdup([out UTF8String]);
 }

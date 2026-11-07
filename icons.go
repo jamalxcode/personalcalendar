@@ -19,5 +19,11 @@ var trayIcon []byte
 //go:embed assets/trayicon-alert.png
 var trayIconAlert []byte // orange badge: a meeting is about to start
 
+//go:embed assets/trayicon-mono.png
+var trayIconMono []byte // template (monochrome) version
+
+//go:embed assets/trayicon-mono-alert.png
+var trayIconMonoAlert []byte
+
 func appIconPNG() []byte  { return appIcon }
 func trayIconPNG() []byte { return trayIcon }
