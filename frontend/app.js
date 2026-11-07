@@ -188,7 +188,7 @@ function renderList() {
   const now = new Date();
   const all = evs();
 
-  if (!S.connected) { list.append(emptyState("📅", "Connect Google Calendar in Settings to see what's coming up.")); return; }
+  if (!S.connected) { list.append(emptyState("📅", "Allow calendar access to see what's coming up.")); return; }
   if (!all.length) {
     list.append(emptyState("🌴", S.error ? "Couldn't load events." : `Nothing in the next ${S.daysAhead} days.`));
     return;
@@ -249,14 +249,14 @@ function eventRow(e, now) {
   del.title = "Delete";
   del.onclick = async (ev) => {
     ev.stopPropagation();
-    const ok = await confirmBox(`<b>Delete “${esc(e.title)}”?</b><span class="muted">${esc(whenText(e.start, e.end, e.allDay))}<br>This removes it from Google Calendar.</span>`);
+    const ok = await confirmBox(`<b>Delete “${esc(e.title)}”?</b><span class="muted">${esc(whenText(e.start, e.end, e.allDay))}<br>This removes it from your calendar${e.calendar ? " (" + esc(e.calendar) + ")" : ""}.</span>`);
     if (!ok) return;
-    try { applyState(await go("Delete", e.calendarId, e.id)); toast("Deleted"); }
+    try { applyState(await go("Delete", e.id, e.start)); toast("Deleted"); }
     catch (err) { toast(errMsg(err), true); }
   };
   tools.append(del);
   row.append(bar, when, body, tools);
-  row.title = "Open in Google Calendar";
+  row.title = "Open in Calendar";
   row.onclick = () => go("OpenURL", e.link);
   return row;
 }
@@ -264,14 +264,21 @@ function eventRow(e, now) {
 // ---------- banner (setup hints) ----------
 function renderBanner() {
   const b = $("setupBanner");
+  if (!S.connected) {
+    b.innerHTML = `<b>One click to start:</b> let Personal Calendar read your calendars. <button class="btn primary" id="bannerAllow">Allow</button>`;
+    b.classList.remove("hidden");
+    $("bannerAllow").onclick = allowAccess;
+    return;
+  }
   const parts = [];
-  if (!S.connected) parts.push("<b>Google Calendar</b> isn't connected yet");
-  if (!S.hasKey) parts.push("no <b>OpenAI key</b> yet (needed for quick add)");
-  if (S.error && S.connected) parts.push(esc(S.error));
+  if (!S.hasGoogle) parts.push(`No Google account on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
+  if (!S.hasKey) parts.push(`Add an AI key for quick add — <a href="#" id="bannerGo">Settings</a>`);
+  if (S.error) parts.push(esc(S.error));
   if (!parts.length) { b.classList.add("hidden"); return; }
-  b.innerHTML = parts.join(" · ") + ` — <a href="#" id="bannerGo">open Settings</a>`;
+  b.innerHTML = parts.join("<br>");
   b.classList.remove("hidden");
-  $("bannerGo").onclick = (ev) => { ev.preventDefault(); openSettings(); };
+  if ($("bannerGo")) $("bannerGo").onclick = (ev) => { ev.preventDefault(); openSettings(); };
+  if ($("bannerGoogle")) $("bannerGoogle").onclick = () => go("AddGoogleAccount");
 }
 
 function renderFooter() {
@@ -288,6 +295,7 @@ function applyState(st) {
   renderBanner();
   renderFooter();
   if (drafts.length) renderDrafts();
+  if (!$("settings").classList.contains("hidden")) renderGoogleBox();
 }
 
 // ---------- quick add ----------
@@ -391,6 +399,15 @@ function flashDay(d) {
   while (n && n.classList.contains("ev")) { n.classList.add("flash"); n = n.nextElementSibling; }
 }
 
+// ---------- setup ----------
+async function allowAccess() {
+  try {
+    applyState(await go("AllowAccess"));
+    if (S.connected) toast(S.hasGoogle ? "Connected — your calendars are in" : "Allowed — now add your Google account");
+  } catch (err) { toast(errMsg(err), true); }
+  if (!$("settings").classList.contains("hidden")) renderGoogleBox();
+}
+
 // ---------- settings ----------
 async function openSettings() {
   $("main").classList.add("hidden");
@@ -406,13 +423,13 @@ async function openSettings() {
 }
 
 function renderGoogleBox() {
-  const st = $("gStatus");
-  st.textContent = S.connected ? "Connected" : S.hasCreds ? "Credentials imported — click Connect" : "Not connected";
-  st.classList.toggle("ok", S.connected);
-  $("gSteps").classList.toggle("hidden", S.connected);
-  $("gConnectedRow").classList.toggle("hidden", !S.connected);
-  $("credsOk").textContent = S.hasCreds ? "✓ imported" : "";
-  $("connectG").disabled = !S.hasCreds;
+  $("step1").classList.toggle("done", S.connected);
+  $("step1Hint").innerHTML = S.connected ? "Allowed ✓"
+    : S.access === "notDetermined" ? "macOS will ask once — click <b>Allow</b>."
+    : "It was turned off — click Allow to open the switch in System Settings.";
+  $("step2").classList.toggle("done", S.hasGoogle);
+  $("step2Hint").innerHTML = S.hasGoogle ? esc(S.googleAccounts.join(", ")) + " ✓"
+    : "Sign in with Google once and keep <b>Calendars</b> ticked. It appears here by itself.";
 
   const list = $("calList");
   list.innerHTML = "";
@@ -425,6 +442,7 @@ function renderGoogleBox() {
     cb.type = "checkbox"; cb.checked = !hidden.has(c.id); cb.dataset.cal = c.id;
     const sw = el("span", "sw"); sw.style.background = c.color;
     const nm = el("span", "nm", c.name);
+    if (c.account && c.account !== c.name) nm.append(el("span", "muted small", "  " + c.account));
     row.append(cb, sw, nm);
     if (c.writable) {
       const rb = el("input");
@@ -471,22 +489,8 @@ function wire() {
   $("saveSettings").onclick = saveSettings;
   $("refreshBtn").onclick = refresh;
   $("quitBtn").onclick = () => go("Quit");
-  $("importCreds").onclick = async () => {
-    try {
-      const ok = await go("ImportCredentials");
-      if (ok) { S.hasCreds = true; renderGoogleBox(); toast("Credentials imported — now Connect Google"); }
-    } catch (err) { toast(errMsg(err), true); }
-  };
-  $("connectG").onclick = async () => {
-    $("gStatus").textContent = "Waiting for you in the browser…";
-    try {
-      applyState(await go("ConnectGoogle"));
-      settingsCache = await go("GetSettings");
-      renderGoogleBox();
-      toast("Google Calendar connected");
-    } catch (err) { toast(errMsg(err), true); renderGoogleBox(); }
-  };
-  $("disconnectG").onclick = async () => { applyState(await go("DisconnectGoogle")); renderGoogleBox(); };
+  $("allowBtn").onclick = allowAccess;
+  $("addGoogleBtn").onclick = () => go("AddGoogleAccount");
   document.querySelectorAll("[data-url]").forEach((a) => {
     a.onclick = (ev) => { ev.preventDefault(); go("OpenURL", a.dataset.url); };
   });

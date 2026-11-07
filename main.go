@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -26,7 +25,7 @@ type App struct {
 	tray   *application.SystemTray
 	win    *application.WebviewWindow
 	cfg    *Config
-	cal    *GCal
+	cal    *Cal
 	mu     sync.Mutex
 	events []Event
 	err    error
@@ -42,13 +41,14 @@ func main() {
 		return
 	}
 
-	a := &App{cfg: loadConfig(), cal: &GCal{}, kick: make(chan struct{}, 1)}
-	_ = a.cal.Init()
+	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1)}
+	a.cal.Init()
+	storeChanged = a.RequestRefresh // macOS tells us when any calendar changes
 
 	assets, _ := fs.Sub(frontendFS, "frontend")
 	a.wa = application.New(application.Options{
 		Name:        "Personal Calendar",
-		Description: "Menu bar calendar for Google Calendar with AI quick add",
+		Description: "Menu bar calendar with AI quick add",
 		Services:    []application.Service{application.NewService(&CalService{a: a})},
 		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Mac: application.MacOptions{
@@ -109,7 +109,8 @@ func (a *App) buildMenu() *application.Menu {
 		a.tray.ShowWindow()
 		a.wa.Event.Emit("ui:settings")
 	})
-	m.Add("Open Google Calendar").OnClick(func(*application.Context) { openURL("https://calendar.google.com") })
+	m.Add("Open Calendar App").OnClick(func(*application.Context) { openURL("ical://") })
+	m.Add("Open Google Calendar (web)").OnClick(func(*application.Context) { openURL("https://calendar.google.com") })
 	m.AddSeparator()
 	m.Add("Quit Personal Calendar").OnClick(func(*application.Context) { a.wa.Quit() })
 	return m
@@ -117,6 +118,9 @@ func (a *App) buildMenu() *application.Menu {
 
 func (a *App) loop() {
 	time.Sleep(time.Second)
+	if a.cal.Access() == "notDetermined" {
+		a.cal.RequestAccess() // first launch: macOS asks "allow access to Calendars?"
+	}
 	a.doRefresh()
 	if !a.cal.Connected() || a.cfg.OpenAIKey == "" {
 		a.tray.ShowWindow()
@@ -144,9 +148,7 @@ func (a *App) RequestRefresh() {
 }
 
 func (a *App) doRefresh() State {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	evs, err := a.cal.Upcoming(ctx, a.cfg, a.cfg.DaysAhead)
+	evs, err := a.cal.Upcoming(a.cfg, a.cfg.DaysAhead)
 	a.mu.Lock()
 	if err == nil {
 		a.events = evs

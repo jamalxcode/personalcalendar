@@ -1,8 +1,13 @@
 # Lessons learned
 
 - **ChatGPT ≠ OpenAI API.** A ChatGPT subscription (and ChatGPT's own Google Calendar connector) can't be called from your own app. Apps need an API key from platform.openai.com.
-- **Google OAuth needs your own client.** Desktop-app OAuth client + loopback redirect (`http://127.0.0.1:<random port>/`) + PKCE is the modern flow; the old "copy/paste code" (OOB) flow is gone.
-- **Testing-mode tokens die after 7 days.** Publish the consent screen (no verification needed for personal use) to keep the refresh token alive.
+- **Skip Google OAuth — use EventKit.** Direct Google API access needs your own Google Cloud project, an OAuth client JSON, and (in testing mode) re-login every 7 days. Too much setup. macOS already syncs Google calendars via System Settings → Internet Accounts, and EventKit reads/writes them after one "Allow" prompt. Bonus: iCloud/Exchange for free, offline, and `EKEventStoreChangedNotification` gives instant refresh.
+- **EventKit from Go:** put Objective-C in a `*_darwin.m` file next to the Go code — cgo compiles it automatically. Use `-fobjc-arc`, link `-framework EventKit -framework AppKit`, return `strdup`'d JSON strings and `C.free` them in Go. Call back into Go with an `//export` function (the preamble of that file may only *declare* C functions).
+- **Calendar permission needs** `NSCalendarsFullAccessUsageDescription` in Info.plist and `requestFullAccessToEventsWithCompletion` (macOS 14+). If the user once said no, macOS never asks again — open `x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars` instead.
+- **Ad-hoc signed rebuilds may re-ask for calendar access** (TCC ties the grant to the code signature).
+- **All-day events in EventKit** end at 23:59:59 of the last day (or next midnight, depending on source) — normalise to `[midnight, next midnight)`.
+- **Recurring events share one `eventIdentifier`** — to delete one occurrence, search a window around its start date and pick the closest match.
+- **OpenRouter is a drop-in** for OpenAI chat completions: base `https://openrouter.ai/api/v1`, keys start with `sk-or-`, model names are vendor-prefixed (`openai/gpt-4o-mini`).
 - **Menu-bar-only app** = `LSUIElement` = true in Info.plist (no Dock icon, no app menu).
 - **Fyne → Wails v3.** v1 used Fyne: it can't anchor a window under the menu bar icon and its self-drawn widgets never look like macOS. Wails v3 gives `SystemTray.AttachWindow(win)` (a real dropdown popover that hides on focus loss), `SetLabel` for menu bar text, `SetTemplateIcon` for light/dark, and a WebKit UI styled with plain CSS.
 - **No npm needed with Wails v3.** Serve plain files with `application.AssetFileServerFS(embedFS)` and load `<script type="module" src="/wails/runtime.js">`; call Go with `Call.ByName("main.CalService.Method", ...)` (package `main` binds as `main.`). Go → JS pushes use `app.Event.Emit("state", data)` / `Events.On("state", ev => ev.data)`.

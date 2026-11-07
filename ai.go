@@ -62,7 +62,7 @@ var parseSchema = map[string]any{
 
 func parseEvents(ctx context.Context, cfg *Config, text string, cals []CalendarInfo) ([]Draft, error) {
 	if strings.TrimSpace(cfg.OpenAIKey) == "" {
-		return nil, fmt.Errorf("add your OpenAI API key in Settings first")
+		return nil, fmt.Errorf("add your OpenAI or OpenRouter API key in Settings first")
 	}
 	now := time.Now()
 	var names []string
@@ -86,8 +86,17 @@ Always use the offset %s in times.`,
 		now.Format("Monday 2 January 2006 15:04"), now.Format("2006-01-02T15:04:05Z07:00"),
 		now.Location().String(), now.Format("-07:00"), strings.Join(names, ", "), now.Format("-07:00"))
 
+	// OpenRouter keys (sk-or-…) work too: same API shape, different host, vendor-prefixed model names.
+	key := strings.TrimSpace(cfg.OpenAIKey)
+	base, model, provider := "https://api.openai.com/v1", cfg.OpenAIModel, "OpenAI"
+	if strings.HasPrefix(key, "sk-or-") {
+		base, provider = "https://openrouter.ai/api/v1", "OpenRouter"
+		if !strings.Contains(model, "/") {
+			model = "openai/" + model
+		}
+	}
 	body := map[string]any{
-		"model": cfg.OpenAIModel,
+		"model": model,
 		"messages": []map[string]string{
 			{"role": "system", "content": sys},
 			{"role": "user", "content": text},
@@ -98,8 +107,9 @@ Always use the offset %s in times.`,
 		},
 	}
 	b, _ := json.Marshal(body)
-	req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(cfg.OpenAIKey))
+	req, _ := http.NewRequestWithContext(ctx, "POST", base+"/chat/completions", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("X-Title", "Personal Calendar")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
 	if err != nil {
@@ -115,7 +125,7 @@ Always use the offset %s in times.`,
 		if e.Error.Message == "" {
 			e.Error.Message = string(rb)
 		}
-		return nil, fmt.Errorf("OpenAI (%d): %s", resp.StatusCode, e.Error.Message)
+		return nil, fmt.Errorf("%s (%d): %s", provider, resp.StatusCode, e.Error.Message)
 	}
 	var cr struct {
 		Choices []struct {
@@ -126,7 +136,7 @@ Always use the offset %s in times.`,
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(rb, &cr); err != nil || len(cr.Choices) == 0 {
-		return nil, fmt.Errorf("unexpected OpenAI response")
+		return nil, fmt.Errorf("unexpected %s response", provider)
 	}
 	if r := cr.Choices[0].Message.Refusal; r != "" {
 		return nil, fmt.Errorf("%s", r)

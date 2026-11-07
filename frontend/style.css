@@ -266,3 +266,16 @@ a:hover { text-decoration: underline; }
 }
 .confirm-card b { display: block; margin-bottom: 4px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- setup steps ---------- */
+.setup-step { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.setup-step .step-num {
+  width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent);
+}
+.setup-step.done .step-num { background: #30b35a; color: #fff; font-size: 0; }
+.setup-step.done .step-num::after { content: "✓"; font-size: 12px; }
+.setup-step .step-body { flex: 1; min-width: 0; }
+.setup-step .step-title { font-weight: 600; font-size: 12.5px; }
+.setup-step.done .btn { display: none; }
+.banner .btn { margin-left: 6px; padding: 3px 10px; }

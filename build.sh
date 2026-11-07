@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 APP="Personal Calendar.app"
 export CGO_ENABLED=1
+export MACOSX_DEPLOYMENT_TARGET=14.0
 
 command -v go >/dev/null || { echo "Go not found. Install with: brew install go"; exit 1; }
 xcode-select -p >/dev/null 2>&1 || { echo "Xcode command line tools missing. Run: xcode-select --install"; exit 1; }
@@ -42,7 +43,9 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
-  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Personal Calendar shows your upcoming events in the menu bar and adds the events you type.</string>
+  <key>NSCalendarsUsageDescription</key><string>Personal Calendar shows your upcoming events in the menu bar and adds the events you type.</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

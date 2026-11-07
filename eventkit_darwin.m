@@ -1,0 +1,206 @@
+// EventKit bridge: reads/writes the calendars macOS already syncs
+// (Google, iCloud, Exchange… added in System Settings → Internet Accounts).
+// Every function returns a malloc'd UTF-8 string the Go side frees.
+
+#import <EventKit/EventKit.h>
+#import <AppKit/AppKit.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+extern void goStoreChanged(void);
+
+static EKEventStore *store;
+
+static char *cstr(NSString *s) { return strdup(s ? s.UTF8String : ""); }
+
+static NSString *toJSON(id obj) {
+    NSData *d = [NSJSONSerialization dataWithJSONObject:obj options:0 error:nil];
+    return d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : @"[]";
+}
+
+static NSString *str(const char *c) { return c ? [NSString stringWithUTF8String:c] : @""; }
+
+static NSString *hexColor(CGColorRef c) {
+    if (!c) return @"#E5484D";
+    NSColor *col = [[NSColor colorWithCGColor:c] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    if (!col) return @"#E5484D";
+    return [NSString stringWithFormat:@"#%02X%02X%02X",
+            (int)lround(col.redComponent * 255), (int)lround(col.greenComponent * 255),
+            (int)lround(col.blueComponent * 255)];
+}
+
+static BOOL isGoogle(EKSource *src) {
+    if (!src) return NO;
+    NSString *t = src.title.lowercaseString ?: @"";
+    return src.sourceType == EKSourceTypeCalDAV &&
+           ([t containsString:@"google"] || [t containsString:@"gmail"] || [t containsString:@"googlemail"]);
+}
+
+void ek_init(void) {
+    if (store) return;
+    store = [[EKEventStore alloc] init];
+    [[NSNotificationCenter defaultCenter] addObserverForName:EKEventStoreChangedNotification
+                                                      object:store
+                                                       queue:nil
+                                                  usingBlock:^(NSNotification *n) { goStoreChanged(); }];
+}
+
+// 0 notDetermined, 1 restricted, 2 denied, 3 full access, 4 write-only
+int ek_status(void) {
+    return (int)[EKEventStore authorizationStatusForEntityType:EKEntityTypeEvent];
+}
+
+int ek_request(void) {
+    ek_init();
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    __block BOOL ok = NO;
+    if (@available(macOS 14.0, *)) {
+        [store requestFullAccessToEventsWithCompletion:^(BOOL granted, NSError *e) {
+            ok = granted;
+            dispatch_semaphore_signal(sem);
+        }];
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [store requestAccessToEntityType:EKEntityTypeEvent completion:^(BOOL granted, NSError *e) {
+            ok = granted;
+            dispatch_semaphore_signal(sem);
+        }];
+#pragma clang diagnostic pop
+    }
+    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(180 * NSEC_PER_SEC)));
+    if (ok) {
+        [store reset];
+        [store refreshSourcesIfNecessary];
+    }
+    return ok ? 1 : 0;
+}
+
+void ek_refresh(void) {
+    ek_init();
+    [store refreshSourcesIfNecessary];
+}
+
+char *ek_calendars(void) {
+    ek_init();
+    EKCalendar *def = [store defaultCalendarForNewEvents];
+    NSMutableArray *out = [NSMutableArray array];
+    for (EKCalendar *c in [store calendarsForEntityType:EKEntityTypeEvent]) {
+        [out addObject:@{
+            @"id": c.calendarIdentifier ?: @"",
+            @"name": c.title ?: @"",
+            @"color": hexColor(c.CGColor),
+            @"writable": @(c.allowsContentModifications),
+            @"primary": @(def && [c.calendarIdentifier isEqualToString:def.calendarIdentifier]),
+            @"account": c.source.title ?: @"",
+            @"google": @(isGoogle(c.source)),
+        }];
+    }
+    return cstr(toJSON(out));
+}
+
+// hiddenJSON: JSON array of calendar IDs to skip.
+char *ek_events(double from, double to, const char *hiddenJSON) {
+    ek_init();
+    NSArray *hidden = @[];
+    NSData *hd = [str(hiddenJSON) dataUsingEncoding:NSUTF8StringEncoding];
+    if (hd.length) {
+        id h = [NSJSONSerialization JSONObjectWithData:hd options:0 error:nil];
+        if ([h isKindOfClass:[NSArray class]]) hidden = h;
+    }
+    NSMutableArray *cals = [NSMutableArray array];
+    for (EKCalendar *c in [store calendarsForEntityType:EKEntityTypeEvent]) {
+        if (![hidden containsObject:c.calendarIdentifier]) [cals addObject:c];
+    }
+    if (cals.count == 0) return cstr(@"[]");
+
+    NSPredicate *p = [store predicateForEventsWithStartDate:[NSDate dateWithTimeIntervalSince1970:from]
+                                                    endDate:[NSDate dateWithTimeIntervalSince1970:to]
+                                                  calendars:cals];
+    NSArray *evs = [[store eventsMatchingPredicate:p] sortedArrayUsingSelector:@selector(compareStartDateWithEvent:)];
+    NSCalendar *greg = [NSCalendar currentCalendar];
+    NSMutableArray *out = [NSMutableArray array];
+    for (EKEvent *e in evs) {
+        if (e.status == EKEventStatusCanceled) continue;
+        BOOL declined = NO;
+        for (EKParticipant *pp in e.attendees) {
+            if (pp.isCurrentUser && pp.participantStatus == EKParticipantStatusDeclined) declined = YES;
+        }
+        if (declined) continue;
+
+        NSDate *s = e.startDate, *en = e.endDate;
+        if (e.allDay) { // normalise to [midnight, next midnight)
+            s = [greg startOfDayForDate:e.startDate];
+            NSDate *lastDay = [greg startOfDayForDate:[e.endDate dateByAddingTimeInterval:-1]];
+            if ([lastDay compare:s] == NSOrderedAscending) lastDay = s;
+            en = [greg dateByAddingUnit:NSCalendarUnitDay value:1 toDate:lastDay options:0];
+        }
+        NSString *notes = e.notes ?: @"";
+        if (notes.length > 4000) notes = [notes substringToIndex:4000];
+        [out addObject:@{
+            @"id": e.eventIdentifier ?: @"",
+            @"calendarId": e.calendar.calendarIdentifier ?: @"",
+            @"calendar": e.calendar.title ?: @"",
+            @"color": hexColor(e.calendar.CGColor),
+            @"title": e.title ?: @"",
+            @"location": e.location ?: @"",
+            @"start": @(s.timeIntervalSince1970),
+            @"end": @(en.timeIntervalSince1970),
+            @"allDay": @(e.allDay),
+            @"url": e.URL.absoluteString ?: @"",
+            @"notes": notes,
+        }];
+    }
+    return cstr(toJSON(out));
+}
+
+// Returns "" on success, otherwise an error message. end is exclusive for all-day events.
+char *ek_add(const char *title, const char *location, const char *notes, const char *calendarId,
+             double start, double end, int allDay, int alarmMinutes) {
+    ek_init();
+    EKEvent *e = [EKEvent eventWithEventStore:store];
+    e.title = str(title);
+    if (location && location[0]) e.location = str(location);
+    if (notes && notes[0]) e.notes = str(notes);
+    EKCalendar *cal = nil;
+    if (calendarId && calendarId[0]) cal = [store calendarWithIdentifier:str(calendarId)];
+    if (!cal || !cal.allowsContentModifications) cal = [store defaultCalendarForNewEvents];
+    if (!cal) return cstr(@"No calendar to add events to — add an account in System Settings → Internet Accounts");
+    e.calendar = cal;
+    e.allDay = allDay ? YES : NO;
+    e.startDate = [NSDate dateWithTimeIntervalSince1970:start];
+    double endT = allDay ? fmax(start, end - 1) : end;
+    e.endDate = [NSDate dateWithTimeIntervalSince1970:endT];
+    if (alarmMinutes > 0) [e addAlarm:[EKAlarm alarmWithRelativeOffset:-60.0 * alarmMinutes]];
+    NSError *err = nil;
+    if (![store saveEvent:e span:EKSpanThisEvent commit:YES error:&err]) {
+        return cstr(err.localizedDescription ?: @"Couldn't save the event");
+    }
+    return cstr(@"");
+}
+
+// Deletes one occurrence (the one starting nearest `start`). Returns "" on success.
+char *ek_delete(const char *eventId, double start) {
+    ek_init();
+    NSString *ident = str(eventId);
+    NSDate *s = [NSDate dateWithTimeIntervalSince1970:start];
+    NSPredicate *p = [store predicateForEventsWithStartDate:[s dateByAddingTimeInterval:-2 * 86400]
+                                                    endDate:[s dateByAddingTimeInterval:2 * 86400]
+                                                  calendars:nil];
+    EKEvent *target = nil;
+    double best = 1e18;
+    for (EKEvent *e in [store eventsMatchingPredicate:p]) {
+        if (![e.eventIdentifier isEqualToString:ident]) continue;
+        double d = fabs(e.startDate.timeIntervalSince1970 - start);
+        if (d < best) { best = d; target = e; }
+    }
+    if (!target) target = [store eventWithIdentifier:ident];
+    if (!target) return cstr(@"Event not found — it may already be gone");
+    if (!target.calendar.allowsContentModifications) return cstr(@"That calendar is read-only");
+    NSError *err = nil;
+    if (![store removeEvent:target span:EKSpanThisEvent commit:YES error:&err]) {
+        return cstr(err.localizedDescription ?: @"Couldn't delete the event");
+    }
+    return cstr(@"");
+}

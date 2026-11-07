@@ -3,21 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
 
-// CalService is bound to the frontend: JS calls these via
-// Call.ByName("github.com/jamalxcode/personalcalendar.CalService.<Method>", ...).
+// CalService is bound to the frontend: JS calls these via Call.ByName("main.CalService.<Method>", ...).
 type CalService struct{ a *App }
 
 // State is everything the popover needs to render.
 type State struct {
+	Access           string         `json:"access"` // notDetermined | denied | restricted | full | writeOnly
 	Connected        bool           `json:"connected"`
+	HasGoogle        bool           `json:"hasGoogle"`
+	GoogleAccounts   []string       `json:"googleAccounts"`
 	HasKey           bool           `json:"hasKey"`
-	HasCreds         bool           `json:"hasCreds"`
 	Use24h           bool           `json:"use24h"`
 	ConfirmBeforeAdd bool           `json:"confirmBeforeAdd"`
 	DaysAhead        int            `json:"daysAhead"`
@@ -31,24 +30,36 @@ type State struct {
 
 func (a *App) state() State {
 	evs, err := a.snapshot()
-	_, credErr := os.Stat(credentialsPath())
+	cals := a.cal.CachedCalendars()
 	st := State{
-		Connected:        a.cal.Connected(),
+		Access:           a.cal.Access(),
 		HasKey:           strings.TrimSpace(a.cfg.OpenAIKey) != "",
-		HasCreds:         credErr == nil,
 		Use24h:           a.cfg.Use24h,
 		ConfirmBeforeAdd: a.cfg.ConfirmBeforeAdd,
 		DaysAhead:        a.cfg.DaysAhead,
 		Events:           evs,
-		Calendars:        a.cal.CachedCalendars(),
+		Calendars:        cals,
 		DefaultCalendar:  a.cfg.DefaultCalendar,
 		Hotkey:           hotkey,
 		Now:              time.Now(),
+		GoogleAccounts:   []string{},
 	}
+	st.Connected = st.Access == "full"
+	seen := map[string]bool{}
+	for _, c := range cals {
+		if c.Google && !seen[c.Account] {
+			seen[c.Account] = true
+			st.GoogleAccounts = append(st.GoogleAccounts, c.Account)
+		}
+	}
+	st.HasGoogle = len(st.GoogleAccounts) > 0
 	if st.Events == nil {
 		st.Events = []Event{}
 	}
-	if err != nil {
+	if st.Calendars == nil {
+		st.Calendars = []CalendarInfo{}
+	}
+	if err != nil && st.Connected {
 		st.Error = err.Error()
 	}
 	return st
@@ -56,7 +67,36 @@ func (a *App) state() State {
 
 func (s *CalService) GetState() State { return s.a.state() }
 
-func (s *CalService) Refresh() State { return s.a.doRefresh() }
+func (s *CalService) Refresh() State {
+	s.a.cal.RefreshSources()
+	return s.a.doRefresh()
+}
+
+// AllowAccess is setup step 1: shows the macOS calendar permission prompt.
+// If access was refused earlier, macOS won't prompt again, so we open the Privacy settings instead.
+func (s *CalService) AllowAccess() (State, error) {
+	switch s.a.cal.Access() {
+	case "full":
+		return s.a.doRefresh(), nil
+	case "notDetermined":
+		ok := s.a.cal.RequestAccess()
+		s.a.tray.ShowWindow() // the system prompt takes focus away from the popover
+		if !ok {
+			return s.a.doRefresh(), fmt.Errorf("calendar access wasn't allowed")
+		}
+		return s.a.doRefresh(), nil
+	default:
+		openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
+		return s.a.state(), fmt.Errorf("turn on “Personal Calendar” under Calendars in the window that just opened, then come back")
+	}
+}
+
+// AddGoogleAccount is setup step 2: opens System Settings → Internet Accounts.
+// Once the account is added, macOS notifies us and the calendars appear on their own.
+func (s *CalService) AddGoogleAccount() {
+	openURL("x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension")
+	s.a.win.Hide()
+}
 
 // Parse turns free text into draft events (not yet saved).
 func (s *CalService) Parse(text string) ([]Draft, error) {
@@ -67,40 +107,37 @@ func (s *CalService) Parse(text string) ([]Draft, error) {
 	if err != nil {
 		return nil, err
 	}
+	def := s.a.cfg.DefaultCalendar
+	if def == "" {
+		for _, c := range cals {
+			if c.Primary {
+				def = c.ID
+			}
+		}
+	}
 	for i := range drafts {
 		if drafts[i].CalendarID == "" {
-			drafts[i].CalendarID = s.a.cfg.DefaultCalendar
-		}
-		if drafts[i].CalendarID == "" {
-			for _, c := range cals {
-				if c.Primary {
-					drafts[i].CalendarID = c.ID
-				}
-			}
+			drafts[i].CalendarID = def
 		}
 	}
 	return drafts, nil
 }
 
-// Add saves drafts to Google Calendar and returns fresh state.
+// Add saves drafts to the calendar and returns fresh state.
 func (s *CalService) Add(drafts []Draft) (State, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	for _, d := range drafts {
 		if strings.TrimSpace(d.Title) == "" {
 			return s.a.state(), fmt.Errorf("event needs a title")
 		}
-		if _, err := s.a.cal.Insert(ctx, d.CalendarID, d); err != nil {
+		if err := s.a.cal.Insert(d.CalendarID, d); err != nil {
 			return s.a.state(), err
 		}
 	}
 	return s.a.doRefresh(), nil
 }
 
-func (s *CalService) Delete(calendarID, eventID string) (State, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	if err := s.a.cal.Delete(ctx, calendarID, eventID); err != nil {
+func (s *CalService) Delete(eventID string, start time.Time) (State, error) {
+	if err := s.a.cal.Delete(eventID, start); err != nil {
 		return s.a.state(), err
 	}
 	return s.a.doRefresh(), nil
@@ -123,7 +160,7 @@ func (s *CalService) GetSettings() Settings {
 	c := s.a.cfg
 	hint := ""
 	if k := strings.TrimSpace(c.OpenAIKey); len(k) > 8 {
-		hint = k[:3] + "…" + k[len(k)-4:]
+		hint = k[:5] + "…" + k[len(k)-4:]
 	}
 	hidden := c.HiddenCalendars
 	if hidden == nil {
@@ -155,43 +192,8 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	return s.a.doRefresh(), nil
 }
 
-// ImportCredentials opens the native file picker and copies the Google OAuth client JSON in.
-func (s *CalService) ImportCredentials() (bool, error) {
-	out, err := exec.Command("osascript", "-e",
-		`POSIX path of (choose file with prompt "Choose the Google OAuth credentials.json" of type {"public.json"})`).Output()
-	s.a.tray.ShowWindow() // the picker steals focus, which hides the popover
-	if err != nil {
-		return false, nil // cancelled
-	}
-	path := strings.TrimSpace(string(out))
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return false, err
-	}
-	if !strings.Contains(string(b), "client_id") {
-		return false, fmt.Errorf("that file isn't a Google OAuth client (no client_id) — download the Desktop app client JSON")
-	}
-	if !strings.Contains(string(b), `"installed"`) {
-		return false, fmt.Errorf("that's a Web client — create an OAuth client of type “Desktop app” instead")
-	}
-	return true, os.WriteFile(credentialsPath(), b, 0o600)
-}
-
-func (s *CalService) ConnectGoogle() (State, error) {
-	if err := s.a.cal.Login(context.Background()); err != nil {
-		return s.a.state(), err
-	}
-	s.a.tray.ShowWindow()
-	return s.a.doRefresh(), nil
-}
-
-func (s *CalService) DisconnectGoogle() State {
-	s.a.cal.Disconnect()
-	return s.a.doRefresh()
-}
-
 func (s *CalService) OpenURL(u string) {
-	if strings.HasPrefix(u, "https://") {
+	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "ical://") {
 		openURL(u)
 		s.a.win.Hide()
 	}

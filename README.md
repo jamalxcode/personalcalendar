@@ -1,6 +1,6 @@
 # Personal Calendar
 
-A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that talks to **Google Calendar** and uses **OpenAI** to understand plain-English event entry.
+A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and uses **OpenAI or OpenRouter** to understand plain-English event entry.
 
 - Menu bar shows what's next: `Standup in 12m`, `● Lunch with Ali · 25m left`, or today's date when the day is clear.
 - Click it (or press **⌃⌥C** anywhere) and a frosted popover drops down under the icon: mini month with event dots, quick add, an "Up next" card with live countdown + **Join** for Google Meet, and your upcoming events grouped by day. Click away and it hides. Right-click the icon for Refresh / Settings / Quit.
@@ -8,7 +8,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Quick add**: type `Dinner with Sara Thursday 8pm at Mais Alghanim`, hit Return, check the preview card (title is editable, calendar is pickable), hit Return again. Done.
   - Handles durations (`for 30m`), all-day (`Ali's birthday Friday`), multi-day (`Dubai trip 12–15 Dec`), locations, reminders (`remind me 1h before`), several events at once, and picks a calendar if you name one (`… on Work`).
   - Knows the Kuwait weekend is Fri–Sat.
-- Hover an event for Join / delete (with confirmation); click it to open in Google Calendar.
+- Hover an event for Join / delete (with confirmation); click it to open in Calendar.
 - Settings: choose which calendars to show, which one new events go to, 12/24h, days ahead, preview on/off.
 - Shortcuts: `⌃⌥C` toggle popover (global) · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` cancel preview / hide.
 
@@ -24,35 +24,29 @@ cd personalcalendar
 
 Drag it into /Applications and add it to **System Settings → General → Login Items** to start at login.
 
-## OpenAI setup
+## Setup (2 clicks)
 
-Create an API key at <https://platform.openai.com/api-keys> and paste it in Settings. (A ChatGPT Plus subscription doesn't include API access — the API is pay-as-you-go; each event parse costs a tiny fraction of a cent with `gpt-4o-mini`.) The model name is editable in Settings.
+1. **Allow** — on first launch macOS asks for calendar access. Click Allow.
+2. **Google account** — if your Google account isn't on the Mac yet, click **Add Google…** in the app. It opens System Settings → Internet Accounts; sign in with Google and keep *Calendars* ticked. Your calendars show up in the app by themselves.
 
-## Google setup
+Then paste an **AI key** in Settings for quick add: an OpenAI key (`sk-…`, from <https://platform.openai.com/api-keys>) or an OpenRouter key (`sk-or-…`, from <https://openrouter.ai/keys>) — the app detects which. The model name is editable (default `gpt-4o-mini`; on OpenRouter it becomes `openai/gpt-4o-mini`).
 
-Google requires every app to have its own OAuth client. One-time, ~3 minutes:
-
-1. Go to <https://console.cloud.google.com/> → create a project (e.g. "Personal Calendar").
-2. **APIs & Services → Library** → search **Google Calendar API** → **Enable**.
-3. **APIs & Services → OAuth consent screen** (Google Auth Platform) → External → app name "Personal Calendar", your email → save. Under **Audience / Test users** add your own Gmail.
-4. **Clients → Create client → Application type: Desktop app** → Create → **Download JSON**.
-5. In the app: Settings → **Import credentials.json…** → pick the downloaded file → **Connect Google** → approve in the browser.
-
-> Tip: while the consent screen is in *Testing*, Google expires the login after 7 days. To avoid re-connecting weekly, press **Publish app** on the Audience page (you'll see an "unverified app" warning once when connecting — that's you, click *Continue*).
+Works with every calendar macOS syncs — Google, iCloud, Exchange — and you choose which ones to show and which one new events go to.
 
 ## Where things are stored
 
-`~/Library/Application Support/PersonalCalendar/` — `config.json` (settings + OpenAI key), `credentials.json`, `token.json` (Google refresh token). All files are `0600`. Nothing is sent anywhere except Google and OpenAI.
+`~/Library/Application Support/PersonalCalendar/config.json` (settings + AI key, file mode `0600`; deliberately not the Keychain, so there are no password prompts). Calendar data stays in macOS; only the text you type into quick add is sent to OpenAI/OpenRouter.
 
 ## Code map
 
 | File | What |
 |---|---|
 | `main.go` | Wails app, menu bar item (label + icon + right-click menu), popover window attached to the tray, global hotkey, refresh loop |
-| `service.go` | `CalService` — the Go methods the UI calls (state, parse, add, delete, settings, Google connect) |
+| `service.go` | `CalService` — the Go methods the UI calls (state, setup steps, parse, add, delete, settings) |
 | `frontend/` | the popover: `index.html`, `style.css`, `app.js` (talks to Go via `/wails/runtime.js`) |
-| `gcal.go` | Google OAuth (loopback + PKCE), list / insert / delete events |
-| `ai.go` | OpenAI structured-output parsing of free text → events |
+| `eventkit_darwin.m` | Objective-C bridge to Apple EventKit: permission, calendars, events, add, delete, change notifications |
+| `calendar_darwin.go` | Go wrapper over the bridge (+ Meet/Zoom/Teams link detection) |
+| `ai.go` | OpenAI / OpenRouter structured-output parsing of free text → events |
 | `config.go` | settings file |
 | `icons.go` | menu bar template icon + app icon, drawn in code |
 | `build.sh` / `build.command` | compile (`-tags production,private_mac_apis`), bundle as a menu-bar-only `.app`, ad-hoc sign, copy to Desktop |

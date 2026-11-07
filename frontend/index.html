@@ -60,15 +60,22 @@
       </header>
       <div class="scroll settings-body">
         <div class="group">
-          <div class="group-title">Google Calendar</div>
-          <div class="row"><span id="gStatus" class="status-dot">Not connected</span></div>
-          <ol class="steps" id="gSteps">
-            <li>Create a <b>Desktop app</b> OAuth client in Google Cloud and download its JSON. <a href="#" data-url="https://github.com/jamalxcode/personalcalendar#google-setup">Step-by-step guide</a></li>
-            <li><button class="btn" id="importCreds">Import credentials.json…</button> <span id="credsOk" class="muted"></span></li>
-            <li><button class="btn primary" id="connectG">Connect Google</button></li>
-          </ol>
-          <div class="row hidden" id="gConnectedRow">
-            <button class="btn" id="disconnectG">Disconnect</button>
+          <div class="group-title">Connect your calendar</div>
+          <div class="setup-step" id="step1">
+            <span class="step-num">1</span>
+            <div class="step-body">
+              <div class="step-title">Allow calendar access</div>
+              <div class="muted small" id="step1Hint">macOS will ask once — click <b>Allow</b>.</div>
+            </div>
+            <button class="btn primary" id="allowBtn">Allow</button>
+          </div>
+          <div class="setup-step" id="step2">
+            <span class="step-num">2</span>
+            <div class="step-body">
+              <div class="step-title">Google account on this Mac</div>
+              <div class="muted small" id="step2Hint">Sign in with Google once and keep <b>Calendars</b> ticked. It appears here by itself.</div>
+            </div>
+            <button class="btn" id="addGoogleBtn">Add Google…</button>
           </div>
         </div>
 
@@ -78,12 +85,12 @@
         </div>
 
         <div class="group">
-          <div class="group-title">OpenAI</div>
+          <div class="group-title">AI quick add</div>
           <label class="field"><span>API key</span>
-            <input id="sKey" type="password" placeholder="sk-…" spellcheck="false"></label>
+            <input id="sKey" type="password" placeholder="OpenAI sk-… or OpenRouter sk-or-…" spellcheck="false"></label>
           <label class="field"><span>Model</span>
             <input id="sModel" type="text" spellcheck="false"></label>
-          <a href="#" class="small" data-url="https://platform.openai.com/api-keys">Get an API key</a>
+          <div class="small muted">Get a key from <a href="#" data-url="https://platform.openai.com/api-keys">OpenAI</a> or <a href="#" data-url="https://openrouter.ai/keys">OpenRouter</a>.</div>
         </div>
 
         <div class="group">
