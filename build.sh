@@ -14,7 +14,7 @@ go mod tidy
 echo "→ compiling"
 mkdir -p build
 # production = embedded runtime; private_mac_apis = transparent webview over the frosted backdrop
-go build -tags production,private_mac_apis -ldflags "-s -w -X main.diagDir=$(pwd)/.diag" -o build/PersonalCalendar .
+go build -tags production,private_mac_apis -ldflags "-s -w -X main.diagDir=$(pwd)/.diag -X main.buildStamp=$(date +%H:%M:%S)" -o build/PersonalCalendar .
 
 echo "→ bundling"
 rm -rf "build/$APP"
@@ -53,9 +53,16 @@ PLIST
 
 codesign --force --deep -s - "build/$APP" >/dev/null 2>&1 || true
 
-pkill -x PersonalCalendar 2>/dev/null || true
+# quit any running copy (it holds the single-instance lock) and wait for it to exit
+osascript -e 'tell application id "company.sala.personalcalendar" to quit' >/dev/null 2>&1 || true
+pkill -f "Contents/MacOS/PersonalCalendar" 2>/dev/null || true
+for i in $(seq 1 20); do pgrep -f "Contents/MacOS/PersonalCalendar" >/dev/null || break; sleep 0.25; done
+pkill -9 -f "Contents/MacOS/PersonalCalendar" 2>/dev/null || true
 rm -rf "$HOME/Desktop/$APP"
 cp -R "build/$APP" "$HOME/Desktop/"
 echo "✓ Built: ~/Desktop/$APP"
-[ "${1:-}" = "--run" ] && open "$HOME/Desktop/$APP"
+if [ "${1:-}" = "--run" ]; then
+  sleep 0.5
+  open "$HOME/Desktop/$APP" || "$HOME/Desktop/$APP/Contents/MacOS/PersonalCalendar" >/dev/null 2>&1 &
+fi
 exit 0

@@ -23,6 +23,8 @@ var frontendFS embed.FS
 // can read what the app sees (calendar access, accounts found) without screen access.
 var diagDir string
 
+var buildStamp = "dev"
+
 // Global hotkey that toggles the popover from anywhere.
 const hotkey = "Ctrl+Alt+C"
 
@@ -179,7 +181,7 @@ func writeDiag(st State) {
 		cals = append(cals, calLine{c.Name, c.Account, c.Source, c.Google, c.Writable, c.Primary})
 	}
 	d := map[string]any{
-		"time": time.Now().Format(time.RFC3339), "access": st.Access, "hasGoogle": st.HasGoogle,
+		"time": time.Now().Format(time.RFC3339), "build": buildStamp, "access": st.Access, "hasGoogle": st.HasGoogle,
 		"googleAccounts": st.GoogleAccounts, "events": len(st.Events), "error": st.Error,
 		"hasKey": st.HasKey, "calendars": cals,
 	}
