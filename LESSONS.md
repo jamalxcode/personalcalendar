@@ -47,3 +47,8 @@
 - **Pop-out windows in Wails v3:** a second hidden window with its own HTML page; closing hides it; share data via `Event.Emit("state")`.
 - **Hiding the status-item icon in Wails v3:** there's no API; find the `NSStatusBarButton` in the app's `NSStatusBarWindow` and set `imagePosition = NSNoImage`. Queue it a few main-queue hops deep so it lands after Wails' own (nested) icon updates.
 - **Keep the label logic in Go and mirror it in JS** for the settings live preview; a unit test pins the Go helpers.
+- **Settings window in Wails v3:** a second window loading the same `index.html?settings=1`; the JS checks the query string and shows only the settings view. All windows receive the same `state` events, so changes show up everywhere.
+- **Instant-save settings:** listen for `change` (and clicks on custom controls) inside the settings body and debounce one save; never save while the form is being filled from stored values.
+- **Template tray icons:** Wails keeps `isTemplate` once set, so switching colour ↔ monochrome is done natively by setting `button.image` with `setTemplate:` ourselves.
+- **i18n without rewriting the UI:** an exact-match dictionary plus a few regex patterns, applied by a `MutationObserver` to text nodes and `title`/`placeholder` attributes; guard against observer loops by only writing when the value differs.
+- **Standard About panel:** `orderFrontStandardAboutPanelWithOptions:` with an attributed Credits string; activate the app first (accessory apps are in the background).

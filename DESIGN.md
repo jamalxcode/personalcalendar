@@ -15,6 +15,32 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.0 — Following Apple's Human Interface Guidelines (7 Nov 2026)
+
+**Asked:** "apple has some gui rules like about, and other things, what are they if we were to apply them to the calendar app?" → a 17-point list → "do it all".
+
+**Decided (all 17):**
+1. Standard **About Smart Cal** panel (icon, version, credits, © go.sala.company).
+2. Tray menu in Apple's order: About · Check for Updates… · Settings… (⌘,) · app items (Open, Week View ⌘⇧W, New Event ⌘N, Refresh ⌘R, Calendar app, Google web) · Smart Cal Help · Quit (⌘Q).
+3. **Settings apply instantly** — the Save button was retired (it had been requested in v1.2; Apple's convention won once the owner chose "do it all"). A small "✓ Saved" tick confirms.
+4. **Settings in their own window** with toolbar icon tabs (Calendar, AI, Look, Menu bar, Alerts, About).
+5. **Monochrome (template) menu bar icon** option; colour remains the default.
+6. **Show in the Dock** option, since the menu bar item can hide behind the notch; ⌃⌥C always works.
+7. **Ask before adding a login item** (first run shows "Start Smart Cal when you log in?"). Existing installs keep their choice.
+8. Shortcuts: ⌘N, ⌘Z / ⌘⇧Z, ⌘1–⌘4, ?, plus the existing ⌘F ⌘T ⌘R ⌘, Esc.
+9. **System accent colour** and **system clock format** options (the Saturday week start stays a Smart Cal setting).
+10. Accessibility: VoiceOver labels from tooltips, Reduce Motion, Increase Contrast, visible focus rings.
+11–12. Undo over confirmations and just-in-time permissions were already in place.
+13. Native polish: focus rings, toolbar tabs, system materials.
+14. Week and Settings windows remember size and position.
+15. App icon on Apple's rounded-square grid (mascot on a soft tile).
+16. **Arabic** interface with right-to-left layout, Arabic dates (Latin digits) and an Arabic AI greeting.
+17. **Help & shortcuts** sheet.
+
+![Settings window](docs/design/v2-settings-window.png)
+![Help and Arabic](docs/design/v2-help-arabic.png)
+![Icon on a tile](docs/design/v2-icon-tile.png)
+
 ## v1.9 — Menu bar choices (7 Nov 2026)
 
 **Asked:** "the next event is useful but i need to drastically abbreviate… 10 suggestions to allow more to show on the menu bar from other apps". Then: show examples of emoji + countdown; "4 is good"; "the actual app icon is wasting space, lets remove it, unless there is no forthcoming event"; "give the user a choice of style in the settings… show them as user choice examples… how they will appear in the settings"; "update it with menu bar choices".

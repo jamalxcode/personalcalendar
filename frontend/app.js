@@ -2116,7 +2116,8 @@ function renderSwatches() {
   const raw = (pendingAccent || (settingsCache && settingsCache.accent) || S.accent || "#4169E1");
   const cur = raw.toUpperCase();
   let named = false;
-  const sys = el("button", "swatch swatch-system" + (raw === "system" ? " on" : ""));
+  const sys = el("button", "swatch swatch-system" + (raw === "system" ? " on" : ""), "A");
+  sys.style.setProperty("--sys", (settingsCache && settingsCache.systemAccent) || "#007AFF");
   sys.title = "System (follows your Mac's accent colour)";
   sys.setAttribute("aria-label", "System accent colour");
   sys.onclick = () => { pendingAccent = "system"; applyAccent((settingsCache && settingsCache.systemAccent) || "#007AFF"); renderSwatches(); };

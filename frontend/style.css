@@ -852,7 +852,8 @@ body.settings-win .sheet.in-settings { top: 40px; }
 .about-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
 
 /* System accent swatch */
-.swatch-system { background: conic-gradient(#E5484D, #F0802E, #FFC53D, #2FA36B, #12A4A4, #4169E1, #8B5CF6, #E0559A, #E5484D) !important; }
+.swatch-system { background: var(--sys, #007AFF) !important; color: #fff !important; font: 800 10px -apple-system, sans-serif; display: grid; place-items: center; }
+.mb-bar, .mb-states .mb-bar { direction: ltr; unicode-bidi: isolate; }
 
 /* Help */
 .help-keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 8px 0 14px; }

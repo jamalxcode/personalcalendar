@@ -60,13 +60,13 @@ const AR = {
   "from": "من", "Your week at a glance": "أسبوعك بلمحة",
   // help & login
   "Keyboard shortcuts": "اختصارات لوحة المفاتيح", "Start Smart Cal when you log in?": "تشغيل Smart Cal عند تسجيل الدخول؟", "Yes": "نعم", "Not now": "ليس الآن",
-  "Close": "إغلاق", "New event": "موعد جديد", "So your next event is always in the menu bar.": "ليظهر موعدك القادم دائمًا في شريط القوائم.", "Tips": "نصائح",
+  "Close": "إغلاق", "New event": "موعد جديد", "So your next event is always in the menu bar.": "ليظهر موعدك القادم دائمًا في شريط القوائم.", "Tips": "نصائح", "In 2 hours": "بعد ساعتين", "In 25 min": "بعد ٢٥ دقيقة", "Started": "بدأ", "System (follows your Mac's accent colour)": "النظام (يتبع لون الماك)",
 };
 const AR_PATTERNS = [
   [/^Up next · in (.+)$/, "التالي · بعد $1"], [/^Up next · (.+)$/, "التالي · $1"], [/^(\d+) days?$/, "$1 يوم"],
   [/^Overdue · (.+)$/, "متأخرة · $1"], [/^(\d+) · (\d+) overdue$/, "$1 · $2 متأخرة"], [/^(\d+) overdue$/, "$1 متأخرة"],
   [/^(.+) to open$/, "$1 للفتح"], [/^Nothing in the next (\d+) days\.$/, "لا شيء في الأيام الـ$1 القادمة."], [/^Now · (.+) left$/, "الآن · متبقي $1"], [/^Week of (.+)$/, "أسبوع $1"],
-  [/^(\d+) events?$/, "$1 مواعيد"], [/^Version (.+)$/, "الإصدار $1"], [/^Live preview · (.+)$/, "معاينة مباشرة · $1"],
+  [/^(\d+) events?$/, "$1 مواعيد"], [/^Version (.+)$/, "الإصدار $1"], [/^Live preview · (.+?)( · sample event)?$/, "معاينة مباشرة · $1"],
   [/^Deleted “(.+)”$/, "حُذف «$1»"], [/^Added “(.+)”$/, "أُضيف «$1»"], [/^Moved to (.+)$/, "نُقل إلى $1"], [/^Update to v(.+) now$/, "حدّث إلى v$1 الآن"],
 ];
 

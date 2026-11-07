@@ -2,6 +2,20 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.0.0 — a proper Mac app
+
+- **Settings is now its own window** (⌘, from anywhere) with toolbar tabs, and changes **save as you make them** — no Save button
+- **About Smart Cal** opens the standard macOS About panel; the menu-bar right-click menu follows Apple's order (About · Check for Updates · Settings · … · Help · Quit) with the usual shortcuts
+- **Follows your Mac:** "System" highlight colour and "Same as the Mac" clock (12/24-hour); Reduce Motion turns off animations and confetti; Increase Contrast strengthens lines and text
+- **Monochrome menu bar icon** option (like Apple's icons), and **Show in the Dock** option for crowded menu bars
+- **Asks before starting at login** instead of turning it on by itself
+- **Shortcuts:** ⌘N new event, ⌘Z undo (⌘⇧Z redo for moves), ⌘1–⌘4 Year/Month/Week/Day, ? for help
+- **Help & shortcuts** sheet (menu: Smart Cal Help)
+- **Arabic** with right-to-left layout and Arabic dates (Settings → Look → Language), including an Arabic AI greeting
+- VoiceOver labels on icon buttons and visible keyboard focus
+- The week and Settings windows remember their size and position
+- App icon sits on a soft rounded-square tile like other Mac apps
+
 ## v1.9.0
 
 - **Menu bar choices:** a new Menu bar tab in Settings with a live preview and 10 styles, each shown as it will look — Compact, Minimal, Countdown + title, Time + title, Full, Today only, Last hour only, Date, Date + compact, Icon only
