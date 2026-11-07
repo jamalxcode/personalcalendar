@@ -70,7 +70,7 @@ func main() {
 
 	assets, _ := fs.Sub(frontendFS, "frontend")
 	a.wa = application.New(application.Options{
-		Name:        "Personal Calendar",
+		Name:        "Smart Cal",
 		Description: "Menu bar calendar with AI quick add",
 		Services:    []application.Service{application.NewService(&CalService{a: a}), application.NewService(a.notif)},
 		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
@@ -82,7 +82,7 @@ func main() {
 
 	a.win = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            "popover",
-		Title:           "Personal Calendar",
+		Title:           "Smart Cal",
 		Width:           380,
 		Height:          700,
 		Frameless:       true,
@@ -110,7 +110,7 @@ func main() {
 
 	a.tray = a.wa.SystemTray.New()
 	a.tray.SetIcon(trayIconPNG()) // full-colour icon (not a template, so macOS doesn't flatten it)
-	a.tray.SetTooltip("Personal Calendar  (" + hotkey + ")")
+	a.tray.SetTooltip("Smart Cal  (" + hotkey + ")")
 	a.tray.SetMenu(a.buildMenu())
 	a.tray.AttachWindow(a.win).WindowOffset(6)
 
@@ -140,7 +140,7 @@ func main() {
 
 func (a *App) buildMenu() *application.Menu {
 	m := a.wa.NewMenu()
-	m.Add("Open Personal Calendar").OnClick(func(*application.Context) { a.tray.ShowWindow() })
+	m.Add("Open Smart Cal").OnClick(func(*application.Context) { a.tray.ShowWindow() })
 	m.Add("Refresh").OnClick(func(*application.Context) { a.RequestRefresh() })
 	m.Add("Settings…").OnClick(func(*application.Context) {
 		a.tray.ShowWindow()
@@ -153,12 +153,16 @@ func (a *App) buildMenu() *application.Menu {
 		a.tray.ShowWindow()
 		a.wa.Event.Emit("ui:updates")
 	})
-	m.Add("Quit Personal Calendar").OnClick(func(*application.Context) { a.wa.Quit() })
+	m.Add("Quit Smart Cal").OnClick(func(*application.Context) { a.wa.Quit() })
 	return m
 }
 
 func (a *App) loop() {
 	time.Sleep(time.Second)
+	if renamed := renameBundle(); renamed && a.cfg.LaunchAtLogin {
+		_ = a.wa.Autostart.Disable()
+		_ = a.wa.Autostart.Enable() // re-register the login item at the new path
+	}
 	if !a.cfg.LoginConfigured { // first run: start at login by default
 		if err := a.wa.Autostart.Enable(); err == nil {
 			a.cfg.LaunchAtLogin = true

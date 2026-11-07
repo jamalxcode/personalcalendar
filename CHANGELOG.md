@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v1.7.0
+
+- Renamed to **Smart Cal** — from go.sala.company. The app renames itself on disk ("Smart Cal.app"); settings, your AI key and calendar permission carry over.
+- A proper settings gear (crisp 8-tooth cog that turns when you hover it)
+- Greeting bubble looks clean in dark mode
+
 ## v1.6.0
 
 - Meet the mascot: a smiling calendar whose face follows your day (happy, busy, focused, sleepy, party) — click it for a tip

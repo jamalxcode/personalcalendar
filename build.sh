@@ -1,11 +1,11 @@
 #!/bin/bash
-# Builds "Personal Calendar.app".
+# Builds "Smart Cal.app".
 #   ./build.sh          build and copy to ~/Desktop
 #   ./build.sh --run    …and launch it
 #   ./build.sh --ci     build + zip for a GitHub release (used by .github/workflows/release.yml)
 set -euo pipefail
 cd "$(dirname "$0")"
-APP="Personal Calendar.app"
+APP="Smart Cal.app"
 MODE="${1:-}"
 VERSION=$(tr -d ' \n' < VERSION)
 export CGO_ENABLED=1
@@ -42,8 +42,8 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>Personal Calendar</string>
-  <key>CFBundleDisplayName</key><string>Personal Calendar</string>
+  <key>CFBundleName</key><string>Smart Cal</string>
+  <key>CFBundleDisplayName</key><string>Smart Cal</string>
   <key>CFBundleExecutable</key><string>PersonalCalendar</string>
   <key>CFBundleIdentifier</key><string>company.sala.personalcalendar</string>
   <key>CFBundleIconFile</key><string>icon</string>
@@ -51,8 +51,8 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>NSCalendarsFullAccessUsageDescription</key><string>Personal Calendar shows your upcoming events in the menu bar and adds the events you type.</string>
-  <key>NSCalendarsUsageDescription</key><string>Personal Calendar shows your upcoming events in the menu bar and adds the events you type.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Smart Cal shows your upcoming events in the menu bar and adds the events you type.</string>
+  <key>NSCalendarsUsageDescription</key><string>Smart Cal shows your upcoming events in the menu bar and adds the events you type.</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
@@ -61,8 +61,12 @@ PLIST
 codesign --force --deep -s - "build/$APP" >/dev/null 2>&1 || true
 
 if [ "$MODE" = "--ci" ]; then
-  ZIP="build/PersonalCalendar-$VERSION-macos-arm64.zip"
-  ditto -c -k --keepParent "build/$APP" "$ZIP"
+  ZIP="build/SmartCal-$VERSION-macos-arm64.zip"
+  # inside the zip the bundle keeps its old name so v1.6-and-earlier updaters still find it;
+  # the app renames itself to "Smart Cal.app" on first launch
+  rm -rf build/zip && mkdir -p build/zip
+  cp -R "build/$APP" "build/zip/Personal Calendar.app"
+  ditto -c -k --keepParent "build/zip/Personal Calendar.app" "$ZIP"
   echo "✓ Packaged: $ZIP"
   exit 0
 fi
@@ -72,7 +76,7 @@ osascript -e 'if application id "company.sala.personalcalendar" is running then 
 pkill -f "Contents/MacOS/PersonalCalendar" 2>/dev/null || true
 for i in $(seq 1 20); do pgrep -f "Contents/MacOS/PersonalCalendar" >/dev/null || break; sleep 0.25; done
 pkill -9 -f "Contents/MacOS/PersonalCalendar" 2>/dev/null || true
-rm -rf "$HOME/Desktop/$APP"
+rm -rf "$HOME/Desktop/$APP" "$HOME/Desktop/Personal Calendar.app"  # old name before the Smart Cal rename
 cp -R "build/$APP" "$HOME/Desktop/"
 echo "✓ Built: ~/Desktop/$APP"
 if [ "$MODE" = "--run" ]; then

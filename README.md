@@ -1,4 +1,6 @@
-# Personal Calendar
+# Smart Cal
+
+*from [go.sala.company](https://go.sala.company)*
 
 A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and uses **OpenAI or OpenRouter** to understand plain-English event entry.
 
@@ -20,7 +22,7 @@ Needs Go 1.21+ (`brew install go`; it auto-fetches the Go 1.26 toolchain Wails v
 ```bash
 git clone https://github.com/jamalxcode/personalcalendar.git
 cd personalcalendar
-./build.sh --run        # builds "Personal Calendar.app" onto your Desktop and opens it
+./build.sh --run        # builds "Smart Cal.app" onto your Desktop and opens it
 ```
 
 Drag it into /Applications and add it to **System Settings → General → Login Items** to start at login.
@@ -44,7 +46,7 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 
 ## Where things are stored
 
-`~/Library/Application Support/PersonalCalendar/config.json` (settings + AI key, file mode `0600`; deliberately not the Keychain, so there are no password prompts). Calendar data stays in macOS; only the text you type into quick add is sent to OpenAI/OpenRouter.
+`~/Library/Application Support/PersonalCalendar/config.json` (folder name kept from the original name) (settings + AI key, file mode `0600`; deliberately not the Keychain, so there are no password prompts). Calendar data stays in macOS; only the text you type into quick add is sent to OpenAI/OpenRouter.
 
 ## Code map
 

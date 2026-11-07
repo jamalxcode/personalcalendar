@@ -319,7 +319,7 @@ func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, sche
 	req, _ := http.NewRequestWithContext(ctx, "POST", base+"/chat/completions", bytes.NewReader(b))
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Title", "Personal Calendar")
+	req.Header.Set("X-Title", "Smart Cal")
 	req.Header.Set("HTTP-Referer", "https://go.sala.company")
 	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
 	if err != nil {

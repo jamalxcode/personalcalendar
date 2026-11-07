@@ -40,3 +40,4 @@
 - **Drag-to-reschedule:** pointer events with `setPointerCapture`, snap to 15 min, update on pointerup, offer Undo; fetch the event's notes first so the update doesn't wipe them.
 - **Week start / weekend are user settings**, never hard-coded — they feed the month grid, the recap, the greeting and the AI prompt.
 - **Playwright won't click animated elements** ("not stable") — use `{force: true}` in preview scripts.
+- **Renaming a shipped app:** change only display names (CFBundleName/DisplayName, UI text). Keep the bundle ID, executable name, config folder and repo so permissions, settings and update URLs survive. Old updaters look for the old bundle name inside the zip — keep it there and let the new version rename itself on disk (renaming a running .app is safe), then re-register the login item.

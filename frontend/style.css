@@ -604,3 +604,13 @@ a:hover { text-decoration: underline; }
 .day-chip.on { background: var(--accent); color: #fff; box-shadow: none; }
 .sub-opts { display: flex; flex-direction: column; gap: 8px; padding-left: 4px; transition: opacity .2s; }
 .sub-opts.off { opacity: .4; pointer-events: none; }
+
+/* gear: crisp 8-tooth cog, turns a little on hover */
+.gear .gear-svg { width: 22px; height: 22px; fill: currentColor; stroke: currentColor; stroke-width: 1.1; stroke-linejoin: round;
+  transition: transform .45s cubic-bezier(.3, 1.4, .5, 1); }
+.gear:hover .gear-svg { transform: rotate(45deg); }
+.gear:active .gear-svg { transform: rotate(90deg) scale(.92); }
+
+/* solid bubble so the little tail doesn't double up on translucent backgrounds */
+.bubble, .bubble::before { background: #fff; }
+@media (prefers-color-scheme: dark) { .bubble, .bubble::before { background: #2c2c2e; } }

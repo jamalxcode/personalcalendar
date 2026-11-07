@@ -123,7 +123,7 @@ func (s *CalService) AllowAccess() (State, error) {
 		return s.a.doRefresh(), nil
 	default:
 		openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
-		return s.a.state(), fmt.Errorf("turn on “Personal Calendar” under Calendars in the window that just opened, then come back")
+		return s.a.state(), fmt.Errorf("turn on “Smart Cal” under Calendars in the window that just opened, then come back")
 	}
 }
 

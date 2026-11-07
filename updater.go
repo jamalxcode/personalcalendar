@@ -15,6 +15,23 @@ import (
 	"time"
 )
 
+// appBundleName is the app's file name on disk.
+const appBundleName = "Smart Cal.app"
+
+// renameBundle renames an older "Personal Calendar.app" to "Smart Cal.app" in place (once).
+// A running app can be renamed safely on macOS; the new name shows in Finder right away.
+func renameBundle() bool {
+	b, err := currentBundle()
+	if err != nil || filepath.Base(b) == appBundleName {
+		return false
+	}
+	target := filepath.Join(filepath.Dir(b), appBundleName)
+	if _, err := os.Stat(target); err == nil {
+		return false // something already has that name; leave both alone
+	}
+	return os.Rename(b, target) == nil
+}
+
 // version is set at build time from the VERSION file (-X main.version=...).
 var version = "0.0.0"
 
@@ -92,7 +109,7 @@ func newerVersion(a, b string) bool {
 	return false
 }
 
-// currentBundle returns the path of the running "Personal Calendar.app".
+// currentBundle returns the path of the running app bundle.
 func currentBundle() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
@@ -132,22 +149,32 @@ func installUpdate(ctx context.Context, info UpdateInfo, progress func(string)) 
 	if out, err := exec.Command("ditto", "-x", "-k", zipPath, unz).CombinedOutput(); err != nil {
 		return fmt.Errorf("unzip failed: %s", strings.TrimSpace(string(out)))
 	}
-	newApp := filepath.Join(unz, "Personal Calendar.app")
-	if _, err := os.Stat(filepath.Join(newApp, "Contents", "MacOS", "PersonalCalendar")); err != nil {
+	// the zip holds one .app (named "Personal Calendar.app" so older versions' updaters still work)
+	newApp := ""
+	if ents, err := os.ReadDir(unz); err == nil {
+		for _, e := range ents {
+			if strings.HasSuffix(e.Name(), ".app") {
+				newApp = filepath.Join(unz, e.Name())
+			}
+		}
+	}
+	if _, err := os.Stat(filepath.Join(newApp, "Contents", "MacOS", "PersonalCalendar")); newApp == "" || err != nil {
 		return fmt.Errorf("the download doesn't contain the app")
 	}
+	target := filepath.Join(filepath.Dir(bundle), appBundleName) // installs as "Smart Cal.app"
 	script := filepath.Join(tmp, "swap.sh")
 	body := fmt.Sprintf(`#!/bin/bash
 PID=%d
 OLD=%q
 NEW=%q
+TARGET=%q
 for i in $(seq 1 100); do kill -0 $PID 2>/dev/null || break; sleep 0.1; done
 rm -rf "$OLD.previous"
-mv "$OLD" "$OLD.previous" && mv "$NEW" "$OLD" || { mv "$OLD.previous" "$OLD" 2>/dev/null; open "$OLD"; exit 1; }
+mv "$OLD" "$OLD.previous" && mv "$NEW" "$TARGET" || { mv "$OLD.previous" "$OLD" 2>/dev/null; open "$OLD"; exit 1; }
 rm -rf "$OLD.previous"
-xattr -dr com.apple.quarantine "$OLD" 2>/dev/null
-open "$OLD"
-`, os.Getpid(), bundle, newApp)
+xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
+open "$TARGET"
+`, os.Getpid(), bundle, newApp, target)
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		return err
 	}

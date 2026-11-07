@@ -599,7 +599,7 @@ function kbOpen() {
 function renderBanner() {
   const b = $("setupBanner");
   if (!S.connected) {
-    b.innerHTML = `<b>One click to start:</b> let Personal Calendar read your calendars. <button class="btn primary" id="bannerAllow">Allow</button>`;
+    b.innerHTML = `<b>One click to start:</b> let Smart Cal read your calendars. <button class="btn primary" id="bannerAllow">Allow</button>`;
     b.classList.remove("hidden");
     $("bannerAllow").onclick = allowAccess;
     return;
@@ -1327,7 +1327,7 @@ function renderUpdate(info, statusMsg) {
   if (info) U = info;
   const cur = (U && U.current) || "";
   $("versionLbl").textContent = cur ? `v${cur}` : "";
-  $("updVersion").textContent = cur ? `Personal Calendar v${cur}` : "Personal Calendar";
+  $("updVersion").textContent = cur ? `Smart Cal v${cur}` : "Smart Cal";
   const avail = U && U.available;
   $("updatePill").classList.toggle("hidden", !avail);
   if (avail) $("updatePill").textContent = `Update to v${U.latest}`;

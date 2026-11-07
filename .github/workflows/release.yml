@@ -54,6 +54,6 @@ jobs:
         run: |
           V=${{ steps.v.outputs.version }}
           NOTES=$(awk -v v="$V" '$0 ~ "^## v?"v"( |$)" {f=1; next} /^## / {f=0} f' CHANGELOG.md | sed '/./,$!d')
-          [ -n "$NOTES" ] || NOTES="Personal Calendar v$V"
-          gh release create "v$V" "build/PersonalCalendar-$V-macos-arm64.zip" \
-            --title "Personal Calendar v$V" --notes "$NOTES" --target "$GITHUB_SHA"
+          [ -n "$NOTES" ] || NOTES="Smart Cal v$V"
+          gh release create "v$V" "build/SmartCal-$V-macos-arm64.zip" \
+            --title "Smart Cal v$V" --notes "$NOTES" --target "$GITHUB_SHA"

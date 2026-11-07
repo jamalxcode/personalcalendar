@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double-click in Finder to build "Personal Calendar.app" onto the Desktop.
+# Double-click in Finder to build "Smart Cal.app" onto the Desktop.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/local/go/bin:$HOME/.homebrew/bin:$HOME/go/bin:$PATH"
 cd "$(dirname "$0")"
 {
