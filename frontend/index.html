@@ -10,6 +10,10 @@
 </head>
 <body>
   <div class="shell">
+    <div class="brand">
+      <span class="brand-name">Calendar</span>
+      <span class="brand-by">brought to you by <a href="#" data-url="https://go.sala.company">go.sala.company</a></span>
+    </div>
     <!-- ===== main view ===== -->
     <section id="main" class="view">
       <header class="top">
@@ -56,7 +60,7 @@
     <!-- ===== settings view ===== -->
     <section id="settings" class="view hidden">
       <header class="top">
-        <button class="pill-btn" id="closeSettings">‹ Back</button>
+        <button class="pill-btn" id="closeSettings">‹ Calendar</button>
         <div class="month-title">Settings</div>
         <span style="width:58px"></span>
       </header>
@@ -87,12 +91,13 @@
         </div>
 
         <div class="group">
-          <div class="group-title">AI quick add</div>
-          <label class="field"><span>API key</span>
-            <input id="sKey" type="password" placeholder="OpenAI sk-… or OpenRouter sk-or-…" spellcheck="false"></label>
+          <div class="group-title">AI quick add <span class="muted small">powered by OpenRouter</span></div>
+          <div class="small muted">Type events in plain English — the AI turns them into calendar entries. It runs through <b>OpenRouter</b>: paste your OpenRouter key below (an OpenAI key also works).</div>
+          <label class="field"><span>Key</span>
+            <input id="sKey" type="password" placeholder="OpenRouter key  sk-or-…" spellcheck="false"></label>
           <label class="field"><span>Model</span>
             <input id="sModel" type="text" spellcheck="false"></label>
-          <div class="small muted">Get a key from <a href="#" data-url="https://platform.openai.com/api-keys">OpenAI</a> or <a href="#" data-url="https://openrouter.ai/keys">OpenRouter</a>.</div>
+          <div class="small muted">Get a key at <a href="#" data-url="https://openrouter.ai/keys">openrouter.ai/keys</a>.</div>
         </div>
 
         <div class="group">
@@ -118,8 +123,11 @@
         </div>
 
         <div class="settings-actions">
-          <button class="btn danger-ghost" id="quitBtn">Quit</button>
-          <button class="btn primary" id="saveSettings">Save</button>
+          <button class="btn danger-ghost" id="quitBtn">Quit app</button>
+          <div class="actions-right">
+            <button class="btn" id="returnBtn">‹ Return to calendar</button>
+            <button class="btn primary" id="saveSettings">Save</button>
+          </div>
         </div>
       </div>
     </section>

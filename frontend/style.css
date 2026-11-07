@@ -46,18 +46,28 @@ a:hover { text-decoration: underline; }
 
 .shell {
   position: relative;
+  display: flex; flex-direction: column;
   height: 100vh;
   background: var(--panel);
   border-radius: 12px;
   overflow: hidden;
   border: .5px solid var(--line);
 }
-.view { display: flex; flex-direction: column; height: 100%; }
+.view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* ---------- brand line ---------- */
+.brand {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 10px 14px 0; flex: none;
+}
+.brand-name { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--accent); }
+.brand-by { font-size: 10.5px; color: var(--muted); }
+.brand-by a { font-weight: 600; }
 
 /* ---------- header ---------- */
 .top {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 14px 6px;
+  padding: 6px 14px 6px;
   --wails-draggable: no-drag;
 }
 .month-title { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
@@ -91,8 +101,13 @@ a:hover { text-decoration: underline; }
 .day .num { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; }
 .day.today .num { background: var(--accent); color: #fff; font-weight: 700; }
 .day.sel:not(.today) .num { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.day .dots { position: absolute; bottom: 1px; display: flex; gap: 2px; }
-.day .dots i { width: 4px; height: 4px; border-radius: 50%; }
+.day .dots { position: absolute; bottom: 0; display: flex; gap: 2px; }
+.day .dots i { width: 5px; height: 5px; border-radius: 50%; }
+/* days with events: tinted, bold number so they stand out at a glance */
+.day.has .num { background: var(--accent-soft); color: var(--fg); font-weight: 700; }
+.day.has.busy .num { background: rgba(229, 72, 77, .30); }
+.day.has.out .num { opacity: .5; }
+.day.today.has .num { background: var(--accent); color: #fff; }
 
 /* ---------- quick add ---------- */
 .quick {
@@ -245,7 +260,8 @@ a:hover { text-decoration: underline; }
 .cal-row .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .cal-row .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-row input[type=checkbox], .cal-row input[type=radio] { accent-color: var(--accent); }
-.settings-actions { display: flex; justify-content: space-between; padding: 4px 0 8px; }
+.settings-actions { display: flex; justify-content: space-between; align-items: center; padding: 4px 0 8px; position: sticky; bottom: 0; }
+.actions-right { display: flex; gap: 8px; }
 
 /* ---------- toast & confirm ---------- */
 .toast {

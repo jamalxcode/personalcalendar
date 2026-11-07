@@ -62,7 +62,7 @@ var parseSchema = map[string]any{
 
 func parseEvents(ctx context.Context, cfg *Config, text string, cals []CalendarInfo) ([]Draft, error) {
 	if strings.TrimSpace(cfg.OpenAIKey) == "" {
-		return nil, fmt.Errorf("add your OpenAI or OpenRouter API key in Settings first")
+		return nil, fmt.Errorf("add your OpenRouter key in Settings first")
 	}
 	now := time.Now()
 	var names []string

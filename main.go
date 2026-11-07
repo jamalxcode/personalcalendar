@@ -71,7 +71,7 @@ func main() {
 		Name:            "popover",
 		Title:           "Personal Calendar",
 		Width:           380,
-		Height:          620,
+		Height:          650,
 		Frameless:       true,
 		Hidden:          true,
 		DisableResize:   true,

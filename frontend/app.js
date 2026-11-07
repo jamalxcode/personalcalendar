@@ -101,11 +101,13 @@ function renderMiniCal() {
 
   // colour dots per day from loaded events
   const dots = new Map();
+  const counts = new Map();
   for (const e of evs()) {
     let d = startOfDay(e.s);
     const last = e.allDay ? addDays(startOfDay(e.e), -1) : startOfDay(e.e);
     for (let i = 0; d <= last && i < 31; i++, d = addDays(d, 1)) {
       const k = dayKey(d);
+      counts.set(k, (counts.get(k) || 0) + 1);
       if (!dots.has(k)) dots.set(k, []);
       const arr = dots.get(k);
       if (arr.length < 3 && !arr.includes(e.color)) arr.push(e.color);
@@ -126,6 +128,12 @@ function renderMiniCal() {
     if (selectedDay && sameDay(d, selectedDay)) cell.classList.add("sel");
     cell.append(el("span", "num", d.getDate()));
     const ds = dots.get(dayKey(d));
+    const n = counts.get(dayKey(d)) || 0;
+    if (n) {
+      cell.classList.add("has");
+      if (n >= 3) cell.classList.add("busy");
+      cell.title = `${n} event${n > 1 ? "s" : ""}`;
+    }
     if (ds) {
       const w = el("span", "dots");
       ds.forEach((c) => { const i = el("i"); i.style.background = c || "var(--accent)"; w.append(i); });
@@ -282,7 +290,7 @@ function renderBanner() {
   }
   const parts = [];
   if (!S.hasGoogle && !S.calendars.length) parts.push(`No calendars on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
-  if (!S.hasKey) parts.push(`Add an AI key for quick add — <a href="#" id="bannerGo">Settings</a>`);
+  if (!S.hasKey) parts.push(`Add your OpenRouter key to use AI quick add — <a href="#" id="bannerGo">Settings</a>`);
   if (S.error) parts.push(esc(S.error));
   if (!parts.length) { b.classList.add("hidden"); return; }
   b.innerHTML = parts.join("<br>");
@@ -467,7 +475,7 @@ async function openSettings() {
   $("settings").classList.remove("hidden");
   settingsCache = await go("GetSettings");
   $("sKey").value = "";
-  $("sKey").placeholder = settingsCache.openaiKeyHint || "sk-…";
+  $("sKey").placeholder = settingsCache.openaiKeyHint || "OpenRouter key  sk-or-…";
   $("sModel").value = settingsCache.openaiModel;
   $("s24").checked = settingsCache.use24h;
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
@@ -481,7 +489,6 @@ function renderGoogleBox() {
     : S.access === "notDetermined" ? "macOS will ask once — click <b>Allow</b>."
     : "It was turned off — click Allow to open the switch in System Settings.";
   $("step2").classList.toggle("done", S.hasGoogle);
-  $("saveSettings").textContent = S.connected && S.hasGoogle ? "Done" : "Save";
   $("step2").classList.toggle("waiting", !S.connected);
   const accounts = [...new Set(S.calendars.map((c) => c.account).filter(Boolean))];
   $("step2Hint").innerHTML = !S.connected
@@ -533,8 +540,10 @@ async function saveSettings() {
   };
   try {
     applyState(await go("SaveSettings", payload));
-    toast("Settings saved");
-    closeSettings();
+    settingsCache = await go("GetSettings");
+    $("sKey").value = "";
+    $("sKey").placeholder = settingsCache.openaiKeyHint || "OpenRouter key  sk-or-…";
+    toast("Saved ✓");
   } catch (err) { toast(errMsg(err), true); }
 }
 
@@ -546,6 +555,7 @@ function wire() {
   $("todayBtn").onclick = () => { viewMonth = startOfMonth(new Date()); jumpToDay(new Date()); };
   $("openSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
+  $("returnBtn").onclick = closeSettings;
   $("saveSettings").onclick = saveSettings;
   $("refreshBtn").onclick = refresh;
   $("quitBtn").onclick = () => go("Quit");
