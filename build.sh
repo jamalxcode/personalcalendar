@@ -12,7 +12,8 @@ echo "→ fetching modules"
 go mod tidy
 echo "→ compiling"
 mkdir -p build
-go build -ldflags "-s -w" -o build/PersonalCalendar .
+# production = embedded runtime; private_mac_apis = transparent webview over the frosted backdrop
+go build -tags production,private_mac_apis -ldflags "-s -w" -o build/PersonalCalendar .
 
 echo "→ bundling"
 rm -rf "build/$APP"
@@ -22,7 +23,7 @@ cp build/PersonalCalendar "build/$APP/Contents/MacOS/PersonalCalendar"
 ICONSET=build/icon.iconset
 rm -rf "$ICONSET"; mkdir -p "$ICONSET"
 ./build/PersonalCalendar --write-icon build/icon.png
-for s in 16 32 128 256; do
+for s in 16 32 128 256 512; do
   sips -z $s $s build/icon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
   d=$((s*2)); sips -z $d $d build/icon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
 done

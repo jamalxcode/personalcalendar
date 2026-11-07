@@ -1,5 +1,7 @@
 build/
+build.log
 *.iconset
 .DS_Store
 credentials.json
 token.json
+_to_delete/

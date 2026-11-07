@@ -2,191 +2,195 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io/fs"
+	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/systray"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-const appID = "company.sala.personalcalendar"
+//go:embed all:frontend
+var frontendFS embed.FS
+
+// Global hotkey that toggles the popover from anywhere.
+const hotkey = "Ctrl+Alt+C"
 
 type App struct {
-	fa   fyne.App
-	desk desktop.App
-	cfg  *Config
-	cal  *GCal
-	ui   *MainUI
-
-	mu      sync.Mutex
-	events  []Event
-	lastErr error
-	lastOK  time.Time
-	refresh chan struct{}
+	wa     *application.App
+	tray   *application.SystemTray
+	win    *application.WebviewWindow
+	cfg    *Config
+	cal    *GCal
+	mu     sync.Mutex
+	events []Event
+	err    error
+	kick   chan struct{}
 }
 
 func main() {
-	// Used by build.sh to produce the .icns for the app bundle.
+	// build.sh uses this to produce the .icns for the bundle.
 	if len(os.Args) == 3 && os.Args[1] == "--write-icon" {
-		if err := os.WriteFile(os.Args[2], appIcon().Content(), 0o644); err != nil {
-			panic(err)
+		if err := os.WriteFile(os.Args[2], appIconPNG(), 0o644); err != nil {
+			log.Fatal(err)
 		}
 		return
 	}
-	a := &App{fa: app.NewWithID(appID), cfg: loadConfig(), cal: &GCal{}, refresh: make(chan struct{}, 1)}
-	a.fa.Settings().SetTheme(&calTheme{})
-	desk, ok := a.fa.(desktop.App)
-	if !ok {
-		panic("desktop driver required")
-	}
-	a.desk = desk
-	icon := fyne.NewStaticResource("tray.png", trayIconPNG())
-	a.fa.SetIcon(appIcon())
 
+	a := &App{cfg: loadConfig(), cal: &GCal{}, kick: make(chan struct{}, 1)}
 	_ = a.cal.Init()
-	a.ui = newMainUI(a)
-	a.rebuildTray()
-	desk.SetSystemTrayIcon(icon)
 
-	a.fa.Lifecycle().SetOnStarted(func() {
-		systray.SetTemplateIcon(trayIconPNG(), trayIconPNG())
-		a.updateTitle()
-		if !a.cal.Connected() || a.cfg.OpenAIKey == "" {
-			a.ui.Show()
-			a.ui.openSettings()
-		}
+	assets, _ := fs.Sub(frontendFS, "frontend")
+	a.wa = application.New(application.Options{
+		Name:        "Personal Calendar",
+		Description: "Menu bar calendar for Google Calendar with AI quick add",
+		Services:    []application.Service{application.NewService(&CalService{a: a})},
+		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Mac: application.MacOptions{
+			ActivationPolicy: application.ActivationPolicyAccessory, // no Dock icon
+		},
+		SingleInstance: &application.SingleInstanceOptions{UniqueID: "company.sala.personalcalendar"},
 	})
 
+	a.win = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:            "popover",
+		Title:           "Personal Calendar",
+		Width:           380,
+		Height:          620,
+		Frameless:       true,
+		Hidden:          true,
+		DisableResize:   true,
+		AlwaysOnTop:     true,
+		HideOnFocusLost: true,
+		BackgroundType:  application.BackgroundTypeTranslucent,
+		URL:             "/",
+		Mac: application.MacWindow{
+			Backdrop:                application.MacBackdropTranslucent,
+			TitleBar:                application.MacTitleBar{AppearsTransparent: true, Hide: true},
+			InvisibleTitleBarHeight: 0,
+			CollectionBehavior: application.MacWindowCollectionBehaviorCanJoinAllSpaces |
+				application.MacWindowCollectionBehaviorFullScreenAuxiliary,
+		},
+	})
+	a.win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		a.win.Hide()
+		e.Cancel()
+	})
+	a.win.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
+		a.wa.Event.Emit("popover:shown")
+	})
+
+	a.tray = a.wa.SystemTray.New()
+	a.tray.SetTemplateIcon(trayIconPNG())
+	a.tray.SetTooltip("Personal Calendar  (" + hotkey + ")")
+	a.tray.SetMenu(a.buildMenu())
+	a.tray.AttachWindow(a.win).WindowOffset(6)
+
+	if err := a.wa.GlobalShortcut.Register(hotkey, func() { a.tray.ToggleWindow() }); err != nil {
+		log.Printf("hotkey %s not registered: %v", hotkey, err)
+	}
+
 	go a.loop()
-	a.fa.Run()
+	if err := a.wa.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (a *App) buildMenu() *application.Menu {
+	m := a.wa.NewMenu()
+	m.Add("Open Personal Calendar").OnClick(func(*application.Context) { a.tray.ShowWindow() })
+	m.Add("Refresh").OnClick(func(*application.Context) { a.RequestRefresh() })
+	m.Add("Settings…").OnClick(func(*application.Context) {
+		a.tray.ShowWindow()
+		a.wa.Event.Emit("ui:settings")
+	})
+	m.Add("Open Google Calendar").OnClick(func(*application.Context) { openURL("https://calendar.google.com") })
+	m.AddSeparator()
+	m.Add("Quit Personal Calendar").OnClick(func(*application.Context) { a.wa.Quit() })
+	return m
 }
 
 func (a *App) loop() {
+	time.Sleep(time.Second)
 	a.doRefresh()
+	if !a.cal.Connected() || a.cfg.OpenAIKey == "" {
+		a.tray.ShowWindow()
+		a.wa.Event.Emit("ui:settings")
+	}
 	fetch := time.NewTicker(2 * time.Minute)
-	tick := time.NewTicker(20 * time.Second)
+	tick := time.NewTicker(15 * time.Second)
 	for {
 		select {
 		case <-fetch.C:
 			a.doRefresh()
-		case <-a.refresh:
+		case <-a.kick:
 			a.doRefresh()
 		case <-tick.C:
-			a.updateTitle()
-			a.ui.tickNext()
+			a.updateLabel()
 		}
 	}
 }
 
 func (a *App) RequestRefresh() {
 	select {
-	case a.refresh <- struct{}{}:
+	case a.kick <- struct{}{}:
 	default:
 	}
 }
 
-func (a *App) doRefresh() {
+func (a *App) doRefresh() State {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	evs, err := a.cal.Upcoming(ctx, a.cfg, a.cfg.DaysAhead)
 	a.mu.Lock()
 	if err == nil {
 		a.events = evs
-		a.lastOK = time.Now()
 	}
-	a.lastErr = err
+	a.err = err
 	a.mu.Unlock()
-	a.ui.render()
-	a.rebuildTray()
-	a.updateTitle()
+	a.updateLabel()
+	st := a.state()
+	a.wa.Event.Emit("state", st)
+	return st
 }
 
-func (a *App) Events() ([]Event, error) {
+func (a *App) snapshot() ([]Event, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return append([]Event(nil), a.events...), a.lastErr
+	return append([]Event(nil), a.events...), a.err
 }
 
-// nextEvent returns the in-progress or next timed event (all-day events are skipped for the menu bar).
+// nextEvent returns the in-progress or next timed event (all-day events don't go in the menu bar).
 func nextEvent(evs []Event, now time.Time) (Event, bool) {
 	for _, e := range evs {
-		if e.AllDay || !e.End.After(now) {
-			continue
+		if !e.AllDay && e.End.After(now) {
+			return e, true
 		}
-		return e, true
 	}
 	return Event{}, false
 }
 
-func (a *App) updateTitle() {
-	evs, _ := a.Events()
+func (a *App) updateLabel() {
+	evs, _ := a.snapshot()
 	now := time.Now()
-	title := now.Format("Mon 2 Jan")
+	label := now.Format("Mon 2 Jan")
 	if e, ok := nextEvent(evs, now); ok {
-		t := truncate(e.Title, 20)
+		t := truncate(e.Title, 22)
 		switch {
 		case !e.Start.After(now):
-			title = fmt.Sprintf("● %s · %s left", t, shortDur(e.End.Sub(now)))
-		case e.Start.Sub(now) <= 60*time.Minute:
-			title = fmt.Sprintf("%s in %s", t, shortDur(e.Start.Sub(now)))
+			label = fmt.Sprintf("● %s · %s left", t, shortDur(e.End.Sub(now)))
+		case e.Start.Sub(now) <= time.Hour:
+			label = fmt.Sprintf("%s in %s", t, shortDur(e.Start.Sub(now)))
 		case sameDay(e.Start, now):
-			title = fmt.Sprintf("%s %s", a.fmtTime(e.Start), t)
+			label = fmt.Sprintf("%s · %s", a.fmtTime(e.Start), t)
 		}
 	}
-	systray.SetTitle(" " + title)
-	systray.SetTooltip("Personal Calendar")
-}
-
-func (a *App) rebuildTray() {
-	evs, err := a.Events()
-	now := time.Now()
-	var items []*fyne.MenuItem
-	items = append(items, fyne.NewMenuItem("Open Personal Calendar…", func() { a.ui.Show() }))
-	items = append(items, fyne.NewMenuItemSeparator())
-	if err != nil && len(evs) == 0 {
-		it := fyne.NewMenuItem("⚠︎ "+truncate(err.Error(), 50), func() { a.ui.Show() })
-		items = append(items, it)
-	}
-	shown := 0
-	lastDay := ""
-	for _, e := range evs {
-		if shown >= 10 {
-			break
-		}
-		day := dayLabel(e.Start, now)
-		if day != lastDay {
-			h := fyne.NewMenuItem(strings.ToUpper(day), nil)
-			h.Disabled = true
-			items = append(items, h)
-			lastDay = day
-		}
-		when := "All day"
-		if !e.AllDay {
-			when = a.fmtTime(e.Start)
-		}
-		link := e.Link
-		items = append(items, fyne.NewMenuItem(fmt.Sprintf("   %s   %s", when, truncate(e.Title, 40)), func() { openURL(link) }))
-		shown++
-	}
-	if shown == 0 && err == nil {
-		none := fyne.NewMenuItem("Nothing coming up", nil)
-		none.Disabled = true
-		items = append(items, none)
-	}
-	items = append(items,
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Refresh", a.RequestRefresh),
-		fyne.NewMenuItem("Open Google Calendar", func() { openURL("https://calendar.google.com") }),
-		fyne.NewMenuItem("Settings…", func() { a.ui.Show(); a.ui.openSettings() }),
-	)
-	a.desk.SetSystemTrayMenu(fyne.NewMenu("Personal Calendar", items...))
-	systray.SetTemplateIcon(trayIconPNG(), trayIconPNG())
+	a.tray.SetLabel(label)
 }
 
 func (a *App) fmtTime(t time.Time) string {
@@ -232,17 +236,4 @@ func sameDay(a, b time.Time) bool {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()
 	return ay == by && am == bm && ad == bd
-}
-
-func dayLabel(t, now time.Time) string {
-	switch {
-	case sameDay(t, now) || t.Before(now):
-		return "Today"
-	case sameDay(t, now.AddDate(0, 0, 1)):
-		return "Tomorrow"
-	case t.Sub(now) < 6*24*time.Hour:
-		return t.Format("Monday")
-	default:
-		return t.Format("Monday 2 Jan")
-	}
 }

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Personal Calendar</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="/wails/runtime.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <!-- ===== main view ===== -->
+    <section id="main" class="view">
+      <header class="top">
+        <div class="month-title"><span id="monthName"></span> <span id="yearName" class="muted"></span></div>
+        <div class="top-actions">
+          <button class="icon-btn" id="prevMonth" title="Previous month">‹</button>
+          <button class="pill-btn" id="todayBtn" title="Back to today">Today</button>
+          <button class="icon-btn" id="nextMonth" title="Next month">›</button>
+          <button class="icon-btn gear" id="openSettings" title="Settings (⌘,)">
+            <svg viewBox="0 0 20 20"><path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm7.4 4.6-1.6-.3a6 6 0 0 1-.6 1.5l.9 1.4-1.4 1.4-1.4-.9a6 6 0 0 1-1.5.6l-.3 1.6h-2l-.3-1.6a6 6 0 0 1-1.5-.6l-1.4.9-1.4-1.4.9-1.4a6 6 0 0 1-.6-1.5l-1.6-.3v-2l1.6-.3a6 6 0 0 1 .6-1.5l-.9-1.4 1.4-1.4 1.4.9a6 6 0 0 1 1.5-.6l.3-1.6h2l.3 1.6a6 6 0 0 1 1.5.6l1.4-.9 1.4 1.4-.9 1.4a6 6 0 0 1 .6 1.5l1.6.3v2Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="minical">
+        <div class="dow" id="dow"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+
+      <form id="quickForm" class="quick" autocomplete="off">
+        <span class="spark" id="spark">✦</span>
+        <input id="quick" type="text" spellcheck="false"
+               placeholder="Lunch with Ali tomorrow 1pm at Avenues">
+        <kbd class="enter-hint">↩</kbd>
+      </form>
+
+      <div id="drafts" class="drafts"></div>
+      <div id="setupBanner" class="banner hidden"></div>
+
+      <div class="scroll" id="scroll">
+        <div id="upnext"></div>
+        <div id="list"></div>
+      </div>
+
+      <footer class="foot">
+        <span id="updated" class="muted"></span>
+        <span class="muted" id="hotkeyHint"></span>
+        <button class="icon-btn small" id="refreshBtn" title="Refresh (⌘R)">↻</button>
+      </footer>
+    </section>
+
+    <!-- ===== settings view ===== -->
+    <section id="settings" class="view hidden">
+      <header class="top">
+        <button class="pill-btn" id="closeSettings">‹ Back</button>
+        <div class="month-title">Settings</div>
+        <span style="width:58px"></span>
+      </header>
+      <div class="scroll settings-body">
+        <div class="group">
+          <div class="group-title">Google Calendar</div>
+          <div class="row"><span id="gStatus" class="status-dot">Not connected</span></div>
+          <ol class="steps" id="gSteps">
+            <li>Create a <b>Desktop app</b> OAuth client in Google Cloud and download its JSON. <a href="#" data-url="https://github.com/jamalxcode/personalcalendar#google-setup">Step-by-step guide</a></li>
+            <li><button class="btn" id="importCreds">Import credentials.json…</button> <span id="credsOk" class="muted"></span></li>
+            <li><button class="btn primary" id="connectG">Connect Google</button></li>
+          </ol>
+          <div class="row hidden" id="gConnectedRow">
+            <button class="btn" id="disconnectG">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="group" id="calGroup">
+          <div class="group-title">Calendars <span class="muted small">show · default for new events</span></div>
+          <div id="calList" class="cal-list"></div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">OpenAI</div>
+          <label class="field"><span>API key</span>
+            <input id="sKey" type="password" placeholder="sk-…" spellcheck="false"></label>
+          <label class="field"><span>Model</span>
+            <input id="sModel" type="text" spellcheck="false"></label>
+          <a href="#" class="small" data-url="https://platform.openai.com/api-keys">Get an API key</a>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Display</div>
+          <label class="check"><input type="checkbox" id="s24"> 24-hour clock</label>
+          <label class="check"><input type="checkbox" id="sConfirm"> Preview before adding</label>
+          <label class="field"><span>Show next</span>
+            <select id="sDays"><option value="7">7 days</option><option value="14">14 days</option>
+              <option value="30">30 days</option><option value="60">60 days</option></select></label>
+        </div>
+
+        <div class="settings-actions">
+          <button class="btn danger-ghost" id="quitBtn">Quit</button>
+          <button class="btn primary" id="saveSettings">Save</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" class="toast hidden"></div>
+    <div id="confirm" class="confirm hidden">
+      <div class="confirm-card">
+        <div id="confirmText"></div>
+        <div class="confirm-actions">
+          <button class="btn" id="confirmNo">Cancel</button>
+          <button class="btn danger" id="confirmYes">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

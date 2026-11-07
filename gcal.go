@@ -25,22 +25,25 @@ var errNotConnected = errors.New("Google Calendar is not connected — open Sett
 
 // Event is the app's flattened view of a Google Calendar event.
 type Event struct {
-	ID         string
-	CalendarID string
-	Calendar   string
-	Color      string
-	Title      string
-	Location   string
-	Start, End time.Time
-	AllDay     bool
-	Link       string
-	MeetLink   string
+	ID         string    `json:"id"`
+	CalendarID string    `json:"calendarId"`
+	Calendar   string    `json:"calendar"`
+	Color      string    `json:"color"`
+	Title      string    `json:"title"`
+	Location   string    `json:"location"`
+	Start      time.Time `json:"start"`
+	End        time.Time `json:"end"`
+	AllDay     bool      `json:"allDay"`
+	Link       string    `json:"link"`
+	MeetLink   string    `json:"meetLink"`
 }
 
 type CalendarInfo struct {
-	ID, Name, Color string
-	Primary         bool
-	Writable        bool
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Color    string `json:"color"`
+	Primary  bool   `json:"primary"`
+	Writable bool   `json:"writable"`
 }
 
 type GCal struct {

@@ -13,13 +13,14 @@ import (
 
 // Draft is an event the AI parsed from free text, waiting to be added.
 type Draft struct {
-	Title           string
-	Start, End      time.Time
-	AllDay          bool
-	Location        string
-	Notes           string
-	CalendarID      string
-	ReminderMinutes int
+	Title           string    `json:"title"`
+	Start           time.Time `json:"start"`
+	End             time.Time `json:"end"`
+	AllDay          bool      `json:"allDay"`
+	Location        string    `json:"location"`
+	Notes           string    `json:"notes"`
+	CalendarID      string    `json:"calendarId"`
+	ReminderMinutes int       `json:"reminderMinutes"`
 }
 
 type aiEvent struct {
