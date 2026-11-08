@@ -6,3 +6,4 @@ credentials.json
 token.json
 _to_delete/
 .diag/
+assistant/*.xcodeproj/
