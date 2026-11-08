@@ -16,6 +16,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Paste or drop** text and screenshots (flight bookings, invites) to create events; **Undo** for every change.
 - **To-dos** from Apple Reminders, default alerts, and **Leave now** alerts from Apple Maps drive time.
 - **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
+- **Apple Intelligence & Siri:** the AI box can run on Apple Intelligence (on-device, free, no key) with OpenRouter for screenshots and long text; Siri and Shortcuts can add events, tell you what's next, or answer questions ("Add to Smart Cal", "What's next in Smart Cal", "Ask Smart Cal").
 - **A proper Mac app:** Settings window that saves instantly (⌘,), standard About panel, Apple-ordered menu, system accent colour and clock, Reduce Motion / Increase Contrast, VoiceOver labels, monochrome icon or Dock icon options, Arabic with right-to-left layout.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
 - Keys: `⌃⌥C` toggle · `⌘N` new · `⌘Z`/`⌘⇧Z` undo/redo · `⌘1–4` views · `?` help · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` back/close.
@@ -23,6 +24,9 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 Design decisions and the conversations behind them: [DESIGN.md](DESIGN.md).
 
 ## Build (on your Mac)
+
+The Siri / Apple Intelligence helper (`assistant/`, Swift) needs Xcode 26 and `brew install xcodegen`; without them the app builds without it.
+
 
 Needs Go 1.21+ (`brew install go`; it auto-fetches the Go 1.26 toolchain Wails v3 needs) and Xcode command-line tools (`xcode-select --install`). No Node/npm needed — the UI is plain HTML/CSS/JS.
 

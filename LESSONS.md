@@ -61,3 +61,7 @@
 - **`mv src dst` moves *into* dst if dst is an existing directory** — when swapping app bundles, move any existing target aside first.
 - **Quote paths for bash with single quotes**, not Go's `%q` (which leaves `$` and backticks live and escapes non-ASCII in a way bash doesn't understand).
 - **Cache failures too** (e.g. a place that can't be geocoded), or the retry loop hammers a rate-limited service.
+- **App Intents and Foundation Models are Swift-only.** Keep the Go app as-is and ship a small Swift helper app in `Contents/Helpers`, built by `xcodegen` + `xcodebuild` (which also generates `Metadata.appintents`). Sign the helper with its own identity first, then the outer bundle without `--deep`.
+- **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
+- **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
+- **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.

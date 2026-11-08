@@ -2,6 +2,13 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.1.0 — Apple Intelligence & Siri
+
+- **Apple Intelligence in the AI box:** on Macs with Apple Intelligence, the AI runs on your Mac — free, private, works offline, no key needed. Settings → AI → AI engine: **Auto** (Apple Intelligence for everyday lines, OpenRouter for screenshots and long pasted text), **Apple Intelligence**, or **OpenRouter**. If Apple's model can't handle something, Auto falls back to OpenRouter when you have a key
+- The greeting and event emojis also use Apple Intelligence, so the playful touches work without a key
+- **Siri & Shortcuts:** “Add to Smart Cal”, “What's next in Smart Cal”, “Ask Smart Cal” — Siri asks what you'd like and Smart Cal does it (adds events, answers, moves events, adds to-dos, finds free time). The same three actions are in the Shortcuts app and Spotlight. Deleting stays in the app (it can't be undone by voice)
+- Settings → AI shows whether Apple Intelligence is ready, and why not if it isn't
+
 ## v2.0.2 — second review
 
 - Fixed: ⌘⇧W was registered as a system-wide shortcut, so it stole "Close Window" from Safari, Chrome, Finder and other apps. It now works only inside Smart Cal

@@ -15,6 +15,15 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.1 — Apple Intelligence & Siri (8 Nov 2026)
+
+**Asked:** "can we use Siri AI through App Intents for the text box in the calendar menu?" → explained the two directions (Foundation Models = Apple's model inside our box; App Intents = Siri calling into Smart Cal) → "yes both".
+
+**Decided:**
+- **AI engine setting:** Auto (default) · Apple Intelligence · OpenRouter. Auto uses the on-device model for short everyday requests and OpenRouter for screenshots and long pasted text (the on-device model is small, with a small context window, and doesn't read images here). Failures fall back to OpenRouter when a key exists; with neither, the offline parser still handles simple lines.
+- **Siri actions:** Add to Smart Cal · What's Next · Ask Smart Cal, with natural phrases; Siri asks a follow-up for the text. They go through the same AI, calendars and default alerts as the app. **Deleting by voice is refused** because it can't be undone.
+- **Architecture:** a small Swift helper app, *Smart Cal Assistant*, inside `Smart Cal.app/Contents/Helpers`. It hosts the App Intents and runs Foundation Models on request (`--fm`, JSON in/out). The Go app stays the main program; the helper reaches it through a private Unix socket in the settings folder. Apple's model receives the same JSON Schema as OpenRouter, converted to a dynamic generation schema, so every AI feature works with either engine.
+
 ## v2.0 — Following Apple's Human Interface Guidelines (7 Nov 2026)
 
 **Asked:** "apple has some gui rules like about, and other things, what are they if we were to apply them to the calendar app?" → a 17-point list → "do it all".
