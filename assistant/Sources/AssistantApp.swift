@@ -12,6 +12,9 @@ struct AssistantMain {
             print(FM.status())
             exit(0)
         }
+        if args.contains("--fm-check") {
+            FM.checkSchemas() // never returns
+        }
         if args.contains("--fm") {
             FM.runCLI() // never returns
         }

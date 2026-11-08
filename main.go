@@ -66,6 +66,11 @@ type extras struct {
 
 func main() {
 	// build.sh uses this to produce the .icns for the bundle.
+	if len(os.Args) == 2 && os.Args[1] == "--dump-schemas" { // CI checks these against Apple's schema builder
+		b, _ := json.Marshal([]any{askSchema, greetSchema, emojiSchema})
+		fmt.Println(string(b))
+		return
+	}
 	if len(os.Args) == 3 && os.Args[1] == "--write-icon" {
 		if err := os.WriteFile(os.Args[2], appIconPNG(), 0o644); err != nil {
 			log.Fatal(err)

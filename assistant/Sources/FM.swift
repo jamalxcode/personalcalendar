@@ -50,6 +50,29 @@ enum FM {
         dispatchMain()
     }
 
+    /// CI self-test: builds Apple's GenerationSchema from each JSON Schema on stdin (an array). Needs no model.
+    static func checkSchemas() -> Never {
+        let input = FileHandle.standardInput.readDataToEndOfFile()
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            guard let list = try? JSONSerialization.jsonObject(with: input) as? [[String: Any]] else {
+                print("bad input"); exit(1)
+            }
+            for (i, s) in list.enumerated() {
+                do {
+                    _ = try GenerationSchema(root: convert(s, name: "Result"), dependencies: [])
+                    print("schema \(i): ok")
+                } catch {
+                    print("schema \(i): \(error)"); exit(1)
+                }
+            }
+            print("status: \(status())")
+            exit(0)
+        }
+        #endif
+        print("FoundationModels not available in this SDK/OS"); exit(0)
+    }
+
     static func generate(instructions: String, prompt: String, schema: [String: Any]?) async throws -> String {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
