@@ -878,3 +878,11 @@ body.more-contrast .day.has .num { box-shadow: inset 0 0 0 1.5px var(--fg); }
 [dir="rtl"] .hrow-h { text-align: left; }
 [dir="rtl"] .mb-opt, [dir="rtl"] .wrow-ev, [dir="rtl"] .hrow-ev { text-align: right; }
 [dir="rtl"] body, [dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] select, [dir="rtl"] button { font-family: -apple-system, "SF Arabic", "Geeza Pro", sans-serif; }
+
+/* AI engine */
+.engine-box { margin: 6px 0 10px; }
+.engine-status { padding: 6px 9px; border-radius: 8px; margin-top: 4px; }
+.engine-status.ok { background: rgba(47, 163, 107, .12); color: #23845a; }
+.engine-status.warn { background: rgba(240, 128, 46, .13); color: #b4561a; }
+.engine-status.off { background: var(--faint); color: var(--muted); }
+@media (prefers-color-scheme: dark) { .engine-status.ok { color: #5fd39a; } .engine-status.warn { color: #f5a065; } }

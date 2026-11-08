@@ -80,10 +80,11 @@ func main() {
 	storeChanged = a.RequestRefresh // macOS tells us when any calendar changes
 
 	assets, _ := fs.Sub(frontendFS, "frontend")
+	svc := &CalService{a: a}
 	a.wa = application.New(application.Options{
 		Name:        "Smart Cal",
 		Description: "Menu bar calendar with AI quick add",
-		Services:    []application.Service{application.NewService(&CalService{a: a}), application.NewService(a.notif)},
+		Services:    []application.Service{application.NewService(svc), application.NewService(a.notif)},
 		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Mac: application.MacOptions{
 			ActivationPolicy: application.ActivationPolicyAccessory, // no Dock icon
@@ -197,6 +198,9 @@ func main() {
 	go a.loop()
 	go a.updateLoop()
 	go a.alertLoop()
+	a.startAssistant(svc) // Siri / Shortcuts actions reach the app through this
+	go registerHelper()
+	go appleAI() // warm the Apple Intelligence status
 	go a.travelLoop()
 	if err := a.wa.Run(); err != nil {
 		log.Fatal(err)

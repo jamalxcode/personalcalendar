@@ -205,7 +205,7 @@ func (a *App) greeting(ctx context.Context) string {
 	greet.mu.Unlock()
 
 	text := a.localGreeting(now, part, focus, dayEvents)
-	if strings.TrimSpace(a.cfg.OpenAIKey) != "" {
+	if hasAI(a.cfg) {
 		if t, err := a.aiGreeting(ctx, now, part, focus, dayEvents); err == nil && t != "" {
 			text = t
 		}
@@ -384,7 +384,7 @@ func (a *App) emojisFor(titles []string) map[string]string {
 			missing = append(missing, t)
 		}
 	}
-	if len(missing) == 0 || strings.TrimSpace(a.cfg.OpenAIKey) == "" {
+	if len(missing) == 0 || !hasAI(a.cfg) {
 		return out
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

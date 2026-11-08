@@ -60,7 +60,7 @@ const AR = {
   "from": "من", "Your week at a glance": "أسبوعك بلمحة",
   // help & login
   "Keyboard shortcuts": "اختصارات لوحة المفاتيح", "Start Smart Cal when you log in?": "تشغيل Smart Cal عند تسجيل الدخول؟", "Yes": "نعم", "Not now": "ليس الآن",
-  "Close": "إغلاق", "New event": "موعد جديد", "So your next event is always in the menu bar.": "ليظهر موعدك القادم دائمًا في شريط القوائم.", "Tips": "نصائح", "In 2 hours": "بعد ساعتين", "In 25 min": "بعد ٢٥ دقيقة", "Started": "بدأ", "System (follows your Mac's accent colour)": "النظام (يتبع لون الماك)",
+  "Close": "إغلاق", "New event": "موعد جديد", "So your next event is always in the menu bar.": "ليظهر موعدك القادم دائمًا في شريط القوائم.", "Tips": "نصائح", "AI engine": "محرك الذكاء", "Siri & Shortcuts": "Siri والاختصارات", "In 2 hours": "بعد ساعتين", "In 25 min": "بعد ٢٥ دقيقة", "Started": "بدأ", "System (follows your Mac's accent colour)": "النظام (يتبع لون الماك)",
 };
 const AR_PATTERNS = [
   [/^Up next · in (.+)$/, "التالي · بعد $1"], [/^Up next · (.+)$/, "التالي · $1"], [/^(\d+) days?$/, "$1 يوم"],

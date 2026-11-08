@@ -169,8 +169,23 @@ var askSchema = obj(map[string]any{
 // change/delete an existing event, find free time, or create to-dos.
 // known is the list of nearby events the model may refer to by index.
 func askAI(ctx context.Context, cfg *Config, text, imageB64 string, cals []CalendarInfo, known []Event) (AskResult, error) {
-	if strings.TrimSpace(cfg.OpenAIKey) == "" {
+	engine := pickEngine(cfg, text, imageB64)
+	if engine == "" {
 		return AskResult{}, errNoKey
+	}
+	if engine == "apple" && len(known) > 14 {
+		// the on-device model has a small context window: give it the events nearest to now
+		now := time.Now()
+		var near []Event
+		for _, e := range known {
+			if !e.End.Before(now.Add(-24 * time.Hour)) {
+				near = append(near, e)
+			}
+		}
+		if len(near) > 14 {
+			near = near[:14]
+		}
+		known = near
 	}
 	now := time.Now()
 	var names []string
@@ -439,6 +454,23 @@ func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, sche
 
 // callAIWithImage is callAI with an optional base64 JPEG (screenshots/photos; needs a vision model).
 func callAIWithImage(ctx context.Context, cfg *Config, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
+	switch pickEngine(cfg, user, imageB64) {
+	case "":
+		return nil, errNoKey
+	case "apple":
+		out, err := callApple(ctx, sys, user, schema)
+		if err == nil || strings.TrimSpace(cfg.OpenAIKey) == "" || cfg.AIEngine == "apple" {
+			return out, err
+		}
+		// Apple Intelligence couldn't do it (too long, declined…): fall back to OpenRouter
+	}
+	return callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
+}
+
+// hasAI: some AI is usable (an OpenRouter/OpenAI key, or Apple Intelligence on this Mac).
+func hasAI(cfg *Config) bool { return strings.TrimSpace(cfg.OpenAIKey) != "" || appleAvailable() }
+
+func callRemote(ctx context.Context, cfg *Config, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
 	key := strings.TrimSpace(cfg.OpenAIKey)
 	base, model, provider := "https://api.openai.com/v1", cfg.OpenAIModel, "OpenAI"
 	if strings.HasPrefix(key, "sk-or-") {

@@ -19,6 +19,8 @@ type State struct {
 	HasGoogle        bool           `json:"hasGoogle"`
 	GoogleAccounts   []string       `json:"googleAccounts"`
 	HasKey           bool           `json:"hasKey"`
+	HasAI            bool           `json:"hasAI"`   // key or Apple Intelligence
+	AppleAI          string         `json:"appleAI"` // Apple Intelligence status
 	Use24h           bool           `json:"use24h"`
 	ConfirmBeforeAdd bool           `json:"confirmBeforeAdd"`
 	DaysAhead        int            `json:"daysAhead"`
@@ -58,6 +60,8 @@ func (a *App) state() State {
 	st := State{
 		Access:           a.cal.Access(),
 		HasKey:           strings.TrimSpace(a.cfg.OpenAIKey) != "",
+		HasAI:            hasAI(a.cfg),
+		AppleAI:          appleAI(),
 		Use24h:           a.cfg.is24h(),
 		ConfirmBeforeAdd: a.cfg.ConfirmBeforeAdd,
 		DaysAhead:        a.cfg.DaysAhead,
@@ -286,6 +290,7 @@ type Settings struct {
 	ShowInDock       bool       `json:"showInDock"`
 	Language         string     `json:"language"`
 	SystemAccent     string     `json:"systemAccent"` // read-only: the Mac's accent colour
+	AIEngine         string     `json:"aiEngine"`
 }
 
 func (s *CalService) GetSettings() Settings {
@@ -308,7 +313,7 @@ func (s *CalService) GetSettings() Settings {
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
 		TravelFrom: c.TravelFrom, ShowTodos: !c.NoTodos, TodoList: c.TodoList, TodoLists: s.a.cal.ReminderLists(),
 		Hotkey: c.Hotkey, TextSize: c.TextSize, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
-		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent}
+		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent, AIEngine: c.AIEngine}
 }
 
 func (s *CalService) SaveSettings(in Settings) (State, error) {
@@ -344,6 +349,9 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	}
 	if l := oneOf(in.Language, "", "auto", "en", "ar"); l != "" {
 		c.Language = l
+	}
+	if e := oneOf(in.AIEngine, "", "auto", "apple", "openrouter"); e != "" {
+		c.AIEngine = e
 	}
 	if validBarStyle(in.MenuBarStyle) {
 		c.MenuBarStyle = in.MenuBarStyle
