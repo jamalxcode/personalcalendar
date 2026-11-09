@@ -15,6 +15,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.1.1 — AI edits that only change what you said (9 Nov 2026)
+
+**Reported:** "i asked ai to move this item to 1 month from now, and it moved it to the past which was october… i meant 30 days from today which should be december 9". The preview also showed a new title, all-day for 31 days, a "Work" location and a monthly repeat.
+
+**Decided:** relative moves are computed by Smart Cal, not the model ("N days/weeks/months from now", "later", "earlier", "push it by…"), keeping the event's time and length; edits keep every field the user didn't mention; and an edit that would land in the past without the user saying so is refused with a hint. The reported case is a unit test.
+
 ## v2.1 — Apple Intelligence & Siri (8 Nov 2026)
 
 **Asked:** "can we use Siri AI through App Intents for the text box in the calendar menu?" → explained the two directions (Foundation Models = Apple's model inside our box; App Intents = Siri calling into Smart Cal) → "yes both".
