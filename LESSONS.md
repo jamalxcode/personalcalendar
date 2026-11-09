@@ -65,3 +65,4 @@
 - **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
 - **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
 - **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.
+- **Don't trust a model with date arithmetic or with "unchanged" fields.** With a strict schema every field gets filled; keep only the fields the user's words mention, compute relative dates ("1 month from now") in code, and refuse silent moves into the past.

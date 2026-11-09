@@ -89,3 +89,43 @@ func TestCompactLabelBits(t *testing.T) {
 		t.Errorf("compactClock wrong: %s %s", compactClock(d), compactClock(d.Add(3*time.Hour+30*time.Minute)))
 	}
 }
+
+func TestEditGuards(t *testing.T) {
+	loc := time.Local
+	now := time.Date(2026, 11, 9, 5, 3, 0, 0, loc)
+	ev := Event{Title: "Follow up with DEWA", Start: time.Date(2026, 11, 9, 9, 0, 0, 0, loc), End: time.Date(2026, 11, 9, 9, 15, 0, 0, loc)}
+	cases := []struct {
+		text string
+		want time.Time
+	}{
+		{"move this to 1 month from now", time.Date(2026, 12, 9, 9, 0, 0, 0, loc)},
+		{"move DEWA to 30 days from today", time.Date(2026, 12, 9, 9, 0, 0, 0, loc)},
+		{"push it by 2 weeks", time.Date(2026, 11, 23, 9, 0, 0, 0, loc)},
+		{"move it a week later", time.Date(2026, 11, 16, 9, 0, 0, 0, loc)},
+	}
+	for _, c := range cases {
+		// the model's bad answer: October, all day, monthly, renamed
+		bad := aiEvent{Title: "DEWA Update", Start: "2026-10-09", AllDay: true, Location: "Work", Repeat: aiRepeat{Freq: "monthly"}}
+		g := guardChanges(ev, bad, nil, c.text)
+		if g.Title != "" || g.Location != "" || g.AllDay || g.Repeat.Freq != "keep" {
+			t.Errorf("%q: guard kept junk: %+v", c.text, g)
+		}
+		d := Draft{Title: ev.Title, Start: time.Date(2026, 10, 9, 0, 0, 0, 0, loc), End: time.Date(2026, 11, 9, 0, 0, 0, 0, loc), AllDay: true}
+		if err := shiftAndCheck(&d, ev, c.text, now); err != nil {
+			t.Errorf("%q: %v", c.text, err)
+		}
+		if !d.Start.Equal(c.want) || d.End.Sub(d.Start) != 15*time.Minute || d.AllDay {
+			t.Errorf("%q: got %v – %v allDay=%v, want %v", c.text, d.Start, d.End, d.AllDay, c.want)
+		}
+	}
+	// no relative phrase, model put it in the past → refuse
+	d := Draft{Start: time.Date(2026, 10, 9, 9, 0, 0, 0, loc), End: time.Date(2026, 10, 9, 9, 15, 0, 0, loc)}
+	if err := shiftAndCheck(&d, ev, "move it to the 9th", now); err == nil {
+		t.Errorf("expected a past-date refusal")
+	}
+	// explicit rename and repeat are kept
+	g := guardChanges(ev, aiEvent{Title: "DEWA call", Repeat: aiRepeat{Freq: "weekly"}}, nil, "rename it to DEWA call and repeat every week")
+	if g.Title != "DEWA call" || g.Repeat.Freq != "weekly" {
+		t.Errorf("explicit changes dropped: %+v", g)
+	}
+}

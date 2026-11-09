@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.1.1
+
+- Fixed: "move this to 1 month from now" could move an event into the past (October) and also rename it, make it all-day and repeating. Relative moves ("1 month from now", "30 days from today", "2 weeks later", "push it by 3 days") are now worked out exactly by Smart Cal, keeping the event's time and length
+- AI edits now only change what you mention — the title, place, calendar, repeat, all-day, length and notes stay as they were unless you ask
+- An edit that would land in the past is refused with a hint, instead of being applied
+
 ## v2.1.0 — Apple Intelligence & Siri
 
 - **Apple Intelligence in the AI box:** on Macs with Apple Intelligence, the AI runs on your Mac — free, private, works offline, no key needed. Settings → AI → AI engine: **Auto** (Apple Intelligence for everyday lines, OpenRouter for screenshots and long pasted text), **Apple Intelligence**, or **OpenRouter**. If Apple's model can't handle something, Auto falls back to OpenRouter when you have a key

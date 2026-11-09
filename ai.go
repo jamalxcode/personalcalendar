@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -290,7 +292,10 @@ The user's events (past week to next two months):
 			res.AllFuture = false
 		}
 		if r.Kind == "update" {
-			d, err := applyChanges(*t, r.Changes, cals)
+			d, err := applyChanges(*t, guardChanges(*t, r.Changes, cals, text), cals)
+			if err == nil {
+				err = shiftAndCheck(&d, *t, text, time.Now())
+			}
 			if err != nil {
 				return res, err
 			}
@@ -546,4 +551,105 @@ func parseDay(s string) (time.Time, error) {
 		s = s[:10]
 	}
 	return time.ParseInLocation("2006-01-02", s, time.Local)
+}
+
+// ---- keeping AI edits honest ----
+// Models (especially the small on-device one) tend to fill every field of an edit. Only keep the
+// parts the user actually talked about, and do relative date maths ourselves.
+
+var (
+	reRename   = regexp.MustCompile(`(?i)\b(rename|call it|retitle|title|name it|change the name)\b`)
+	reRepeatW  = regexp.MustCompile(`(?i)\b(every|daily|weekly|monthly|yearly|annually|repeat\w*|recurr\w*|each)\b`)
+	reAllDayW  = regexp.MustCompile(`(?i)\b(all[- ]day|whole day|full day)\b`)
+	reDurW     = regexp.MustCompile(`(?i)\b(for \d|for an? (hour|half)|until|till|longer|shorter|extend|end(s|ing)? at|finish\w*|\d+\s*(h|hr|hrs|hours?|m|min|mins|minutes?) long|\d{1,2}(:\d\d)?\s*(am|pm)?\s*[-–]\s*\d)`)
+	reNotesW   = regexp.MustCompile(`(?i)\bnotes?\b`)
+	reTZW      = regexp.MustCompile(`(?i)\b(time ?zone|tz)\b`)
+	reShift    = regexp.MustCompile(`(?i)\b(?:in |by |to |for )?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\s+(from now|from today|later|ahead|forward|earlier|before|back|sooner)\b`)
+	reShiftBy  = regexp.MustCompile(`(?i)\b(postpone|push|delay|move|shift|bring)\b.*?\bby\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\b`)
+	reBackward = regexp.MustCompile(`(?i)\b(earlier|before|back|sooner|bring)\b`)
+	rePastOK   = regexp.MustCompile(`(?i)\b(yesterday|last|ago|earlier|back|sooner|before)\b`)
+)
+
+var numWords = map[string]int{"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+	"seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+
+func guardChanges(t Event, c aiEvent, cals []CalendarInfo, text string) aiEvent {
+	low := strings.ToLower(text)
+	if !reRename.MatchString(text) {
+		c.Title = ""
+	}
+	if c.Location != "" && !strings.Contains(low, strings.ToLower(strings.TrimSpace(c.Location))) {
+		c.Location = "" // a place the user never said (often a calendar name) — keep the old one
+	}
+	if c.Calendar != "" && !strings.Contains(low, strings.ToLower(c.Calendar)) {
+		c.Calendar = ""
+	}
+	if !reRepeatW.MatchString(text) {
+		c.Repeat = aiRepeat{Freq: "keep"}
+	}
+	if !reAllDayW.MatchString(text) {
+		c.AllDay = t.AllDay
+	}
+	if !reDurW.MatchString(text) {
+		c.End = "" // keep the length
+	}
+	if !reNotesW.MatchString(text) {
+		c.Notes = ""
+	}
+	if !reTZW.MatchString(text) {
+		c.TimeZone = ""
+	}
+	return c
+}
+
+// shiftAndCheck applies "1 month from now", "2 weeks later", "push it by 3 days" exactly, and refuses
+// edits that would silently land in the past.
+func shiftAndCheck(d *Draft, t Event, text string, now time.Time) error {
+	dur := t.End.Sub(t.Start)
+	n, unit, base := 0, "", t.Start
+	if m := reShift.FindStringSubmatch(text); m != nil {
+		n, unit = parseCount(m[1]), strings.ToLower(m[2])
+		dir := strings.ToLower(m[3])
+		if strings.HasPrefix(dir, "from") {
+			// "1 month from now": that date, at the event's usual time
+			base = time.Date(now.Year(), now.Month(), now.Day(), t.Start.Hour(), t.Start.Minute(), 0, 0, t.Start.Location())
+		}
+		if reBackward.MatchString(dir) {
+			n = -n
+		}
+	} else if m := reShiftBy.FindStringSubmatch(text); m != nil {
+		n, unit = parseCount(m[2]), strings.ToLower(m[3])
+		if reBackward.MatchString(m[1]) || reBackward.MatchString(text) {
+			n = -n
+		}
+	}
+	if unit != "" && n != 0 {
+		var s time.Time
+		switch unit {
+		case "day":
+			s = base.AddDate(0, 0, n)
+		case "week":
+			s = base.AddDate(0, 0, 7*n)
+		case "month":
+			s = base.AddDate(0, n, 0)
+		case "year":
+			s = base.AddDate(n, 0, 0)
+		}
+		d.Start, d.End, d.AllDay = s, s.Add(dur), t.AllDay
+	}
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	if d.Start.Before(today) && !t.Start.Before(today) && !rePastOK.MatchString(text) {
+		return fmt.Errorf("that would move “%s” into the past (%s) — try saying the date, e.g. “move it to 9 December”",
+			t.Title, d.Start.Format("Mon 2 Jan 2006"))
+	}
+	return nil
+}
+
+func parseCount(s string) int {
+	s = strings.ToLower(s)
+	if n, ok := numWords[s]; ok {
+		return n
+	}
+	n, _ := strconv.Atoi(s)
+	return n
 }
