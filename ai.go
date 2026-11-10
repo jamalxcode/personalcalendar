@@ -171,23 +171,8 @@ var askSchema = obj(map[string]any{
 // change/delete an existing event, find free time, or create to-dos.
 // known is the list of nearby events the model may refer to by index.
 func askAI(ctx context.Context, cfg *Config, text, imageB64 string, cals []CalendarInfo, known []Event) (AskResult, error) {
-	engine := pickEngine(cfg, text, imageB64)
-	if engine == "" {
+	if !hasAI(cfg) {
 		return AskResult{}, errNoKey
-	}
-	if engine == "apple" && len(known) > 14 {
-		// the on-device model has a small context window: give it the events nearest to now
-		now := time.Now()
-		var near []Event
-		for _, e := range known {
-			if !e.End.Before(now.Add(-24 * time.Hour)) {
-				near = append(near, e)
-			}
-		}
-		if len(near) > 14 {
-			near = near[:14]
-		}
-		known = near
 	}
 	now := time.Now()
 	var names []string
@@ -459,21 +444,14 @@ func callAI(ctx context.Context, cfg *Config, sys, user, schemaName string, sche
 
 // callAIWithImage is callAI with an optional base64 JPEG (screenshots/photos; needs a vision model).
 func callAIWithImage(ctx context.Context, cfg *Config, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
-	switch pickEngine(cfg, user, imageB64) {
-	case "":
+	if !hasAI(cfg) {
 		return nil, errNoKey
-	case "apple":
-		out, err := callApple(ctx, sys, user, schema)
-		if err == nil || strings.TrimSpace(cfg.OpenAIKey) == "" || cfg.AIEngine == "apple" {
-			return out, err
-		}
-		// Apple Intelligence couldn't do it (too long, declined…): fall back to OpenRouter
 	}
 	return callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
 }
 
-// hasAI: some AI is usable (an OpenRouter/OpenAI key, or Apple Intelligence on this Mac).
-func hasAI(cfg *Config) bool { return strings.TrimSpace(cfg.OpenAIKey) != "" || appleAvailable() }
+// hasAI: an OpenRouter/OpenAI key is set.
+func hasAI(cfg *Config) bool { return strings.TrimSpace(cfg.OpenAIKey) != "" }
 
 func callRemote(ctx context.Context, cfg *Config, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
 	key := strings.TrimSpace(cfg.OpenAIKey)
@@ -558,16 +536,18 @@ func parseDay(s string) (time.Time, error) {
 // parts the user actually talked about, and do relative date maths ourselves.
 
 var (
-	reRename   = regexp.MustCompile(`(?i)\b(rename|call it|retitle|title|name it|change the name)\b`)
-	reRepeatW  = regexp.MustCompile(`(?i)\b(every|daily|weekly|monthly|yearly|annually|repeat\w*|recurr\w*|each)\b`)
-	reAllDayW  = regexp.MustCompile(`(?i)\b(all[- ]day|whole day|full day)\b`)
-	reDurW     = regexp.MustCompile(`(?i)\b(for \d|for an? (hour|half)|until|till|longer|shorter|extend|end(s|ing)? at|finish\w*|\d+\s*(h|hr|hrs|hours?|m|min|mins|minutes?) long|\d{1,2}(:\d\d)?\s*(am|pm)?\s*[-–]\s*\d)`)
-	reNotesW   = regexp.MustCompile(`(?i)\bnotes?\b`)
-	reTZW      = regexp.MustCompile(`(?i)\b(time ?zone|tz)\b`)
-	reShift    = regexp.MustCompile(`(?i)\b(?:in |by |to |for )?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\s+(from now|from today|later|ahead|forward|earlier|before|back|sooner)\b`)
-	reShiftBy  = regexp.MustCompile(`(?i)\b(postpone|push|delay|move|shift|bring)\b.*?\bby\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\b`)
-	reBackward = regexp.MustCompile(`(?i)\b(earlier|before|back|sooner|bring)\b`)
-	rePastOK   = regexp.MustCompile(`(?i)\b(yesterday|last|ago|earlier|back|sooner|before)\b`)
+	reRename    = regexp.MustCompile(`(?i)\b(rename|call it|retitle|title|name it|change the name)\b|اسم|سمّ|سمي|عنوان`)
+	reRepeatW   = regexp.MustCompile(`(?i)\b(every|daily|weekly|monthly|yearly|annually|repeat\w*|recurr\w*|each)\b|كل |يومي|أسبوعي|اسبوعي|شهري|سنوي|كرر|كرّر|تكرار|متكرر`)
+	reAllDayW   = regexp.MustCompile(`(?i)\b(all[- ]day|whole day|full day)\b|طول اليوم|اليوم كامل|يوم كامل|كل اليوم`)
+	reDurW      = regexp.MustCompile(`(?i)\b(for \d|for an? (hour|half)|until|till|longer|shorter|extend|end(s|ing)? at|finish\w*|\d+\s*(h|hr|hrs|hours?|m|min|mins|minutes?) long|\d{1,2}(:\d\d)?\s*(am|pm)?\s*[-–]\s*\d)|لمدة|حتى|أطول|اطول|أقصر|اقصر|ينتهي|تنتهي|مدّد|مدد`)
+	reNotesW    = regexp.MustCompile(`(?i)\bnotes?\b|ملاحظ`)
+	reTZW       = regexp.MustCompile(`(?i)\b(time ?zone|tz)\b|توقيت|المنطقة الزمنية`)
+	reShift     = regexp.MustCompile(`(?i)\b(?:in |by |to |for )?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\s+(from now|from today|later|ahead|forward|earlier|before|back|sooner)\b`)
+	reShiftBy   = regexp.MustCompile(`(?i)\b(postpone|push|delay|move|shift|bring)\b(.*?)\bby\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\b`)
+	reBackward  = regexp.MustCompile(`(?i)\b(earlier|before|back|sooner)\b`) // after the amount: "2 days earlier", "a week back"
+	reEarlierW  = regexp.MustCompile(`(?i)\b(earlier|sooner)\b|\bup\s*$`)    // around "move … by N": "move it up by", "by 2 days earlier"
+	reLaterVerb = regexp.MustCompile(`(?i)\b(push|postpone|delay)\b`)
+	rePastOK    = regexp.MustCompile(`(?i)\b(yesterday|last|ago|earlier|sooner|before)\b`)
 )
 
 var numWords = map[string]int{"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
@@ -614,12 +594,25 @@ func shiftAndCheck(d *Draft, t Event, text string, now time.Time) error {
 			// "1 month from now": that date, at the event's usual time
 			base = time.Date(now.Year(), now.Month(), now.Day(), t.Start.Hour(), t.Start.Minute(), 0, 0, t.Start.Location())
 		}
-		if reBackward.MatchString(dir) {
+		// "2 days earlier", "a week back" = earlier — except "push/postpone/delay it a week back", which is later
+		if reBackward.MatchString(dir) && !(dir == "back" && reLaterVerb.MatchString(text)) {
 			n = -n
 		}
-	} else if m := reShiftBy.FindStringSubmatch(text); m != nil {
-		n, unit = parseCount(m[2]), strings.ToLower(m[3])
-		if reBackward.MatchString(m[1]) || reBackward.MatchString(text) {
+	} else if loc := reShiftBy.FindStringSubmatchIndex(text); loc != nil {
+		m := reShiftBy.FindStringSubmatch(text)
+		n, unit = parseCount(m[3]), strings.ToLower(m[4])
+		// "push back / postpone / delay / move by" = later. Earlier only when it says so:
+		// "bring it forward by", "move it up by", "move it by 2 days earlier". The words of the
+		// title ("back massage") never count.
+		after := strings.Fields(text[loc[1]:])
+		if len(after) > 2 {
+			after = after[:2]
+		}
+		earlier := reEarlierW.MatchString(strings.TrimSpace(m[2])) || reEarlierW.MatchString(strings.Join(after, " "))
+		if strings.EqualFold(m[1], "bring") && !strings.Contains(strings.ToLower(m[2]), "later") {
+			earlier = true
+		}
+		if earlier {
 			n = -n
 		}
 	}
@@ -636,6 +629,13 @@ func shiftAndCheck(d *Draft, t Event, text string, now time.Time) error {
 			s = base.AddDate(n, 0, 0)
 		}
 		d.Start, d.End, d.AllDay = s, s.Add(dur), t.AllDay
+		if t.AllDay {
+			days := int((dur + 12*time.Hour) / (24 * time.Hour))
+			if days < 1 {
+				days = 1
+			}
+			d.End = s.AddDate(0, 0, days)
+		}
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	if d.Start.Before(today) && !t.Start.Before(today) && !rePastOK.MatchString(text) {

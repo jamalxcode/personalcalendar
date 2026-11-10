@@ -19,8 +19,7 @@ type State struct {
 	HasGoogle        bool           `json:"hasGoogle"`
 	GoogleAccounts   []string       `json:"googleAccounts"`
 	HasKey           bool           `json:"hasKey"`
-	HasAI            bool           `json:"hasAI"`   // key or Apple Intelligence
-	AppleAI          string         `json:"appleAI"` // Apple Intelligence status
+	HasAI            bool           `json:"hasAI"` // an OpenRouter/OpenAI key is set
 	Use24h           bool           `json:"use24h"`
 	ConfirmBeforeAdd bool           `json:"confirmBeforeAdd"`
 	DaysAhead        int            `json:"daysAhead"`
@@ -61,7 +60,6 @@ func (a *App) state() State {
 		Access:           a.cal.Access(),
 		HasKey:           strings.TrimSpace(a.cfg.OpenAIKey) != "",
 		HasAI:            hasAI(a.cfg),
-		AppleAI:          appleAI(),
 		Use24h:           a.cfg.is24h(),
 		ConfirmBeforeAdd: a.cfg.ConfirmBeforeAdd,
 		DaysAhead:        a.cfg.DaysAhead,
@@ -290,7 +288,6 @@ type Settings struct {
 	ShowInDock       bool       `json:"showInDock"`
 	Language         string     `json:"language"`
 	SystemAccent     string     `json:"systemAccent"` // read-only: the Mac's accent colour
-	AIEngine         string     `json:"aiEngine"`
 }
 
 func (s *CalService) GetSettings() Settings {
@@ -313,7 +310,7 @@ func (s *CalService) GetSettings() Settings {
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
 		TravelFrom: c.TravelFrom, ShowTodos: !c.NoTodos, TodoList: c.TodoList, TodoLists: s.a.cal.ReminderLists(),
 		Hotkey: c.Hotkey, TextSize: c.TextSize, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
-		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent, AIEngine: c.AIEngine}
+		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent}
 }
 
 func (s *CalService) SaveSettings(in Settings) (State, error) {
@@ -349,9 +346,6 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	}
 	if l := oneOf(in.Language, "", "auto", "en", "ar"); l != "" {
 		c.Language = l
-	}
-	if e := oneOf(in.AIEngine, "", "auto", "apple", "openrouter"); e != "" {
-		c.AIEngine = e
 	}
 	if validBarStyle(in.MenuBarStyle) {
 		c.MenuBarStyle = in.MenuBarStyle
@@ -435,7 +429,7 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 }
 
 func (s *CalService) OpenURL(u string) {
-	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "ical://") {
+	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "ical://") {
 		openURL(u)
 		s.a.win.Hide()
 	}
@@ -538,6 +532,16 @@ func (s *CalService) AskWith(text, imageB64 string) (AskResult, error) {
 		res.Clashes[i] = s.clashes(d, "")
 	}
 	if res.Draft != nil && res.Target != nil {
+		// saving an edit writes every field, so carry over what the AI didn't change:
+		// the notes (the event list has none) and the time zone the event was made in
+		if det, err := s.a.cal.Detail(res.Target.ID, res.Target.Start); err == nil {
+			if res.Draft.Notes == "" {
+				res.Draft.Notes = det.Notes
+			}
+			if res.Draft.TimeZone == "" && !res.Draft.AllDay {
+				res.Draft.TimeZone = det.TimeZone
+			}
+		}
 		res.Clashes = [][]Event{s.clashes(*res.Draft, res.Target.ID)}
 	}
 	for _, l := range []*[]Draft{&res.Drafts, &res.Slots} {

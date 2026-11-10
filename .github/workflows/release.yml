@@ -41,6 +41,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Vet and test
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          go vet ./...
+          go test ./...
+
       - name: Build app
         if: steps.v.outputs.exists == 'false'
         run: |
@@ -55,5 +61,8 @@ jobs:
           V=${{ steps.v.outputs.version }}
           NOTES=$(awk -v v="$V" '$0 ~ "^## v?"v"( |$)" {f=1; next} /^## / {f=0} f' CHANGELOG.md | sed '/./,$!d')
           [ -n "$NOTES" ] || NOTES="Smart Cal v$V"
-          gh release create "v$V" "build/SmartCal-$V-macos-arm64.zip" \
+          ZIP="build/SmartCal-$V-macos-arm64.zip"
+          # the app's updater checks the download against this before installing it
+          (cd build && shasum -a 256 "SmartCal-$V-macos-arm64.zip" | awk '{print $1}' > "SmartCal-$V-macos-arm64.zip.sha256")
+          gh release create "v$V" "$ZIP" "$ZIP.sha256" \
             --title "Smart Cal v$V" --notes "$NOTES" --target "$GITHUB_SHA"

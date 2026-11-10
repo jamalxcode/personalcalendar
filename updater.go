@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -46,6 +48,7 @@ type UpdateInfo struct {
 	Published string `json:"published"`
 	PageURL   string `json:"pageUrl"`
 	assetURL  string
+	sumURL    string    // SHA-256 of the zip (releases from v2.2.0 on)
 	Checked   time.Time `json:"checked"`
 }
 
@@ -85,6 +88,9 @@ func checkLatest(ctx context.Context) (UpdateInfo, error) {
 	for _, a := range rel.Assets {
 		if strings.HasSuffix(a.Name, "-macos-arm64.zip") {
 			info.assetURL = a.URL
+		}
+		if strings.HasSuffix(a.Name, "-macos-arm64.zip.sha256") {
+			info.sumURL = a.URL
 		}
 	}
 	info.Available = info.assetURL != "" && newerVersion(info.Latest, info.Current)
@@ -149,6 +155,11 @@ func installUpdate(ctx context.Context, info UpdateInfo, progress func(string)) 
 	if err := download(ctx, info.assetURL, zipPath); err != nil {
 		return err
 	}
+	if info.sumURL != "" {
+		if err := verifySum(ctx, info.sumURL, zipPath); err != nil {
+			return err
+		}
+	}
 	progress("Unpacking…")
 	unz := filepath.Join(tmp, "unzipped")
 	if out, err := exec.Command("ditto", "-x", "-k", zipPath, unz).CombinedOutput(); err != nil {
@@ -165,6 +176,10 @@ func installUpdate(ctx context.Context, info UpdateInfo, progress func(string)) 
 	}
 	if _, err := os.Stat(filepath.Join(newApp, "Contents", "MacOS", "PersonalCalendar")); newApp == "" || err != nil {
 		return fmt.Errorf("the download doesn't contain the app")
+	}
+	// make sure the bundle is complete and its signature seal is intact before swapping it in
+	if out, err := exec.Command("codesign", "--verify", "--strict", newApp).CombinedOutput(); err != nil {
+		return fmt.Errorf("the downloaded app failed its signature check: %s", strings.TrimSpace(string(out)))
 	}
 	target := filepath.Join(filepath.Dir(bundle), appBundleName) // installs as "Smart Cal.app"
 	script := filepath.Join(tmp, "swap.sh")
@@ -198,6 +213,49 @@ rm -rf "$TMPD"
 	return nil
 }
 
+// verifySum compares the zip with the SHA-256 published next to it in the release.
+func verifySum(ctx context.Context, url, zipPath string) error {
+	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req.Header.Set("User-Agent", "PersonalCalendar-updater")
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		return fmt.Errorf("couldn't fetch the download's checksum: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("couldn't fetch the download's checksum: %s", resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	if err != nil {
+		return err
+	}
+	fields := strings.Fields(string(body))
+	if len(fields) == 0 {
+		return fmt.Errorf("the release's checksum file is empty")
+	}
+	got, err := fileSHA256(zipPath)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(fields[0], got) {
+		return fmt.Errorf("the download is damaged (checksum mismatch) — try Update again")
+	}
+	return nil
+}
+
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 func download(ctx context.Context, url, dest string) error {
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("User-Agent", "PersonalCalendar-updater")
@@ -213,9 +271,11 @@ func download(ctx context.Context, url, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
-	return err
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		return fmt.Errorf("download failed: %w", err)
+	}
+	return f.Close()
 }
 
 // shq single-quotes a path for bash (safe with spaces, $, backticks and non-ASCII names).

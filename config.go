@@ -66,7 +66,6 @@ type Config struct {
 	ShowInDock bool   `json:"show_in_dock"` // also show a Dock icon
 	LoginAsked bool   `json:"login_asked"`  // asked "start at login?" (or decided before v2.0)
 	Language   string `json:"language"`     // auto | en | ar
-	AIEngine   string `json:"ai_engine"`    // auto | apple | openrouter
 	WeekBounds *Rect  `json:"week_bounds,omitempty"`
 	SetBounds  *Rect  `json:"settings_bounds,omitempty"`
 	MacSet     bool   `json:"mac_set"` // v2.0 defaults applied
@@ -153,7 +152,6 @@ func loadConfig() *Config {
 	c.ClockMode = oneOf(c.ClockMode, "system", "system", "12", "24")
 	c.TrayIcon = oneOf(c.TrayIcon, "color", "color", "mono")
 	c.Language = oneOf(c.Language, "auto", "auto", "en", "ar")
-	c.AIEngine = oneOf(c.AIEngine, "auto", "auto", "apple", "openrouter")
 	if !c.WeekSet {
 		c.Region, c.WeekStart, c.WeekendDays = "kw", 6, []int{5, 6} // Saturday start, Fri+Sat weekend
 	}
