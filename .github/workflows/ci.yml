@@ -21,12 +21,7 @@ jobs:
           go test ./...
       - name: Build app
         run: ./build.sh --ci
-      - name: Self-test the assistant (Siri + Apple Intelligence bridge)
+      - name: Check signature
         run: |
-          H="build/Smart Cal.app/Contents/Helpers/Smart Cal Assistant.app/Contents/MacOS/Smart Cal Assistant"
-          ls "build/Smart Cal.app/Contents/Helpers/Smart Cal Assistant.app/Contents/Resources/"
-          echo "status: $("$H" --fm-status)"
-          build/PersonalCalendar --dump-schemas | "$H" --fm-check
-          echo '{"instructions":"Reply briefly.","prompt":"Say hi"}' | "$H" --fm; echo
           codesign -dv "build/Smart Cal.app" 2>&1 | head -5
-          codesign --verify --deep --strict "build/Smart Cal.app" && echo "signature ok"
+          codesign --verify --strict "build/Smart Cal.app" && echo "signature ok"

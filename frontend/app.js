@@ -1091,7 +1091,7 @@ function renderBanner() {
   }
   const parts = [];
   if (!S.hasGoogle && !S.calendars.length) parts.push(`No calendars on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
-  if (!S.hasAI) parts.push(`Turn on Apple Intelligence or add an OpenRouter key for smarter AI (simple lines work without it) — <a href="#" id="bannerGo">Settings</a>`);
+  if (!S.hasAI) parts.push(`Add an OpenRouter key for smarter AI (simple lines work without it) — <a href="#" id="bannerGo">Settings</a>`);
   if (S.error) parts.push(esc(S.error));
   if (!parts.length) { b.classList.add("hidden"); return; }
   b.innerHTML = parts.join("<br>");
@@ -2263,8 +2263,6 @@ async function loadSettings(tab) {
   $("sClock").value = settingsCache.clockMode || "system";
   $("sLang").value = settingsCache.language || "auto";
   $("sDock").checked = !!settingsCache.showInDock;
-  $("sEngine").value = settingsCache.aiEngine || "auto";
-  renderEngineStatus();
   $("sConfirm").checked = settingsCache.confirmBeforeAdd;
   $("sDays").value = String(settingsCache.daysAhead);
   loadMenuBarSettings(settingsCache);
@@ -2323,7 +2321,6 @@ function arrangeSettings() {
   if (anchor.nextElementSibling !== $("aiGroup")) anchor.after($("aiGroup"));
   // emphasise it while there's no key
   $("aiGroup").classList.toggle("attention", !S.hasAI);
-  renderEngineStatus();
   const ks = $("keyState");
   ks.textContent = S.hasKey ? "✓ key saved" : "key needed";
   ks.className = "key-state " + (S.hasKey ? "ok" : "missing");
@@ -2413,7 +2410,6 @@ async function saveSettings(silent) {
     clockMode: $("sClock").value,
     language: $("sLang").value,
     showInDock: $("sDock").checked,
-    aiEngine: $("sEngine").value,
     confirmBeforeAdd: $("sConfirm").checked,
     daysAhead: parseInt($("sDays").value, 10),
     hiddenCalendars: hidden,
@@ -2834,27 +2830,3 @@ new MutationObserver(() => {
   requestAnimationFrame(() => { labelPending = false; labelIconButtons(); });
 }).observe(document.body, { childList: true, subtree: true });
 labelIconButtons();
-
-// ======================= AI engine (Apple Intelligence / OpenRouter) =======================
-const APPLE_STATUS = {
-  available: ["ok", "Apple Intelligence is ready on this Mac ✓"],
-  "not-enabled": ["warn", "Apple Intelligence is off — turn it on in System Settings → Apple Intelligence & Siri."],
-  "not-ready": ["warn", "Apple Intelligence is still downloading its model — try again in a while."],
-  "device-not-eligible": ["off", "This Mac doesn't support Apple Intelligence — OpenRouter will be used."],
-  "needs-macos-26": ["off", "Apple Intelligence needs macOS 26 or later — OpenRouter will be used."],
-  missing: ["off", "This build doesn't include the Apple Intelligence helper."],
-  unavailable: ["off", "Apple Intelligence isn't available right now."],
-};
-function renderEngineStatus() {
-  const box = $("engineStatus");
-  if (!box) return;
-  const [cls, msg] = APPLE_STATUS[S.appleAI] || APPLE_STATUS.unavailable;
-  const eng = ($("sEngine") && $("sEngine").value) || "auto";
-  let extra = "";
-  if (eng !== "apple" && !S.hasKey) extra = " Screenshots and long pasted text need an OpenRouter key.";
-  if (eng === "openrouter" && !S.hasKey) extra = " Add your key below.";
-  box.className = "engine-status small " + cls;
-  box.textContent = msg + extra;
-  const siri = $("siriStatus");
-  if (siri) siri.textContent = S.appleAI === "missing" ? "Siri actions need the full app build." : "Siri uses the same AI engine as the box above. The first time, Siri may ask to allow Smart Cal.";
-}

@@ -60,36 +60,8 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 
-# ---- Smart Cal Assistant: Siri/Shortcuts actions + Apple Intelligence (Swift, needs Xcode 26) ----
-HELPER="Smart Cal Assistant.app"
-build_helper() {
-  command -v xcodebuild >/dev/null || { echo "  (no Xcode — skipping Siri & Apple Intelligence helper)"; return 1; }
-  if ! command -v xcodegen >/dev/null; then
-    if [ "$MODE" = "--ci" ] && command -v brew >/dev/null; then brew install xcodegen >/dev/null; else
-      echo "  (xcodegen not installed — brew install xcodegen — skipping helper)"; return 1; fi
-  fi
-  (cd assistant && xcodegen generate --quiet) || return 1
-  rm -rf build/assistant
-  xcodebuild -project assistant/SmartCalAssistant.xcodeproj -scheme SmartCalAssistant -configuration Release \
-    -derivedDataPath build/assistant -quiet CODE_SIGNING_ALLOWED=NO build || return 1
-  local out="build/assistant/Build/Products/Release/$HELPER"
-  [ -d "$out" ] || return 1
-  mkdir -p "build/$APP/Contents/Helpers"
-  cp -R "$out" "build/$APP/Contents/Helpers/"
-  ls "build/$APP/Contents/Helpers/$HELPER/Contents/Resources/Metadata.appintents" >/dev/null 2>&1 \
-    && echo "  ✓ Siri actions metadata included" || echo "  ! no App Intents metadata found"
-  codesign --force -s - -r='designated => identifier "company.sala.personalcalendar.assistant"' "build/$APP/Contents/Helpers/$HELPER" >/dev/null 2>&1 \
-    || codesign --force -s - "build/$APP/Contents/Helpers/$HELPER"
-}
-echo "→ building the assistant (Siri + Apple Intelligence)"
-if ! build_helper; then
-  if [ "$MODE" = "--ci" ]; then echo "✗ assistant build failed"; exit 1; fi
-  echo "  continuing without it"
-fi
-
 # Ad-hoc signature with a fixed designated requirement (the bundle ID), so macOS keeps the
 # Calendar/Reminders permission across updates instead of asking again after every build.
-# (Not --deep: the helper above is signed with its own identity and is sealed into this signature.)
 codesign --force -s - -r='designated => identifier "company.sala.personalcalendar"' "build/$APP" >/dev/null 2>&1 \
   || codesign --force -s - "build/$APP" >/dev/null 2>&1 || true
 codesign -d -r- "build/$APP" 2>&1 | grep -i designated || true

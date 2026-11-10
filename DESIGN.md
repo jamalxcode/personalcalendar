@@ -15,6 +15,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2 — Apple Intelligence & Siri removed (10 Nov 2026)
+
+**Asked:** "remove the siri ai, it hasn't been officially released yet".
+
+**Decided:** remove both halves of the v2.1 work — the Siri / Shortcuts actions and the Apple Intelligence engine — together with the Swift helper (`assistant/`) and `apple.go`. The AI box is OpenRouter / OpenAI only again (no engine setting), with the offline parser as the fallback. The v2.1 notes below are kept as history.
+
 ## v2.1.1 — AI edits that only change what you said (9 Nov 2026)
 
 **Reported:** "i asked ai to move this item to 1 month from now, and it moved it to the past which was october… i meant 30 days from today which should be december 9". The preview also showed a new title, all-day for 31 days, a "Work" location and a monthly repeat.

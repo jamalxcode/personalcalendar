@@ -134,16 +134,7 @@
 
         <div data-tab="ai" class="group ai-group" id="aiGroup">
           <div class="group-title">✦ AI quick add <span class="key-state" id="keyState"></span></div>
-          <div class="engine-box">
-            <label class="field"><span>AI engine</span>
-              <select id="sEngine">
-                <option value="auto">Auto — Apple Intelligence, OpenRouter for screenshots &amp; long text</option>
-                <option value="apple">Apple Intelligence (on this Mac, free, private)</option>
-                <option value="openrouter">OpenRouter (your key)</option>
-              </select></label>
-            <div class="engine-status small" id="engineStatus"></div>
-          </div>
-          <div class="small muted" id="aiIntro">Type events in plain English — the AI turns them into calendar entries. Apple Intelligence works with no key; for screenshots and long pasted text, add an <b>OpenRouter</b> key below (an OpenAI key also works).</div>
+          <div class="small muted" id="aiIntro">Type events in plain English — the AI turns them into calendar entries. Add an <b>OpenRouter</b> key below to turn it on (an OpenAI key also works); simple lines work without one.</div>
           <div class="key-saved hidden" id="keySaved">
             <span class="ok-dot">✓</span>
             <div class="ks-body">
@@ -222,11 +213,6 @@
           <div class="muted small">With text showing, the app icon is hidden to save space; it comes back when there's nothing to show. ⌃⌥C always opens Smart Cal.</div>
         </div>
 
-        <div data-tab="ai" class="group">
-          <div class="group-title">Siri &amp; Shortcuts</div>
-          <div class="small">Say <b>“Add to Smart Cal”</b>, <b>“What's next in Smart Cal”</b> or <b>“Ask Smart Cal”</b> — Siri asks what you'd like and Smart Cal does it. The same actions are in the Shortcuts app and Spotlight.</div>
-          <div class="muted small" id="siriStatus"></div>
-        </div>
         <div data-tab="alerts" class="group">
           <div class="group-title">Alerts</div>
           <label class="field"><span>Meeting alert</span>

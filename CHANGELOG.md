@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.0
+
+- Removed Apple Intelligence and Siri / Shortcuts for now — they rely on features Apple hasn't officially released yet. The AI box uses your OpenRouter or OpenAI key (Settings → AI); simple lines still work offline without a key
+- The app no longer includes the Smart Cal Assistant helper, so it's smaller and builds without Xcode 26
+
 ## v2.1.1
 
 - Fixed: "move this to 1 month from now" could move an event into the past (October) and also rename it, make it all-day and repeating. Relative moves ("1 month from now", "30 days from today", "2 weeks later", "push it by 3 days") are now worked out exactly by Smart Cal, keeping the event's time and length

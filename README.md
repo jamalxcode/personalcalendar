@@ -2,7 +2,7 @@
 
 *from [go.sala.company](https://go.sala.company)*
 
-A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and understands plain-English event entry with **Apple Intelligence** (on your Mac, no key) or **OpenRouter / OpenAI**.
+A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3** (native WebKit UI), that works with your **Google Calendar** (through macOS's own calendar sync — no Google Cloud setup) and understands plain-English event entry with **OpenRouter / OpenAI**.
 
 **Latest:** [download the newest release](https://github.com/jamalxcode/personalcalendar/releases/latest) · [what's new](CHANGELOG.md) · [design log](DESIGN.md)
 
@@ -19,7 +19,6 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Paste or drop** text and screenshots (flight bookings, invites) to create events; **Undo** for every change.
 - **To-dos** from Apple Reminders, default alerts, and **Leave now** alerts from Apple Maps drive time.
 - **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
-- **Apple Intelligence & Siri:** the AI box can run on Apple Intelligence (on-device, free, no key) with OpenRouter for screenshots and long text; Siri and Shortcuts can add events, tell you what's next, or answer questions ("Add to Smart Cal", "What's next in Smart Cal", "Ask Smart Cal").
 - **A proper Mac app:** Settings window that saves instantly (⌘,), standard About panel, Apple-ordered menu, system accent colour and clock, Reduce Motion / Increase Contrast, VoiceOver labels, monochrome icon or Dock icon options, Arabic with right-to-left layout.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
 - Keys: `⌃⌥C` toggle · `⌘N` new · `⌘Z`/`⌘⇧Z` undo/redo · `⌘1–4` views · `?` help · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `Esc` back/close.
@@ -28,7 +27,7 @@ Design decisions and the conversations behind them: [DESIGN.md](DESIGN.md).
 
 ## Install (new Mac)
 
-1. Download **SmartCal-…-macos-arm64.zip** from the [latest release](https://github.com/jamalxcode/personalcalendar/releases/latest) (Apple silicon Macs, macOS 14 or later; Apple Intelligence and Siri features need macOS 26).
+1. Download **SmartCal-…-macos-arm64.zip** from the [latest release](https://github.com/jamalxcode/personalcalendar/releases/latest) (Apple silicon Macs, macOS 14 or later).
 2. Double-click the zip and drag the app into **Applications**. (Inside the zip it's called "Personal Calendar.app" so older versions can update; it renames itself to **Smart Cal** on first launch.)
 3. Open it. The app isn't signed with an Apple Developer ID, so the first time macOS blocks it: open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** (or, in Terminal: `xattr -dr com.apple.quarantine "/Applications/Personal Calendar.app"`). After that it opens normally — and updates install themselves without this step.
 4. Follow the two clicks under **Setup** below.
@@ -47,16 +46,12 @@ cd personalcalendar
 
 Drag it into /Applications. Smart Cal asks once whether to start at login (also in Settings → Alerts).
 
-The Siri / Apple Intelligence helper (`assistant/`, Swift) needs Xcode 26 and `brew install xcodegen`; without them the app still builds, just without those features.
-
 ## Setup (2 clicks)
 
 1. **Allow** — on first launch macOS asks for calendar access. Click Allow.
 2. **Google account** — if your Google account isn't on the Mac yet, click **Add Google…** in the app. It opens System Settings → Internet Accounts; sign in with Google and keep *Calendars* ticked. Your calendars show up in the app by themselves.
 
-**AI:** on a Mac with Apple Intelligence turned on, the AI box works straight away (Settings → AI shows the status). For screenshots and long pasted text — or on Macs without Apple Intelligence — paste an OpenRouter key (`sk-or-…`, from <https://openrouter.ai/keys>) or an OpenAI key (`sk-…`) in Settings → AI; the app detects which. **AI engine** there chooses Auto (default), Apple Intelligence or OpenRouter.
-
-**Siri:** say “Add to Smart Cal”, “What's next in Smart Cal” or “Ask Smart Cal”. The same actions are in the Shortcuts app.
+**AI:** paste an OpenRouter key (`sk-or-…`, from <https://openrouter.ai/keys>) or an OpenAI key (`sk-…`) in Settings → AI; the app detects which. Without a key, simple lines ("dentist Thursday 3pm") still work offline.
 
 Works with every calendar macOS syncs — Google, iCloud, Exchange — and you choose which ones to show and which one new events go to.
 
@@ -64,13 +59,13 @@ Works with every calendar macOS syncs — Google, iCloud, Exchange — and you c
 
 The app checks GitHub for a newer release at launch and every 6 hours. When one exists an **Update to vX** pill appears in the panel footer (also Settings → Updates, or right-click the menu bar icon → Check for Updates…). One click downloads it, swaps the app in place and relaunches.
 
-**Publishing a new version:** bump `VERSION`, add a `## vX.Y.Z` section to `CHANGELOG.md` (those lines become the release notes shown in the app), push to `main`. The *Release* workflow builds the app (and the Swift helper) on a macOS 26 runner and attaches `SmartCal-X.Y.Z-macos-arm64.zip` to a new GitHub release.
+**Publishing a new version:** bump `VERSION`, add a `## vX.Y.Z` section to `CHANGELOG.md` (those lines become the release notes shown in the app), push to `main`. The *Release* workflow builds the app on a macOS runner and attaches `SmartCal-X.Y.Z-macos-arm64.zip` to a new GitHub release.
 
 > Since v1.8.2 builds keep a stable signature, so macOS remembers the calendar permission across updates.
 
 ## Where things are stored
 
-`~/Library/Application Support/PersonalCalendar/config.json` (folder name kept from the original name) (settings + AI key, file mode `0600`; deliberately not the Keychain, so there are no password prompts). Calendar data stays in macOS. With Apple Intelligence, AI requests never leave the Mac; with OpenRouter/OpenAI, only the text you type (plus the upcoming events it needs for context) is sent.
+`~/Library/Application Support/PersonalCalendar/config.json` (folder name kept from the original name) (settings + AI key, file mode `0600`; deliberately not the Keychain, so there are no password prompts). Calendar data stays in macOS. With OpenRouter/OpenAI, only the text you type (plus the upcoming events it needs for context) is sent.
 
 ## Code map
 
@@ -82,8 +77,6 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 | `eventkit_darwin.m` | Objective-C bridge to Apple EventKit: permission, calendars, events, add, delete, change notifications |
 | `calendar_darwin.go` | Go wrapper over the bridge (+ Meet/Zoom/Teams link detection) |
 | `ai.go` | structured AI requests: one call decides add / answer / update / delete / slots / to-do; edit guards and exact relative dates |
-| `apple.go` | AI engine choice, Apple Intelligence via the helper, and the private socket Siri/Shortcuts use |
-| `assistant/` | **Smart Cal Assistant** (Swift): App Intents for Siri/Shortcuts and Foundation Models bridge; built with xcodegen + xcodebuild into `Contents/Helpers` |
 | `types.go` | repeats, alarms, to-dos, free-slot and clash helpers |
 | `fun.go` | weather (Open-Meteo), greeting, emoji cache, countdowns |
 | `parse_local.go` (+ test) | offline parser for simple lines when there's no key or no network |
