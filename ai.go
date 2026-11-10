@@ -536,16 +536,18 @@ func parseDay(s string) (time.Time, error) {
 // parts the user actually talked about, and do relative date maths ourselves.
 
 var (
-	reRename   = regexp.MustCompile(`(?i)\b(rename|call it|retitle|title|name it|change the name)\b`)
-	reRepeatW  = regexp.MustCompile(`(?i)\b(every|daily|weekly|monthly|yearly|annually|repeat\w*|recurr\w*|each)\b`)
-	reAllDayW  = regexp.MustCompile(`(?i)\b(all[- ]day|whole day|full day)\b`)
-	reDurW     = regexp.MustCompile(`(?i)\b(for \d|for an? (hour|half)|until|till|longer|shorter|extend|end(s|ing)? at|finish\w*|\d+\s*(h|hr|hrs|hours?|m|min|mins|minutes?) long|\d{1,2}(:\d\d)?\s*(am|pm)?\s*[-–]\s*\d)`)
-	reNotesW   = regexp.MustCompile(`(?i)\bnotes?\b`)
-	reTZW      = regexp.MustCompile(`(?i)\b(time ?zone|tz)\b`)
-	reShift    = regexp.MustCompile(`(?i)\b(?:in |by |to |for )?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\s+(from now|from today|later|ahead|forward|earlier|before|back|sooner)\b`)
-	reShiftBy  = regexp.MustCompile(`(?i)\b(postpone|push|delay|move|shift|bring)\b.*?\bby\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\b`)
-	reBackward = regexp.MustCompile(`(?i)\b(earlier|before|back|sooner|bring)\b`)
-	rePastOK   = regexp.MustCompile(`(?i)\b(yesterday|last|ago|earlier|back|sooner|before)\b`)
+	reRename    = regexp.MustCompile(`(?i)\b(rename|call it|retitle|title|name it|change the name)\b|اسم|سمّ|سمي|عنوان`)
+	reRepeatW   = regexp.MustCompile(`(?i)\b(every|daily|weekly|monthly|yearly|annually|repeat\w*|recurr\w*|each)\b|كل |يومي|أسبوعي|اسبوعي|شهري|سنوي|كرر|كرّر|تكرار|متكرر`)
+	reAllDayW   = regexp.MustCompile(`(?i)\b(all[- ]day|whole day|full day)\b|طول اليوم|اليوم كامل|يوم كامل|كل اليوم`)
+	reDurW      = regexp.MustCompile(`(?i)\b(for \d|for an? (hour|half)|until|till|longer|shorter|extend|end(s|ing)? at|finish\w*|\d+\s*(h|hr|hrs|hours?|m|min|mins|minutes?) long|\d{1,2}(:\d\d)?\s*(am|pm)?\s*[-–]\s*\d)|لمدة|حتى|أطول|اطول|أقصر|اقصر|ينتهي|تنتهي|مدّد|مدد`)
+	reNotesW    = regexp.MustCompile(`(?i)\bnotes?\b|ملاحظ`)
+	reTZW       = regexp.MustCompile(`(?i)\b(time ?zone|tz)\b|توقيت|المنطقة الزمنية`)
+	reShift     = regexp.MustCompile(`(?i)\b(?:in |by |to |for )?(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\s+(from now|from today|later|ahead|forward|earlier|before|back|sooner)\b`)
+	reShiftBy   = regexp.MustCompile(`(?i)\b(postpone|push|delay|move|shift|bring)\b(.*?)\bby\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|week|month|year)s?\b`)
+	reBackward  = regexp.MustCompile(`(?i)\b(earlier|before|back|sooner)\b`) // after the amount: "2 days earlier", "a week back"
+	reEarlierW  = regexp.MustCompile(`(?i)\b(earlier|sooner)\b|\bup\s*$`)    // around "move … by N": "move it up by", "by 2 days earlier"
+	reLaterVerb = regexp.MustCompile(`(?i)\b(push|postpone|delay)\b`)
+	rePastOK    = regexp.MustCompile(`(?i)\b(yesterday|last|ago|earlier|sooner|before)\b`)
 )
 
 var numWords = map[string]int{"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
@@ -592,12 +594,25 @@ func shiftAndCheck(d *Draft, t Event, text string, now time.Time) error {
 			// "1 month from now": that date, at the event's usual time
 			base = time.Date(now.Year(), now.Month(), now.Day(), t.Start.Hour(), t.Start.Minute(), 0, 0, t.Start.Location())
 		}
-		if reBackward.MatchString(dir) {
+		// "2 days earlier", "a week back" = earlier — except "push/postpone/delay it a week back", which is later
+		if reBackward.MatchString(dir) && !(dir == "back" && reLaterVerb.MatchString(text)) {
 			n = -n
 		}
-	} else if m := reShiftBy.FindStringSubmatch(text); m != nil {
-		n, unit = parseCount(m[2]), strings.ToLower(m[3])
-		if reBackward.MatchString(m[1]) || reBackward.MatchString(text) {
+	} else if loc := reShiftBy.FindStringSubmatchIndex(text); loc != nil {
+		m := reShiftBy.FindStringSubmatch(text)
+		n, unit = parseCount(m[3]), strings.ToLower(m[4])
+		// "push back / postpone / delay / move by" = later. Earlier only when it says so:
+		// "bring it forward by", "move it up by", "move it by 2 days earlier". The words of the
+		// title ("back massage") never count.
+		after := strings.Fields(text[loc[1]:])
+		if len(after) > 2 {
+			after = after[:2]
+		}
+		earlier := reEarlierW.MatchString(strings.TrimSpace(m[2])) || reEarlierW.MatchString(strings.Join(after, " "))
+		if strings.EqualFold(m[1], "bring") && !strings.Contains(strings.ToLower(m[2]), "later") {
+			earlier = true
+		}
+		if earlier {
 			n = -n
 		}
 	}
@@ -614,6 +629,13 @@ func shiftAndCheck(d *Draft, t Event, text string, now time.Time) error {
 			s = base.AddDate(n, 0, 0)
 		}
 		d.Start, d.End, d.AllDay = s, s.Add(dur), t.AllDay
+		if t.AllDay {
+			days := int((dur + 12*time.Hour) / (24 * time.Hour))
+			if days < 1 {
+				days = 1
+			}
+			d.End = s.AddDate(0, 0, days)
+		}
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	if d.Start.Before(today) && !t.Start.Before(today) && !rePastOK.MatchString(text) {

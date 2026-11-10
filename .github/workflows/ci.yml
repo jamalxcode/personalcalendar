@@ -25,3 +25,7 @@ jobs:
         run: |
           codesign -dv "build/Smart Cal.app" 2>&1 | head -5
           codesign --verify --strict "build/Smart Cal.app" && echo "signature ok"
+      - name: Check the release zip the way the updater does
+        run: |
+          rm -rf build/unz && ditto -x -k build/SmartCal-*-macos-arm64.zip build/unz
+          codesign --verify --strict "build/unz/Personal Calendar.app" && echo "unpacked signature ok"

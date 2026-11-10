@@ -6,6 +6,13 @@ Release notes shown in the app's Update panel come from the matching section her
 
 - Removed Apple Intelligence and Siri / Shortcuts for now — they rely on features Apple hasn't officially released yet. The AI box uses your OpenRouter or OpenAI key (Settings → AI); simple lines still work offline without a key
 - The app no longer includes the Smart Cal Assistant helper, so it's smaller and builds without Xcode 26
+- Fixed: "push it back by a week" moved the event a week *earlier* (and so did any title with "back" in it, like "back massage"). Push back, postpone and delay now always move later; earlier needs "earlier", "sooner", "move it up" or "bring it forward"
+- Fixed: AI edits could erase an event's notes (for example "make gym every Monday") and switch an event made in another time zone to local time. Notes and time zone are now kept unless you ask to change them
+- Fixed: Undo after an AI edit that changed the repeat now puts the old repeat back
+- Fixed: Arabic edit requests (rename, repeat, all-day, notes, length, time zone) were ignored by the "only change what you mention" check
+- Fixed: moving an all-day event across a daylight-saving change no longer leaves it ending at 1 AM
+- Plain http:// links in event notes now open
+- Updates are checked before they're installed: the download must match the checksum published with the release, and the app's signature must be intact
 - **Closer to a standard Mac app:**
   - A proper menu bar when Smart Cal is in the Dock: Smart Cal · File · Edit · View · Window · Help, with About, Settings (⌘,), New Event (⌘N), Year/Month/Week/Day (⌘1–⌘4), Go to Today (⌘T), Hide, Quit. The old generic menu's Help item opened the Wails website inside the app
   - The event card uses plain monochrome symbols instead of emoji, and its buttons follow Mac order: Delete on the left, Edit on the right, the rest (Duplicate, Pin as Countdown, Open in Calendar) in a ⋯ menu, so the row no longer wraps onto two lines

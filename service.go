@@ -429,7 +429,7 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 }
 
 func (s *CalService) OpenURL(u string) {
-	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "ical://") {
+	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "ical://") {
 		openURL(u)
 		s.a.win.Hide()
 	}
@@ -532,6 +532,16 @@ func (s *CalService) AskWith(text, imageB64 string) (AskResult, error) {
 		res.Clashes[i] = s.clashes(d, "")
 	}
 	if res.Draft != nil && res.Target != nil {
+		// saving an edit writes every field, so carry over what the AI didn't change:
+		// the notes (the event list has none) and the time zone the event was made in
+		if det, err := s.a.cal.Detail(res.Target.ID, res.Target.Start); err == nil {
+			if res.Draft.Notes == "" {
+				res.Draft.Notes = det.Notes
+			}
+			if res.Draft.TimeZone == "" && !res.Draft.AllDay {
+				res.Draft.TimeZone = det.TimeZone
+			}
+		}
 		res.Clashes = [][]Event{s.clashes(*res.Draft, res.Target.ID)}
 	}
 	for _, l := range []*[]Draft{&res.Drafts, &res.Slots} {

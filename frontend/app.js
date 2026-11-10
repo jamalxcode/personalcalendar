@@ -2072,9 +2072,15 @@ async function applyAI() {
   setBusy(true);
   try {
     if (r.kind === "update") {
-      let prev = draftFromDetail(r.target);
-      try { prev = draftFromDetail(await go("GetEvent", r.target.id, r.target.start)); } catch (_) {}
-      if (!r.draft.setRepeat) r.draft.notes = r.draft.notes || prev.notes;
+      let det = r.target;
+      try { det = await go("GetEvent", r.target.id, r.target.start); } catch (_) {}
+      const prev = draftFromDetail(det);
+      r.draft.notes = r.draft.notes || prev.notes;
+      // Undo puts the old repeat back too when this edit changed it
+      if (r.draft.setRepeat) {
+        prev.setRepeat = true;
+        if (det.repeat && det.repeat.freq) prev.repeat = det.repeat;
+      }
       applyState(await go("UpdateEvent", r.target.id, r.target.start, r.draft, !!r.allFuture));
       toastAction(`Updated “${r.draft.title}”`, "Undo", async () => {
         try { applyState(await go("UpdateEvent", r.target.id, r.draft.start, prev, !!r.allFuture)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
