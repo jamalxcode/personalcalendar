@@ -64,6 +64,19 @@ function whenText(start, end, allDay) {
 }
 const evs = () => S.events.map((e) => ({ ...e, s: new Date(e.start), e: new Date(e.end) }));
 
+// "Ctrl+Alt+CmdOrCtrl+C" → "⌃⌥⌘C" (Apple's modifier order: ⌃ ⌥ ⇧ ⌘)
+function macKeys(accel) {
+  const parts = String(accel).split("+");
+  const key = parts.pop();
+  const mods = new Set(parts.map((p) => p.toLowerCase()));
+  let out = "";
+  if (mods.has("ctrl") || mods.has("control")) out += "⌃";
+  if (mods.has("alt") || mods.has("option")) out += "⌥";
+  if (mods.has("shift")) out += "⇧";
+  if (mods.has("cmd") || mods.has("cmdorctrl") || mods.has("command") || mods.has("super")) out += "⌘";
+  return out + (key.length === 1 ? key.toUpperCase() : key);
+}
+
 // ---------- toast & confirm ----------
 let toastTimer;
 function toast(msg, isErr = false) {
@@ -780,6 +793,57 @@ function sheetHeader(title, color, backLabel = "‹ Back", onBack = closeSheet) 
   return h;
 }
 
+// small monochrome symbols for the event card (SF Symbols style, drawn with currentColor)
+const SYM = {
+  calendar: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  repeat: '<path d="M4 11V9a3 3 0 0 1 3-3h12M16 3l3 3-3 3M20 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>',
+  pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  plane: '<path d="M10.5 13.5 3 11l1.5-1.5 8 .5 4-4.5a2 2 0 0 1 3 3l-4.5 4 .5 8L14 22l-2.5-7.5L8 18v2.5L6.5 22 5 19l-3-1.5L3.5 16H6z"/>',
+  video: '<rect x="3" y="6.5" width="12.5" height="11" rx="2.5"/><path d="m15.5 10.5 5-3v9l-5-3z"/>',
+  person: '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+  people: '<circle cx="9" cy="8.5" r="3.3"/><path d="M2.5 19.5a6.5 6.5 0 0 1 13 0M15.5 5.5a3.3 3.3 0 0 1 0 6.3M18 13.6a6.5 6.5 0 0 1 3.5 5.9"/>',
+  notes: '<rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.6 5.4 3.6 8.5s-1.1 5.9-3.6 8.5c-2.5-2.6-3.6-5.4-3.6-8.5s1.1-5.9 3.6-8.5z"/>',
+};
+const sym = (name) => `<svg class="sym" viewBox="0 0 24 24" aria-hidden="true">${SYM[name] || ""}</svg>`;
+
+// a small pop-up menu, like an NSMenu, anchored above/below a button
+function popMenu(anchor, items) {
+  document.querySelectorAll(".pop-menu").forEach((m) => m.remove());
+  const m = el("div", "pop-menu");
+  m.setAttribute("role", "menu");
+  const close = () => { m.remove(); document.removeEventListener("mousedown", outside, true); document.removeEventListener("keydown", keys, true); anchor.focus(); };
+  const outside = (ev) => { if (!m.contains(ev.target) && ev.target !== anchor) close(); };
+  const btns = [];
+  for (const it of items) {
+    if (it === "-") { m.append(el("div", "pop-sep")); continue; }
+    const b = el("button", "pop-item", it.label);
+    b.setAttribute("role", "menuitem");
+    b.onclick = () => { close(); it.fn(); };
+    m.append(b); btns.push(b);
+  }
+  const keys = (ev) => {
+    const i = btns.indexOf(document.activeElement);
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
+    else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault(); ev.stopPropagation();
+      const n = btns.length, j = ev.key === "ArrowDown" ? (i + 1) % n : (i - 1 + n) % n;
+      btns[j].focus();
+    }
+  };
+  document.body.append(m);
+  const r = anchor.getBoundingClientRect(), z = parseFloat(document.body.style.zoom || "1") || 1;
+  const h = m.offsetHeight, w = m.offsetWidth, vw = window.innerWidth / z, vh = window.innerHeight / z;
+  const top = r.top - h - 4 >= 4 ? r.top - h - 4 : Math.min(r.bottom + 4, vh - h - 4);
+  m.style.top = `${top}px`;
+  m.style.left = `${Math.max(4, Math.min(r.right - w, vw - w - 4))}px`;
+  document.addEventListener("mousedown", outside, true);
+  document.addEventListener("keydown", keys, true);
+  if (btns[0]) btns[0].focus();
+}
+
 const linkify = (t) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="#" data-open="$1">$1</a>').replace(/\n/g, "<br>");
 
 function renderDetail(d) {
@@ -795,51 +859,60 @@ function renderDetail(d) {
   const subs = [];
   if (!d.allDay) subs.push(dur(en - s));
   const tz = tzNote(d);
-  if (tz) subs.push(`🌍 ${tz} local time`);
+  if (tz) subs.push(`${tz} local time`);
   if (subs.length) body.append(el("div", "muted small", subs.join("  ·  ")));
 
   const rows = el("div", "sheet-rows");
   const addRow = (icon, html) => { const r = el("div", "sheet-row"); r.innerHTML = `<span class="ico">${icon}</span><div>${html}</div>`; rows.append(r); return r; };
-  addRow("📅", `<span class="cal-chip" style="--c:${esc(d.color)}">${esc(d.calendar)}</span>`);
-  if (repeats(d.repeat)) addRow("🔁", esc(repeatText(d.repeat)));
-  if (d.hasAlarm) addRow("🔔", esc(alarmText(alarmChoice(d), d.allDay)));
+  addRow(sym("calendar"), `<span class="cal-chip" style="--c:${esc(d.color)}">${esc(d.calendar)}</span>`);
+  if (repeats(d.repeat)) addRow(sym("repeat"), esc(repeatText(d.repeat)));
+  if (d.hasAlarm) addRow(sym("bell"), esc(alarmText(alarmChoice(d), d.allDay)));
   if (d.location) {
     const key = `${d.id}|${Math.floor(s / 1000)}`;
     const m = (S.travel || {})[key];
-    addRow("📍", `<a href="#" data-open="https://maps.apple.com/?q=${encodeURIComponent(d.location)}">${esc(d.location)}</a>${m ? `<div class="muted small">🚗 ~${m} min drive · leave by ${fmtTime(new Date(s - (m + 5) * 6e4))}</div>` : ""}`);
+    addRow(sym("pin"), `<a href="#" data-open="https://maps.apple.com/?q=${encodeURIComponent(d.location)}">${esc(d.location)}</a>${m ? `<div class="muted small">~${m} min drive · leave by ${fmtTime(new Date(s - (m + 5) * 6e4))}</div>` : ""}`);
   }
   const dfl = flightOf(d.title, d.location, d.notes);
   if (dfl) {
     const live = flyingSoon({ s: new Date(d.start), e: new Date(d.end), allDay: d.allDay });
-    addRow("✈️", `<button class="btn primary small-btn" data-open="${esc(dfl.url)}">${live ? "Track live" : "Track"} ${esc(dfl.label)} on Flightradar24</button>${live ? `<div class="muted small">In the air or about to depart — see where it is now</div>` : ""}`);
+    addRow(sym("plane"), `<button class="btn primary small-btn" data-open="${esc(dfl.url)}">${live ? "Track live" : "Track"} ${esc(dfl.label)} on Flightradar24</button>${live ? `<div class="muted small">In the air or about to depart — see where it is now</div>` : ""}`);
   }
-  if (d.meetLink) addRow("🎥", `<button class="btn primary small-btn" data-open="${esc(d.meetLink)}">Join meeting</button>`).classList.add("join-row");
-  if (d.organizer) addRow("👤", `Organised by ${esc(d.organizer)}`);
+  if (d.meetLink) addRow(sym("video"), `<button class="btn primary small-btn" data-open="${esc(d.meetLink)}">Join meeting</button>`).classList.add("join-row");
+  if (d.organizer) addRow(sym("person"), `Organised by ${esc(d.organizer)}`);
   if (d.attendees && d.attendees.length) {
-    const icon = { accepted: "✅", declined: "❌", maybe: "❔", pending: "⏳", unknown: "·" };
-    addRow("👥", `<div class="people">${d.attendees.map((p) => `<div>${icon[p.status] || "·"} ${esc(p.name || p.email)}${p.me ? " <span class='muted'>(you)</span>" : ""}</div>`).join("")}</div>`);
+    const icon = { accepted: ["✓", "Accepted"], declined: ["✕", "Declined"], maybe: ["?", "Maybe"], pending: ["•", "No reply yet"], unknown: ["•", ""] };
+    const person = (p) => { const [g, t] = icon[p.status] || icon.unknown; return `<div><span class="rsvp ${esc(p.status)}" title="${t}" aria-label="${t}">${g}</span> ${esc(p.name || p.email)}${p.me ? " <span class='muted'>(you)</span>" : ""}</div>`; };
+    addRow(sym("people"), `<div class="people">${d.attendees.map(person).join("")}</div>`);
   }
-  if (d.notes) addRow("📝", `<div class="notes">${linkify(d.notes)}</div>`);
-  if (d.url && d.url !== d.meetLink) addRow("🔗", `<a href="#" data-open="${esc(d.url)}">${esc(d.url)}</a>`);
+  if (d.notes) addRow(sym("notes"), `<div class="notes">${linkify(d.notes)}</div>`);
+  if (d.url && d.url !== d.meetLink) addRow(sym("link"), `<a href="#" data-open="${esc(d.url)}">${esc(d.url)}</a>`);
   body.append(rows);
   sh.append(body);
 
+  // Mac order: destructive action on the far left, the main action on the far right,
+  // everything else in a "⋯" menu so the row never wraps.
   const actions = el("div", "sheet-actions");
   const mk = (label, cls, fn) => { const b = el("button", "btn " + cls, label); b.onclick = fn; actions.append(b); return b; };
-  if (d.writable) mk("Edit", "primary", () => renderEdit(d, "edit"));
-  mk("Duplicate", "", () => renderEdit(d, "duplicate"));
+  if (d.writable) mk("Delete", "danger-ghost", async () => { if (await deleteEvent(d)) closeSheet(); });
+  const more = [];
+  if (d.writable) more.push({ label: "Duplicate", fn: () => renderEdit(d, "duplicate") });
   if (s > new Date()) {
     const pinned = (S.pinned || []).includes(d.id);
-    mk(pinned ? "Unpin" : "📌 Countdown", "", async () => {
+    more.push({ label: pinned ? "Remove Countdown" : "Pin as Countdown", fn: async () => {
       try {
         applyState(pinned ? await go("UnpinEvent", d.id) : await go("PinEvent", d.id, d.title, d.start));
         toast(pinned ? "Countdown removed" : "Pinned — it's counting down under the AI box");
         renderDetail(d);
       } catch (err) { toast(errMsg(err), true); }
-    });
+    } });
   }
-  mk("Open in Calendar", "", () => go("OpenURL", d.link));
-  if (d.writable) mk("Delete", "danger-ghost", async () => { if (await deleteEvent(d)) closeSheet(); });
+  more.push({ label: "Open in Calendar", fn: () => go("OpenURL", d.link) });
+  const moreBtn = mk("⋯", "more-btn", () => popMenu(moreBtn, more));
+  moreBtn.title = "More";
+  moreBtn.setAttribute("aria-label", "More actions");
+  moreBtn.setAttribute("aria-haspopup", "menu");
+  if (d.writable) mk("Edit", "primary", () => renderEdit(d, "edit"));
+  else mk("Duplicate", "primary", () => renderEdit(d, "duplicate"));
   sh.append(actions);
   sh.querySelectorAll("[data-open]").forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); go("OpenURL", a.dataset.open); }; });
 }
@@ -1103,7 +1176,7 @@ function renderBanner() {
 function renderFooter() {
   $("updated").textContent = "";
   $("refreshBtn").title = S.now ? `Refresh (⌘R) · updated ${fmtTime(new Date(S.now))}` : "Refresh (⌘R)";
-  $("hotkeyHint").textContent = S.hotkey ? S.hotkey.replace("Ctrl", "⌃").replace("Alt", "⌥").replace(/\+/g, "") + " to open" : "";
+  $("hotkeyHint").textContent = S.hotkey && S.hotkey !== "off" ? macKeys(S.hotkey) + " to open" : "";
 }
 
 let eventsSig = "";
@@ -1867,6 +1940,12 @@ function showTab(tab) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
   document.querySelectorAll(".settings-body [data-tab]").forEach((g) => g.classList.toggle("tab-off", g.dataset.tab !== tab));
   document.querySelector(".settings-body").scrollTop = 0;
+  if (SETTINGS_WIN) {
+    const b = document.querySelector(`#tabs button[data-tab="${tab}"] span`);
+    const name = b ? b.textContent : "Settings";
+    document.querySelector("#settings header.top .month-title").textContent = name;
+    document.title = name;
+  }
 }
 
 function slotLabel(s) {
@@ -2581,6 +2660,8 @@ function wire() {
   Events.On("settings:open", (ev) => { if (SETTINGS_WIN) loadSettings(ev.data || ""); });
   Events.On("ui:new", () => { if (!SETTINGS_WIN) newEventNow(); });
   Events.On("ui:help", () => { if (!SETTINGS_WIN) showHelp(); });
+  Events.On("ui:view", (ev) => { if (!SETTINGS_WIN && ["year", "month", "week", "day"].includes(ev.data)) setView(ev.data); });
+  Events.On("ui:today", () => { if (!SETTINGS_WIN) $("todayBtn").click(); });
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
   $("updatePill").onclick = () => openSettings("about");
@@ -2620,7 +2701,7 @@ async function refresh() {
 
 if (SETTINGS_WIN) {
   document.body.classList.add("settings-win");
-  $("closeSettings").textContent = "Done";
+  $("closeSettings").classList.add("hidden"); // a Mac Settings window closes with its red button or ⌘W
 }
 wire();
 renderMiniCal();

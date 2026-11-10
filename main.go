@@ -124,6 +124,7 @@ func main() {
 	a.tray.SetIcon(trayIconPNG()) // full-colour icon (not a template, so macOS doesn't flatten it)
 	a.tray.SetTooltip("Smart Cal")
 	a.tray.SetMenu(a.buildMenu())
+	a.wa.Menu.Set(a.buildAppMenu()) // the menu bar while Smart Cal is active (shows with "Show in Dock")
 	a.tray.AttachWindow(a.win).WindowOffset(6)
 
 	if err := a.setHotkey(a.cfg.Hotkey); err != nil {
@@ -229,6 +230,70 @@ func (a *App) buildMenu() *application.Menu {
 	})
 	m.AddSeparator()
 	m.Add("Quit Smart Cal").SetAccelerator("CmdOrCtrl+Q").OnClick(func(*application.Context) { a.wa.Quit() })
+	return m
+}
+
+// buildAppMenu is Smart Cal's own menu bar. Without it Wails installs a generic default whose
+// About isn't ours and whose Help item loads wails.io inside our window. The Edit menu also makes
+// ⌘X/⌘C/⌘V/⌘A work in text fields. Shortcuts the panel already handles in JS (⌘N, ⌘R, ⌘1–4…)
+// are shown here too; the page handles them first, so they never fire twice.
+func (a *App) buildAppMenu() *application.Menu {
+	m := a.wa.NewMenu()
+
+	app := m.AddSubmenu("Smart Cal")
+	app.Add("About Smart Cal").OnClick(func(*application.Context) { a.showAboutPanel() })
+	app.Add("Check for Updates…").OnClick(func(*application.Context) { a.showSettings("about-check") })
+	app.AddSeparator()
+	app.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { a.showSettings("") })
+	app.AddSeparator()
+	app.AddRole(application.ServicesMenu)
+	app.AddSeparator()
+	app.AddRole(application.Hide)
+	app.AddRole(application.HideOthers)
+	app.AddRole(application.UnHide)
+	app.AddSeparator()
+	app.Add("Quit Smart Cal").SetAccelerator("CmdOrCtrl+Q").OnClick(func(*application.Context) { a.wa.Quit() })
+
+	file := m.AddSubmenu("File")
+	file.Add("New Event…").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
+		a.tray.ShowWindow()
+		a.wa.Event.Emit("ui:new")
+	})
+	file.Add("Open Week View").SetAccelerator("CmdOrCtrl+Shift+W").OnClick(func(*application.Context) { a.showWeek() })
+	file.AddSeparator()
+	file.AddRole(application.CloseWindow)
+
+	m.AddRole(application.EditMenu)
+
+	view := m.AddSubmenu("View")
+	for i, v := range []string{"Year", "Month", "Week", "Day"} {
+		key := strings.ToLower(v)
+		view.Add(v).SetAccelerator(fmt.Sprintf("CmdOrCtrl+%d", i+1)).OnClick(func(*application.Context) {
+			a.tray.ShowWindow()
+			a.wa.Event.Emit("ui:view", key)
+		})
+	}
+	view.AddSeparator()
+	view.Add("Go to Today").SetAccelerator("CmdOrCtrl+T").OnClick(func(*application.Context) {
+		a.tray.ShowWindow()
+		a.wa.Event.Emit("ui:today")
+	})
+	view.Add("Refresh").SetAccelerator("CmdOrCtrl+R").OnClick(func(*application.Context) { a.RequestRefresh() })
+
+	win := m.AddSubmenu("Window")
+	win.AddRole(application.Minimise)
+	win.AddRole(application.Zoom)
+	win.AddSeparator()
+	win.AddRole(application.BringAllToFront)
+
+	help := m.AddSubmenu("Help")
+	help.Add("Smart Cal Help").OnClick(func(*application.Context) {
+		a.tray.ShowWindow()
+		a.wa.Event.Emit("ui:help")
+	})
+	help.Add("What's New").OnClick(func(*application.Context) {
+		openURL("https://github.com/" + releaseRepo + "/blob/main/CHANGELOG.md")
+	})
 	return m
 }
 

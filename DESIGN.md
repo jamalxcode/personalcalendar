@@ -21,6 +21,8 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 **Decided:** remove both halves of the v2.1 work — the Siri / Shortcuts actions and the Apple Intelligence engine — together with the Swift helper (`assistant/`) and `apple.go`. The AI box is OpenRouter / OpenAI only again (no engine setting), with the offline parser as the fallback. The v2.1 notes below are kept as history.
 
+**Asked:** "look at the app, is it following mac gui and standards, if not fix it where needed". The base was already right (system font at 13 pt, arrow cursor, no text selection on controls, light/dark, accent colour, Reduce Motion, VoiceOver labels, Apple-ordered tray menu, standard About panel). **Fixed:** our own app menu (File · Edit · View · Window · Help) instead of Wails' default; event card with monochrome symbols, destructive button left / primary right / extras in a ⋯ pop-up menu; Settings window titled after the selected pane with no "Done"; ⌃⌥C written with Mac symbols; sentence-case section headings; gear sized like the other toolbar icons. **Kept:** the brand line at the top of the panel and the coloured *Up next* card (they're part of the look, not a platform convention).
+
 ## v2.1.1 — AI edits that only change what you said (9 Nov 2026)
 
 **Reported:** "i asked ai to move this item to 1 month from now, and it moved it to the past which was october… i meant 30 days from today which should be december 9". The preview also showed a new title, all-day for 31 days, a "Work" location and a monthly repeat.

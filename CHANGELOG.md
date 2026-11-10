@@ -6,6 +6,12 @@ Release notes shown in the app's Update panel come from the matching section her
 
 - Removed Apple Intelligence and Siri / Shortcuts for now — they rely on features Apple hasn't officially released yet. The AI box uses your OpenRouter or OpenAI key (Settings → AI); simple lines still work offline without a key
 - The app no longer includes the Smart Cal Assistant helper, so it's smaller and builds without Xcode 26
+- **Closer to a standard Mac app:**
+  - A proper menu bar when Smart Cal is in the Dock: Smart Cal · File · Edit · View · Window · Help, with About, Settings (⌘,), New Event (⌘N), Year/Month/Week/Day (⌘1–⌘4), Go to Today (⌘T), Hide, Quit. The old generic menu's Help item opened the Wails website inside the app
+  - The event card uses plain monochrome symbols instead of emoji, and its buttons follow Mac order: Delete on the left, Edit on the right, the rest (Duplicate, Pin as Countdown, Open in Calendar) in a ⋯ menu, so the row no longer wraps onto two lines
+  - The Settings window is titled after the pane you're on (Calendar, AI, Look…) and closes with its red button or ⌘W, without an extra "Done" button
+  - The panel footer shows the shortcut as ⌃⌥C instead of "ctrlaltc"
+  - Section headings in the list ("Today · Tue 10 Nov", "To-do") are no longer in all caps, and the settings gear matches the other toolbar icons
 
 ## v2.1.1
 
