@@ -12,16 +12,36 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 - **Iterative, critique-driven.** Each round should improve meaningfully on the last; critiques are turned into numbered lists the owner picks from.
 - **Menu bar space is precious.** Every character in the menu bar has to earn its place.
 - **Nothing moves under your cursor.** Controls that you click repeatedly (view switcher, arrows) stay in fixed positions.
+- **Behave like a Mac app.** System font at 13 pt, arrow cursor, light/dark and the Mac's accent colour, Reduce Motion / Increase Contrast, VoiceOver labels. Standard menus (About · Settings ⌘, · Quit ⌘Q; File · Edit · View · Window · Help), Mac keyboard symbols (⌃⌥⇧⌘), Settings that save instantly and close with the red button or ⌘W, the destructive button on the left and the main action on the right. Monochrome symbols in working UI; emoji only where Playful mode asks for them.
+- **The AI never edits silently.** Every AI change shows a before/after preview and is applied only on a click; it touches only what the user mentioned, keeps notes and time zone, and date maths is done in code.
+- **Only officially released platform features.** Beta or unreleased Apple features (like v2.1's Apple Intelligence and Siri) stay out of the shipped app.
 
 ---
 
-## v2.2 — Apple Intelligence & Siri removed (10 Nov 2026)
+## v2.2 — Siri & Apple Intelligence removed, Mac conventions, AI edit fixes (10 Nov 2026)
+
+Screenshots: [panel](docs/design/v2.2-panel.png) · [event card](docs/design/v2.2-event-card.png) · [Settings](docs/design/v2.2-settings-window.png).
 
 **Asked:** "remove the siri ai, it hasn't been officially released yet".
+**Decided:** remove both halves of the v2.1 work — the Siri / Shortcuts actions and the Apple Intelligence engine — together with the Swift helper (`assistant/`) and `apple.go`. The AI box is OpenRouter / OpenAI only again (no engine setting), with the offline parser as the fallback; the greeting and event emojis need the key too. The v2.1 notes below are kept as history.
 
-**Decided:** remove both halves of the v2.1 work — the Siri / Shortcuts actions and the Apple Intelligence engine — together with the Swift helper (`assistant/`) and `apple.go`. The AI box is OpenRouter / OpenAI only again (no engine setting), with the offline parser as the fallback. The v2.1 notes below are kept as history.
+**Asked:** "look at the app, is it following mac gui and standards, if not fix it where needed".
+**Found right already:** system font at 13 pt, arrow cursor, no text selection on controls, light/dark, accent colour, Reduce Motion, VoiceOver labels, Apple-ordered menu bar item menu, standard About panel, the week window.
+**Fixed:** our own app menu (Smart Cal · File · Edit · View · Window · Help) instead of Wails' default, whose Help item loaded wails.io inside our window; event card with monochrome symbols, Delete left / Edit right / the rest in a ⋯ pop-up menu so the row never wraps; Settings window titled after the selected pane, no "Done"; ⌃⌥C written with Mac symbols instead of "ctrlaltc"; sentence-case section headings; the gear sized like the other toolbar icons.
+**Kept:** the brand line at the top of the panel and the coloured *Up next* card — part of the look, not a platform convention.
 
-**Asked:** "look at the app, is it following mac gui and standards, if not fix it where needed". The base was already right (system font at 13 pt, arrow cursor, no text selection on controls, light/dark, accent colour, Reduce Motion, VoiceOver labels, Apple-ordered tray menu, standard About panel). **Fixed:** our own app menu (File · Edit · View · Window · Help) instead of Wails' default; event card with monochrome symbols, destructive button left / primary right / extras in a ⋯ pop-up menu; Settings window titled after the selected pane with no "Done"; ⌃⌥C written with Mac symbols; sentence-case section headings; gear sized like the other toolbar icons. **Kept:** the brand line at the top of the panel and the coloured *Up next* card (they're part of the look, not a platform convention).
+**Asked:** "do all the fixes" (from a code review).
+**Fixed:**
+- "push it back by a week" moved events a week *earlier* — any "back" in the sentence flipped the direction, even in a title ("back massage"), and also skipped the into-the-past check. Now push back / postpone / delay always mean later; earlier needs "earlier", "sooner", "move it up" or "bring it forward".
+- AI edits erased the notes (the event list carries none, and saving writes every field) and reset the time zone to local. Go now fetches the event first and carries both over, so every path gets it. Undo restores a changed repeat.
+- The "only change what you mention" guards understood English only; Arabic keywords added.
+- All-day moves across a DST change keep whole days.
+- http:// links in notes open.
+- Releases publish a SHA-256 next to the zip; the updater checks it and `codesign --verify` before swapping; releases run vet + tests first; CI unpacks the zip and checks it like the updater.
+- Tests for date shifting, edit guards, applying changes and version comparison (`ai_test.go`).
+**Not done:** splitting `frontend/app.js` — a refactor that needs the app running on a Mac to verify.
+
+**Asked:** "why does my update function say im up to date?" → the changes were on a branch; a release is built only when `VERSION` changes on `main`. **Decided:** merged and published v2.2.0. From now on changes go **straight to `main`** ("dont do any new branches, update directly and we can revert back if needed") — and anything that bumps `VERSION` ships to everyone's Update button.
 
 ## v2.1.1 — AI edits that only change what you said (9 Nov 2026)
 
@@ -29,7 +49,7 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 **Decided:** relative moves are computed by Smart Cal, not the model ("N days/weeks/months from now", "later", "earlier", "push it by…"), keeping the event's time and length; edits keep every field the user didn't mention; and an edit that would land in the past without the user saying so is refused with a hint. The reported case is a unit test.
 
-## v2.1 — Apple Intelligence & Siri (8 Nov 2026)
+## v2.1 — Apple Intelligence & Siri (8 Nov 2026) — removed in v2.2
 
 **Asked:** "can we use Siri AI through App Intents for the text box in the calendar menu?" → explained the two directions (Foundation Models = Apple's model inside our box; App Intents = Siri calling into Smart Cal) → "yes both".
 

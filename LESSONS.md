@@ -61,8 +61,16 @@
 - **`mv src dst` moves *into* dst if dst is an existing directory** — when swapping app bundles, move any existing target aside first.
 - **Quote paths for bash with single quotes**, not Go's `%q` (which leaves `$` and backticks live and escapes non-ASCII in a way bash doesn't understand).
 - **Cache failures too** (e.g. a place that can't be geocoded), or the retry loop hammers a rate-limited service.
-- **App Intents and Foundation Models are Swift-only.** Keep the Go app as-is and ship a small Swift helper app in `Contents/Helpers`, built by `xcodegen` + `xcodebuild` (which also generates `Metadata.appintents`). Sign the helper with its own identity first, then the outer bundle without `--deep`.
-- **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
-- **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
-- **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.
+- *(v2.1, removed in v2.2 — kept for reference)* **App Intents and Foundation Models are Swift-only.** Keep the Go app as-is and ship a small Swift helper app in `Contents/Helpers`, built by `xcodegen` + `xcodebuild` (which also generates `Metadata.appintents`). Sign the helper with its own identity first, then the outer bundle without `--deep`.
+- *(v2.1)* **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
+- *(v2.1)* **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
+- *(v2.1)* **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.
 - **Don't trust a model with date arithmetic or with "unchanged" fields.** With a strict schema every field gets filled; keep only the fields the user's words mention, compute relative dates ("1 month from now") in code, and refuse silent moves into the past.
+- **Wails v3 installs a generic menu bar if you don't set one** (`DefaultApplicationMenu`): its About isn't yours and its Help → "Learn More" loads wails.io *inside your window*. Set your own with `app.Menu.Set(...)`; keep `AddRole(application.EditMenu)` so ⌘X/⌘C/⌘V/⌘A work in text fields — even in an accessory (menu-bar-only) app, where the menu is invisible but its shortcuts still work.
+- **Menu shortcuts and page shortcuts don't double-fire** as long as the page calls `preventDefault()`: WebKit offers the key to the page first and only hands unhandled key equivalents to the menu.
+- **Go's regexp `\b` only knows ASCII letters.** It never matches next to Arabic, so Arabic keywords go in the pattern without `\b`.
+- **"Push back" means later.** Never decide direction from the whole sentence (titles contain words like "back"); look at the verb and the words next to the amount.
+- **EventKit saves overwrite every field you pass.** An update built from the event *list* (no notes) erases the notes; fetch the full event first and carry over notes and time zone.
+- **Ad-hoc signing proves integrity, not identity.** `codesign --verify --strict` plus a published SHA-256 catches damaged downloads; only a Developer ID would stop a swapped release.
+- **"Up to date" can be right.** The updater only sees published releases; branch work reaches it after a merge to `main` with a new `VERSION`.
+- **Previewing the UI without a Mac:** serve `frontend/` in Playwright and route `/wails/runtime.js` to a small mock module exporting `Call.ByName` (canned `GetState`, `GetSettings`, `GetEvent`…) and `Events.On`. Set `textSize: 100` in the mock state — it's a percentage used as page zoom.
