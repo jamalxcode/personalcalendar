@@ -1,4 +1,5 @@
 import { Call, Events } from "/wails/runtime.js";
+import { popMenu, pickDate } from "./menu.js";
 
 // Smart Cal — week window: 7-day timeline with drag to move (across days), resize, create, details, undo.
 const go = (m, ...a) => Call.ByName("main.CalService." + m, ...a);
@@ -87,6 +88,7 @@ function render() {
       const chip = el("div", "wk-chip" + (e.holiday ? " hol" : ""), (e.holiday ? "🎉 " : "") + e.title);
       chip.style.setProperty("--c", e.color || "var(--accent)");
       chip.onclick = () => openDrawer(e);
+      chip.oncontextmenu = (ev) => { ev.preventDefault(); eventMenu(e, chip, { x: ev.clientX, y: ev.clientY }); };
       c.append(chip);
     });
     ad.append(c);
@@ -133,13 +135,14 @@ function block(e, day, col, cols) {
   const t = el("div", "t", e.title + (e.recurring ? " 🔁" : ""));
   const m = el("div", "m", `${fmtTime(e.s)} – ${fmtTime(e.e)}${e.location ? " · " + e.location : ""}`);
   b.append(t, m);
+  b.oncontextmenu = (ev) => { ev.preventDefault(); eventMenu(e, b, { x: ev.clientX, y: ev.clientY }); };
   const editable = e.writable !== false;
   if (editable) b.append(el("div", "rz"));
 
   let mode = null, x0 = 0, y0 = 0, moved = false, dm = 0, dd = 0, de = 0, colW = 0;
   const snap = (px) => Math.round(((px / HOUR) * 60) / SNAP) * SNAP;
   b.onpointerdown = (ev) => {
-    if (ev.button !== 0) return;
+    if (ev.button !== 0 || ev.ctrlKey) return; // right-click / Control-click opens the menu instead
     mode = !editable ? "click" : ev.target.classList.contains("rz") ? "resize" : "move";
     x0 = ev.clientX; y0 = ev.clientY; moved = false; dm = dd = de = 0;
     colW = b.parentElement.getBoundingClientRect().width;
@@ -165,6 +168,7 @@ function block(e, day, col, cols) {
   };
   b.onpointerup = async () => {
     const md = mode; mode = null;
+    if (!md) return; // the press wasn't ours (right-click / Control-click)
     b.classList.remove("dragging");
     if (!moved) { openDrawer(e); return; }
     if (md === "click") return;
@@ -214,11 +218,53 @@ async function moveEvent(e, ns, ne) {
     await go("UpdateEvent", e.id, e.start, next, allFuture);
     let note = "";
     try { const cl = await go("CheckClashes", next, e.id); if (cl.length) note = ` · overlaps “${cl[0].title}”`; } catch (_) {}
-    toast(`Moved to ${ns.toLocaleDateString(LOC(), { weekday: "short" })} ${fmtTime(ns)}${note}`, false, {
+    const day = ns.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
+    toast(`Moved to ${day}${e.allDay ? "" : " " + fmtTime(ns)}${note}`, false, {
       label: "Undo", fn: async () => { try { await go("UpdateEvent", e.id, next.start, prev, allFuture); load(); } catch (err) { toast(errMsg(err), true); } },
     });
   } catch (err) { toast(errMsg(err), true); }
   load();
+}
+
+// ---------- right-click an event: reschedule it (same menu as the panel) ----------
+// Days count from today; the event keeps its time of day and length.
+function eventMenu(e, node, at) {
+  const today = startOfDay(new Date());
+  const short = (d) => d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
+  const items = [];
+  if (e.writable !== false && !e.holiday) {
+    for (const [label, n] of [["Today", 0], ["Tomorrow", 1], ["In 2 days", 2], ["In 3 days", 3], ["Next week", 7]]) {
+      const day = addDays(today, n);
+      if (sameDay(day, e.s)) continue; // already on that day
+      items.push({ label, hint: short(day), fn: () => moveToDay(e, day) });
+    }
+    items.push({ label: "Pick a date…", fn: () => pickDate(at, `Move “${e.title}” to`, e.s, (day) => moveToDay(e, day)) }, "-");
+  }
+  items.push({ label: "Open", fn: () => openDrawer(e) });
+  if (e.writable !== false) items.push({ label: "Edit…", fn: async () => { const { draft } = await fullDraft(e); openEdit(e, draft); } });
+  items.push({ label: "Duplicate", fn: () => duplicate(e) });
+  if (e.writable !== false) items.push("-", { label: "Delete", danger: true, fn: async () => { const { full, draft } = await fullDraft(e); del(e, full, draft); } });
+  popMenu(node, items, at);
+}
+
+// whole calendar days, so a DST change can't move the clock time
+function moveToDay(e, day) {
+  const shift = Math.round((startOfDay(day) - startOfDay(e.s)) / 864e5);
+  if (!shift) return;
+  const ns = new Date(e.s), ne = new Date(e.e);
+  ns.setDate(ns.getDate() + shift); ne.setDate(ne.getDate() + shift);
+  moveEvent(e, ns, ne);
+}
+
+async function duplicate(e) {
+  const { draft } = await fullDraft(e);
+  modalForm("Duplicate event", { ...draft }, async (d) => {
+    try {
+      const r = await go("Add", [d]);
+      toast(`Added “${d.title}”`, false, { label: "Undo", fn: async () => { for (const c of r.created) await go("Delete", c.id, c.start, false); load(); } });
+      load();
+    } catch (err) { toast(errMsg(err), true); }
+  });
 }
 
 // ---------- details drawer ----------

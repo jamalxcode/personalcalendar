@@ -14,7 +14,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Search** (⌘F or `/`) across titles, places and notes, the past year and the next.
 - **Meeting alerts** with a Join button, optional **start at login** (it asks), **highlight colour** of your choice (or the Mac's), self-**updates** from GitHub.
 - **Playful mode** (one switch): a mascot whose mood follows your day, an AI greeting and emojis on events (these two need the AI key), weather, countdowns (pin events; birthdays automatic), a weekly recap, confetti, optional sounds, and a choice of AI voice.
-- **Right-click an event** to reschedule it — Today, Tomorrow, In 2 or 3 days, Next week, Pick a date… (same time and length, notes kept, Undo) — or Open, Edit, Duplicate, Delete.
+- **Right-click an event** (in the panel or the week window) to reschedule it — Today, Tomorrow, In 2 or 3 days, Next week, Pick a date… (same time and length, notes kept, Undo) — or Open, Edit, Duplicate, Delete.
 - **Day timeline**: drag events to move them, drag the bottom edge to resize, Undo, double-click to add.
 - **Repeating events, clash warnings and free-slot finding**, by typing or in the editor; editing a repeat asks "this one or all future".
 - **Paste or drop** text and screenshots (flight bookings, invites) to create events; **Undo** for every change.
@@ -64,7 +64,7 @@ Works with every calendar macOS syncs — Google, iCloud, Exchange — and you c
 
 ## Updates
 
-The app checks GitHub for a newer release at launch and every 6 hours. When one exists an **Update to vX** pill appears in the panel footer (also Settings → Updates, or right-click the menu bar icon → Check for Updates…). One click downloads it, checks it against the SHA-256 published with the release and verifies the app's signature, then swaps the app in place and relaunches. If you're told you're up to date, there is simply no newer release yet — changes only reach the Update button once they're merged into `main` with a new `VERSION`.
+The app checks GitHub for a newer release at launch and every 6 hours. When one exists an **Update to vX** pill appears in the panel footer (also Settings → Updates, or right-click the menu bar icon → Check for Updates…). One click downloads it — a progress card shows each step (Download · Check · Install · Restart) and the menu bar reads "⬇︎ Updating 40%" — checks it against the SHA-256 published with the release and verifies the app's signature, then swaps the app in place and relaunches. If you're told you're up to date, there is simply no newer release yet — changes only reach the Update button once they're merged into `main` with a new `VERSION`.
 
 **Publishing a new version:** bump `VERSION`, add a `## vX.Y.Z` section to `CHANGELOG.md` (those lines become the release notes shown in the app), push to `main` (or merge a pull request that does). The *Release* workflow runs `go vet` and the tests, builds the app on a macOS runner and attaches `SmartCal-X.Y.Z-macos-arm64.zip` plus its `.sha256` to a new GitHub release. Pushes that don't change `VERSION` don't publish anything.
 
@@ -80,7 +80,7 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 |---|---|
 | `main.go` | Wails app, menu bar item (label + icon + right-click menu), the app's menu bar (File · Edit · View · Window · Help), popover window attached to the tray, global hotkey, refresh loop |
 | `service.go` | `CalService` — the Go methods the UI calls (state, setup steps, parse, add, delete, settings) |
-| `frontend/` | the panel and Settings window (`index.html`, `style.css`, `app.js`), the week window (`week.*`) and Arabic (`i18n.js`); they talk to Go via `/wails/runtime.js` |
+| `frontend/` | the panel and Settings window (`index.html`, `style.css`, `app.js`), the week window (`week.*`), shared pop-up menus and date picker (`menu.js`) and Arabic (`i18n.js`); they talk to Go via `/wails/runtime.js` |
 | `eventkit_darwin.m` | Objective-C bridge to Apple EventKit: permission, calendars, events, add, delete, change notifications |
 | `calendar_darwin.go` | Go wrapper over the bridge (+ Meet/Zoom/Teams link detection) |
 | `ai.go` (+ `ai_test.go`) | structured AI requests (OpenRouter / OpenAI): one call decides add / answer / update / delete / slots / to-do; edit guards (English + Arabic) and exact relative dates |

@@ -451,7 +451,26 @@ func (s *CalService) LatestUpdate() UpdateInfo {
 func (s *CalService) CheckForUpdate() (UpdateInfo, error) { return s.a.checkForUpdate() }
 
 // InstallUpdate downloads the newest release, swaps the app and relaunches it.
-func (s *CalService) InstallUpdate() error {
+func (s *CalService) InstallUpdate() (err error) {
+	if !s.a.beginUpdate() {
+		return fmt.Errorf("an update is already being installed")
+	}
+	// every step goes to all windows (progress card) and to the menu bar ("⬇︎ Updating 40%")
+	progress := func(st UpdateStep) {
+		s.a.wa.Event.Emit("update:progress", st)
+		label := "⬇︎ Updating…"
+		if st.Stage == "downloading" && st.Pct >= 0 {
+			label = fmt.Sprintf("⬇︎ Updating %d%%", st.Pct)
+		}
+		s.a.setUpdating(label)
+	}
+	defer func() {
+		if err != nil { // give the menu bar back and tell the windows why
+			s.a.setUpdating("")
+			s.a.wa.Event.Emit("update:progress", UpdateStep{Stage: "error", Text: err.Error(), Pct: -1})
+		}
+	}()
+	progress(UpdateStep{Stage: "checking", Text: "Checking for the newest version…", Pct: -1})
 	info, err := s.a.checkForUpdate()
 	if err != nil {
 		return err
@@ -461,7 +480,6 @@ func (s *CalService) InstallUpdate() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	progress := func(msg string) { s.a.wa.Event.Emit("update:progress", msg) }
 	if err := installUpdate(ctx, info, progress); err != nil {
 		return err
 	}

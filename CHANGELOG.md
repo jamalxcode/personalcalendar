@@ -2,6 +2,13 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.6
+
+- **You can see an update happening:** after you click Update, a progress card shows the download percentage and each step — Download, Check, Install, Restart — in the panel and in Settings, and the menu bar reads "⬇︎ Updating 40%". If something goes wrong it says so, and that nothing was changed. (You'll see it from the *next* update on — this one is still installed by the previous version)
+- **To-dos say when they're due:** "Today 21:00 · in 4 hours", "Tomorrow 09:00", "Wed 18 Nov, 09:00 · in 7 days", "Overdue by 2 days", or just the date when it's more than two weeks away. Before, a to-do moved to next Wednesday just said "Wednesday", which looked like today
+- **Right-click to reschedule in the week window too** — the same menu as the panel, on timed events and all-day chips
+- Fixed: right-clicking (or Control-clicking) an event in the day timeline or the week window also opened it
+
 ## v2.2.5
 
 - **Right-click an event to reschedule it** (or Control-click), anywhere in the panel — upcoming list, day, week and timeline: Today, Tomorrow, In 2 days, In 3 days, Next week (each with its date), or **Pick a date…**. It keeps the event's time, length, notes and time zone, asks "this one or all future" for repeating events, warns about overlaps, and has Undo. The same menu also has Open, Edit…, Duplicate and Delete

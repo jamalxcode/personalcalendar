@@ -138,7 +138,14 @@ func currentBundle() (string, error) {
 // swaps the bundle once this process has quit, then relaunches the new version.
 // Files downloaded by the app itself (not a browser) carry no quarantine flag, so Gatekeeper
 // doesn't block the ad-hoc-signed build.
-func installUpdate(ctx context.Context, info UpdateInfo, progress func(string)) error {
+// UpdateStep is one progress report while an update installs (sent to the UI as "update:progress").
+type UpdateStep struct {
+	Stage string `json:"stage"` // checking | downloading | verifying | installing | restarting | error
+	Text  string `json:"text"`
+	Pct   int    `json:"pct"` // 0–100 for the download, -1 when unknown
+}
+
+func installUpdate(ctx context.Context, info UpdateInfo, progress func(UpdateStep)) error {
 	if info.assetURL == "" {
 		return fmt.Errorf("no download for this release")
 	}
@@ -150,17 +157,21 @@ func installUpdate(ctx context.Context, info UpdateInfo, progress func(string)) 
 	if err != nil {
 		return err
 	}
-	progress("Downloading v" + info.Latest + "…")
+	dl := "Downloading v" + info.Latest + "…"
+	progress(UpdateStep{Stage: "downloading", Text: dl, Pct: -1})
 	zipPath := filepath.Join(tmp, "update.zip")
-	if err := download(ctx, info.assetURL, zipPath); err != nil {
+	if err := download(ctx, info.assetURL, zipPath, func(pct int) {
+		progress(UpdateStep{Stage: "downloading", Text: dl, Pct: pct})
+	}); err != nil {
 		return err
 	}
+	progress(UpdateStep{Stage: "verifying", Text: "Checking the download…", Pct: -1})
 	if info.sumURL != "" {
 		if err := verifySum(ctx, info.sumURL, zipPath); err != nil {
 			return err
 		}
 	}
-	progress("Unpacking…")
+	progress(UpdateStep{Stage: "installing", Text: "Installing…", Pct: -1})
 	unz := filepath.Join(tmp, "unzipped")
 	if out, err := exec.Command("ditto", "-x", "-k", zipPath, unz).CombinedOutput(); err != nil {
 		return fmt.Errorf("unzip failed: %s", strings.TrimSpace(string(out)))
@@ -209,7 +220,7 @@ rm -rf "$TMPD"
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	progress("Restarting…")
+	progress(UpdateStep{Stage: "restarting", Text: "Restarting Smart Cal…", Pct: 100})
 	return nil
 }
 
@@ -256,7 +267,8 @@ func fileSHA256(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func download(ctx context.Context, url, dest string) error {
+// download saves url to dest, reporting whole-percent progress (when the size is known) at most every 150 ms.
+func download(ctx context.Context, url, dest string, onPct func(int)) error {
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("User-Agent", "PersonalCalendar-updater")
 	resp, err := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
@@ -271,11 +283,41 @@ func download(ctx context.Context, url, dest string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	var src io.Reader = resp.Body
+	if onPct != nil && resp.ContentLength > 0 {
+		src = &progressReader{r: resp.Body, total: resp.ContentLength, onPct: onPct, last: -1}
+	}
+	if _, err := io.Copy(f, src); err != nil {
 		f.Close()
 		return fmt.Errorf("download failed: %w", err)
 	}
+	if onPct != nil {
+		onPct(100)
+	}
 	return f.Close()
+}
+
+type progressReader struct {
+	r     io.Reader
+	total int64
+	done  int64
+	last  int
+	at    time.Time
+	onPct func(int)
+}
+
+func (p *progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	p.done += int64(n)
+	pct := int(p.done * 100 / p.total)
+	if pct > 100 {
+		pct = 100
+	}
+	if pct != p.last && time.Since(p.at) > 150*time.Millisecond {
+		p.last, p.at = pct, time.Now()
+		p.onPct(pct)
+	}
+	return n, err
 }
 
 // shq single-quotes a path for bash (safe with spaces, $, backticks and non-ASCII names).

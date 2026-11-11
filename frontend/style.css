@@ -925,3 +925,31 @@ body.more-contrast .day.has .num { box-shadow: inset 0 0 0 1.5px var(--fg); }
 .pending-row + .pending-row { border-top: .5px solid var(--line); padding-top: 6px; }
 .pending-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-hint { margin-right: auto; font-size: 11.5px; color: var(--muted); align-self: center; }
+
+/* update progress card */
+.upd-overlay {
+  position: absolute; inset: 0; z-index: 900; display: grid; place-items: center; padding: 18px;
+  background: rgba(0, 0, 0, .18); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.upd-card {
+  width: 100%; max-width: 320px; padding: 20px 18px 16px; border-radius: 14px; text-align: center;
+  background: var(--sheet); box-shadow: 0 0 0 .5px var(--line), 0 12px 32px rgba(0, 0, 0, .22);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.upd-icon { width: 44px; height: 44px; }
+.upd-title { font-size: 15px; font-weight: 700; }
+.upd-step { font-size: 12.5px; color: var(--muted); min-height: 17px; font-variant-numeric: tabular-nums; }
+.upd-bar { width: 100%; height: 6px; border-radius: 3px; background: var(--faint); overflow: hidden; position: relative; }
+.upd-bar i { display: block; height: 100%; width: 3%; border-radius: 3px; background: var(--accent); transition: width .25s ease; }
+.upd-bar.busy i { width: 35%; position: absolute; animation: upd-slide 1.2s ease-in-out infinite; }
+@keyframes upd-slide { from { left: -35%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .upd-bar.busy i { animation: none; width: 100%; opacity: .45; } }
+.reduce-motion .upd-bar.busy i { animation: none; width: 100%; opacity: .45; }
+.upd-steps { display: flex; gap: 12px; list-style: none; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.upd-steps li::before { content: "○ "; }
+.upd-steps li.now { color: var(--fg); font-weight: 600; }
+.upd-steps li.now::before { content: "◉ "; color: var(--accent); }
+.upd-steps li.done::before { content: "✓ "; color: #2fa36b; }
+.upd-overlay.failed .upd-bar { display: none; }
+.upd-overlay.failed .upd-title { color: #d93036; }
+.upd-overlay.failed .upd-steps { display: none; }

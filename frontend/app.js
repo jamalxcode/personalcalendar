@@ -1,4 +1,5 @@
 import { Call, Events } from "/wails/runtime.js";
+import { popMenu, pickDate } from "./menu.js";
 
 // ---------- Go bridge ----------
 const SVC = "main.CalService.";
@@ -816,51 +817,6 @@ const SYM = {
 };
 const sym = (name) => `<svg class="sym" viewBox="0 0 24 24" aria-hidden="true">${SYM[name] || ""}</svg>`;
 
-// a small pop-up menu, like an NSMenu, anchored above/below a button
-function popMenu(anchor, items, at) {
-  document.querySelectorAll(".pop-menu").forEach((m) => m.remove());
-  const m = el("div", "pop-menu");
-  m.setAttribute("role", "menu");
-  const close = () => { m.remove(); document.removeEventListener("mousedown", outside, true); document.removeEventListener("keydown", keys, true); anchor.focus(); };
-  const outside = (ev) => { if (!m.contains(ev.target) && ev.target !== anchor) close(); };
-  const btns = [];
-  for (const it of items) {
-    if (it === "-") { m.append(el("div", "pop-sep")); continue; }
-    const b = el("button", "pop-item" + (it.danger ? " danger" : ""), it.label);
-    if (it.hint) b.append(el("span", "pop-hint", it.hint));
-    b.setAttribute("role", "menuitem");
-    b.onclick = () => { close(); it.fn(); };
-    m.append(b); btns.push(b);
-  }
-  const keys = (ev) => {
-    const i = btns.indexOf(document.activeElement);
-    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
-    else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
-      ev.preventDefault(); ev.stopPropagation();
-      const n = btns.length, j = i < 0 ? (ev.key === "ArrowDown" ? 0 : n - 1) : ev.key === "ArrowDown" ? (i + 1) % n : (i - 1 + n) % n;
-      btns[j].focus();
-    }
-  };
-  document.body.append(m);
-  const z = parseFloat(document.body.style.zoom || "1") || 1;
-  const h = m.offsetHeight, w = m.offsetWidth, vw = window.innerWidth / z, vh = window.innerHeight / z;
-  if (at) { // right-click: open at the pointer, like a Mac context menu
-    const x = at.x / z, y = at.y / z;
-    m.style.left = `${Math.max(4, Math.min(x, vw - w - 4))}px`;
-    m.style.top = `${Math.max(4, y + h > vh - 4 ? y - h : y)}px`;
-  } else {
-    const r = anchor.getBoundingClientRect();
-    const top = r.top - h - 4 >= 4 ? r.top - h - 4 : Math.min(r.bottom + 4, vh - h - 4);
-    m.style.top = `${top}px`;
-    m.style.left = `${Math.max(4, Math.min(r.right - w, vw - w - 4))}px`;
-  }
-  document.addEventListener("mousedown", outside, true);
-  document.addEventListener("keydown", keys, true);
-  // like a Mac menu: nothing is highlighted when opened with the mouse; from the keyboard the first item is
-  const byKeyboard = !at && window.event && window.event.detail === 0;
-  if (byKeyboard && btns[0]) btns[0].focus();
-  else { m.tabIndex = -1; m.style.outline = "none"; m.focus(); }
-}
 
 const linkify = (t) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="#" data-open="$1">$1</a>').replace(/\n/g, "<br>");
 
@@ -1698,7 +1654,7 @@ function timelineBlock(e, col, cols, h0, day0) {
   let mode = null, y0 = 0, moved = false, ds = 0, de = 0;
   const snapMin = (px) => Math.round(((px / HOUR) * 60) / SNAP) * SNAP;
   b.onpointerdown = (ev) => {
-    if (ev.button !== 0) return;
+    if (ev.button !== 0 || ev.ctrlKey) return; // right-click / Control-click opens the menu instead
     mode = editable && ev.target.classList.contains("tl-resize") ? "resize" : editable ? "move" : "click";
     y0 = ev.clientY; moved = false; ds = de = 0;
     b.setPointerCapture(ev.pointerId);
@@ -1718,6 +1674,7 @@ function timelineBlock(e, col, cols, h0, day0) {
   };
   b.onpointerup = async () => {
     const m0 = mode; mode = null;
+    if (!m0) return; // the press wasn't ours (right-click / Control-click)
     b.classList.remove("dragging");
     if (!moved || m0 === "click") { if (!moved) openEvent(e); return; }
     if (!ds && !de) return;
@@ -1881,6 +1838,32 @@ function clearAttachment() {
 let todoAdding = false;
 let todoAll = false;
 function todoDue(t) { return t.due ? new Date(t.due) : null; }
+
+// When a to-do is due, in words: "Today 09:00 · in 4 hours", "Wed 18 Nov, 09:00 · in 7 days",
+// "Overdue by 2 days"; more than two weeks away it's just the date ("Wed 2 Dec").
+function dueText(due, hasTime, now = new Date()) {
+  const days = Math.round((startOfDay(due) - startOfDay(now)) / 864e5);
+  const date = due.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
+  const time = hasTime ? fmtTime(due) : "";
+  const n = (v, one, many) => `${v} ${v === 1 ? one : many}`;
+  if (hasTime ? due < now : days < 0) {
+    const mins = Math.round((now - due) / 6e4);
+    const by = !hasTime || mins >= 1440 ? n(Math.max(1, hasTime ? Math.floor(mins / 1440) : -days), "day", "days")
+      : mins >= 60 ? n(Math.floor(mins / 60), "hour", "hours") : n(Math.max(1, mins), "minute", "minutes");
+    return `Overdue by ${by}`;
+  }
+  if (days === 0) {
+    if (!hasTime) return "Today";
+    const mins = Math.round((due - now) / 6e4);
+    return `Today ${time} · in ${mins >= 60 ? n(Math.round(mins / 60), "hour", "hours") : n(Math.max(1, mins), "minute", "minutes")}`;
+  }
+  if (days === 1) {
+    const mins = Math.round((due - now) / 6e4);
+    return `Tomorrow${time ? " " + time : ""}${hasTime && mins < 1440 ? ` · in ${mins >= 60 ? n(Math.round(mins / 60), "hour", "hours") : n(Math.max(1, mins), "minute", "minutes")}` : ""}`;
+  }
+  if (days < 14) return `${date}${time ? ", " + time : ""} · in ${days} days`;
+  return `${date}${time ? ", " + time : ""}`;
+}
 function renderTodos() {
   const box = $("todos");
   box.innerHTML = "";
@@ -1957,10 +1940,8 @@ function todoRow(t, sod) {
   const due = todoDue(t);
   const meta = [];
   if (due) {
-    const lbl = sameDay(due, new Date()) ? (t.hasTime ? fmtTime(due) : "Today") : due < sod ? "Overdue · " + due.toLocaleDateString(LOC(), { day: "numeric", month: "short" })
-      : dayLabel(due) + (t.hasTime ? " " + fmtTime(due) : "");
-    meta.push(lbl);
-    if (due < sod) r.classList.add("overdue");
+    meta.push(dueText(due, t.hasTime));
+    if (t.hasTime ? due < new Date() : due < sod) r.classList.add("overdue");
   }
   if ((S.todos || []).some((x) => x.list !== t.list)) meta.push(t.list);
   if (meta.length) body.append(el("div", "todo-meta", meta.join(" · ")));
@@ -2029,30 +2010,9 @@ async function moveEventToDay(e, day) {
   } catch (err) { toast(errMsg(err), true); }
 }
 
-// "Pick a date…" for an event: a small date field at the pointer; ↩ or picking a day moves it, Esc cancels
+// "Pick a date…" for an event: a small date box at the pointer; ↩ or Move saves, Esc cancels
 function pickEventDate(e, at) {
-  document.querySelectorAll(".pop-date").forEach((x) => x.remove());
-  const box = el("div", "pop-menu pop-date");
-  const inp = el("input", "todo-date");
-  inp.type = "date";
-  const s = new Date(e.start);
-  inp.value = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
-  const go_ = el("button", "btn primary small-btn", "Move");
-  box.append(el("div", "small muted", `Move “${e.title}” to`), inp, go_);
-  document.body.append(box);
-  const z = parseFloat(document.body.style.zoom || "1") || 1, vw = window.innerWidth / z, vh = window.innerHeight / z;
-  box.style.left = `${Math.max(4, Math.min((at ? at.x / z : 40), vw - box.offsetWidth - 4))}px`;
-  box.style.top = `${Math.max(4, Math.min((at ? at.y / z : 120), vh - box.offsetHeight - 4))}px`;
-  const close = () => { box.remove(); document.removeEventListener("mousedown", outside, true); };
-  const outside = (ev) => { if (!box.contains(ev.target)) close(); };
-  const save = () => { if (!inp.value) return; const [y, m, d] = inp.value.split("-").map(Number); close(); moveEventToDay(e, new Date(y, m - 1, d)); };
-  inp.onkeydown = (ev) => {
-    if (ev.key === "Enter") { ev.preventDefault(); save(); }
-    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
-  };
-  go_.onclick = save;
-  document.addEventListener("mousedown", outside, true);
-  inp.focus();
+  pickDate(at, `Move “${e.title}” to`, new Date(e.start), (day) => moveEventToDay(e, day));
 }
 
 // Reschedule a to-do from its right-click menu. Days count from today; a to-do with a time keeps it.
@@ -2078,7 +2038,7 @@ async function rescheduleTodo(t, when, hasTime) {
   const before = { due: t.due ? new Date(t.due) : null, hasTime: t.hasTime };
   try {
     applyState(await go("UpdateTodo", t.id, t.title, when ? when.toISOString() : null, hasTime));
-    const msg = when ? `“${t.title}” moved to ${dayLabel(when)}${hasTime ? " " + fmtTime(when) : ""}` : `“${t.title}” has no date now`;
+    const msg = when ? `“${t.title}” is now due ${dueText(when, hasTime).replace(/^Today/, "today").replace(/^Tomorrow/, "tomorrow")}` : `“${t.title}” has no date now`;
     toastAction(msg, "Undo", async () => {
       try { applyState(await go("UpdateTodo", t.id, t.title, before.due ? before.due.toISOString() : null, before.hasTime)); } catch (err) { toast(errMsg(err), true); }
     });
@@ -2519,15 +2479,45 @@ async function checkUpdate() {
 async function installUpdate() {
   $("installUpdBtn").disabled = true;
   $("updatePill").disabled = true;
-  renderUpdate(null, "Starting update…");
-  toast("Updating — the app will restart by itself");
+  showUpdateStep({ stage: "checking", text: "Getting ready…", pct: -1 });
   try { await go("InstallUpdate"); }
   catch (err) {
-    toast(errMsg(err), true);
-    renderUpdate(null, errMsg(err));
+    showUpdateStep({ stage: "error", text: errMsg(err), pct: -1 });
     $("installUpdBtn").disabled = false;
     $("updatePill").disabled = false;
   }
+}
+
+// The update progress card: a bar (download %), the steps, and a clear message if it fails.
+const UPD_ORDER = ["checking", "downloading", "verifying", "installing", "restarting"];
+let updStuckTimer;
+function showUpdateStep(st) {
+  if (typeof st === "string") st = { stage: "", text: st, pct: -1 };
+  const box = $("updOverlay");
+  box.classList.remove("hidden");
+  const failed = st.stage === "error";
+  box.classList.toggle("failed", failed);
+  $("updTitle").textContent = failed ? "The update didn't finish" : st.stage === "restarting" ? "Almost done" : "Updating Smart Cal";
+  $("updStep").textContent = st.pct >= 0 && st.stage === "downloading" ? `${st.text} ${st.pct}%` : st.text;
+  // the bar: download fills 0–80%, then the quick steps
+  const at = { checking: 3, verifying: 84, installing: 92, restarting: 100 };
+  const fill = st.stage === "downloading" ? (st.pct >= 0 ? Math.round(st.pct * 0.8) : -1) : at[st.stage] ?? -1;
+  $("updBar").classList.toggle("busy", fill < 0 && !failed);
+  $("updFill").style.width = fill < 0 ? "" : `${Math.max(3, fill)}%`;
+  const cur = UPD_ORDER.indexOf(st.stage);
+  $("updSteps").querySelectorAll("li").forEach((li) => {
+    const i = UPD_ORDER.indexOf(li.dataset.s);
+    li.className = failed ? "" : i < cur ? "done" : i === cur ? "now" : "";
+  });
+  $("updHint").textContent = failed ? "Nothing was changed — your current version keeps working. You can try again from Settings → About."
+    : "Smart Cal will close and reopen by itself — nothing else to do.";
+  $("updClose").classList.toggle("hidden", !failed);
+  clearTimeout(updStuckTimer);
+  if (st.stage === "restarting") {
+    // the new version normally opens within seconds; if not, say what to do
+    updStuckTimer = setTimeout(() => { $("updHint").textContent = "Taking longer than usual — if Smart Cal doesn't reopen, open it from your Applications folder."; }, 20000);
+  }
+  if (failed) { renderUpdate(null, st.text); $("updClose").focus(); }
 }
 
 // ---------- week settings ----------
@@ -2883,7 +2873,8 @@ function wire() {
 
   Events.On("state", (ev) => applyState(ev.data));
   Events.On("update", (ev) => renderUpdate(ev.data));
-  Events.On("update:progress", (ev) => { renderUpdate(null, ev.data); toast(ev.data); });
+  Events.On("update:progress", (ev) => showUpdateStep(ev.data));
+  $("updClose").onclick = () => $("updOverlay").classList.add("hidden");
   Events.On("ui:updates", () => openSettings("about-check"));
   Events.On("settings:open", (ev) => { if (SETTINGS_WIN) loadSettings(ev.data || ""); });
   Events.On("ui:new", () => { if (!SETTINGS_WIN) newEventNow(); });

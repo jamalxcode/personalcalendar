@@ -307,6 +307,20 @@
     <div id="sheet" class="sheet hidden"></div>
     <canvas id="confetti" class="confetti"></canvas>
     <div id="toast" class="toast hidden"></div>
+    <!-- shown while an update installs, in the panel and in Settings -->
+    <div id="updOverlay" class="upd-overlay hidden" role="alertdialog" aria-live="polite" aria-labelledby="updTitle">
+      <div class="upd-card">
+        <img src="icon.png" alt="" class="upd-icon">
+        <div class="upd-title" id="updTitle">Updating Smart Cal</div>
+        <div class="upd-step" id="updStep">Getting ready…</div>
+        <div class="upd-bar" id="updBar"><i id="updFill"></i></div>
+        <ol class="upd-steps" id="updSteps">
+          <li data-s="downloading">Download</li><li data-s="verifying">Check</li><li data-s="installing">Install</li><li data-s="restarting">Restart</li>
+        </ol>
+        <div class="muted small" id="updHint">Smart Cal will close and reopen by itself — nothing else to do.</div>
+        <button class="btn hidden" id="updClose">Close</button>
+      </div>
+    </div>
     <div id="confirm" class="confirm hidden">
       <div class="confirm-card">
         <div id="confirmText"></div>

@@ -18,6 +18,14 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.6 — Update progress, due dates in words, week window menu (11 Nov 2026)
+
+**Asked:** "add it to the week window too". **Decided:** the same menu, now in a shared `menu.js` (pop-up menu + date picker) used by both windows.
+
+**Asked:** "when you do an update via the gear button and accept, everything pauses and the user doesn't know what's going on". **Decided:** a progress card in every open Smart Cal window — icon, title, the step in words with the download percentage, a bar (download = 0–80%, then Check, Install, Restart), and the four steps ticked off — plus "⬇︎ Updating 40%" in the menu bar, because the panel may be closed. Failures say what went wrong and that nothing was changed; if the restart takes over 20 s, it says to open Smart Cal from Applications. A second Update click while one runs is refused.
+
+**Asked:** "i moved the todo for nbk to next week, but there is no indication when it is due, add a line saying when it is due relatively like after 4 days, or after 4 hours, or a date if its way off". **Decided:** the date plus the distance — "Today 21:00 · in 4 hours", "Tomorrow 09:00 · in 10 hours", "Wed 18 Nov, 09:00 · in 7 days", "Overdue by 13 hours" — and just the date from two weeks out. A weekday alone ("Wednesday") is never used for a date more than a few days away.
+
 ## v2.2.5 — Right-click to reschedule events (11 Nov 2026)
 
 **Asked:** "add the same right-click reschedule to events".

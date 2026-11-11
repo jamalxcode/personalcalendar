@@ -55,6 +55,7 @@ type App struct {
 	labelEmoji   map[string]string // title → emoji, sent by the panel
 	leaveAlerted map[string]bool
 	hotkeyOn     string // currently registered shortcut
+	updating     string // while an update installs: the menu bar text ("⬇︎ Updating 40%"), guarded by trayMu
 	extras       extras // weather + countdowns, refreshed with events
 }
 
@@ -810,6 +811,11 @@ func (a *App) fullLabel(evs []Event, now time.Time) string {
 func (a *App) setTray(label string, evs []Event, now time.Time) {
 	a.trayMu.Lock() // called from the refresh loop and from settings/panel calls
 	defer a.trayMu.Unlock()
+	if a.updating != "" { // an update is installing: say so instead of the next event
+		a.tray.SetLabel(a.updating)
+		trayShowImage(false)
+		return
+	}
 	soon := a.meetingSoon(evs, now)
 	if label != "" && soon {
 		label = "🟠 " + label
@@ -817,6 +823,33 @@ func (a *App) setTray(label string, evs []Event, now time.Time) {
 	a.tray.SetLabel(label)
 	a.badge(soon && label == "")
 	trayShowImage(label == "")
+}
+
+// beginUpdate marks an update as running (menu bar: "⬇︎ Updating…"); false if one already is.
+func (a *App) beginUpdate() bool {
+	a.trayMu.Lock()
+	defer a.trayMu.Unlock()
+	if a.updating != "" {
+		return false
+	}
+	a.updating = "⬇︎ Updating…"
+	a.tray.SetLabel(a.updating)
+	trayShowImage(false)
+	return true
+}
+
+// setUpdating shows text in the menu bar while an update installs ("" = back to normal).
+func (a *App) setUpdating(text string) {
+	a.trayMu.Lock()
+	a.updating = text
+	if text != "" {
+		a.tray.SetLabel(text)
+		trayShowImage(false)
+	}
+	a.trayMu.Unlock()
+	if text == "" {
+		a.updateLabel()
+	}
 }
 
 func (a *App) meetingSoon(evs []Event, now time.Time) bool {
