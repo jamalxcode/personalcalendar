@@ -72,6 +72,7 @@ a:hover { text-decoration: underline; }
   font-size: 22px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; font-variant-numeric: tabular-nums;
 }
 .today-dow { color: var(--accent); }
+.today-year { color: var(--muted); font-weight: 500; }
 .brand-side { display: flex; align-items: baseline; gap: 6px; line-height: 1.25; }
 .brand-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
 .brand-name { font-size: 11px; font-weight: 700; color: var(--muted); }

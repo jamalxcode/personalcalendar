@@ -1188,7 +1188,12 @@ function renderToday() {
   const date = now.toLocaleDateString(LOC(), { day: "numeric", month: "long" });
   if ($("todayDow").textContent !== dow) $("todayDow").textContent = dow;
   if ($("todayDate").textContent !== date) $("todayDate").textContent = date;
-  $("todayLine").title = now.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const year = now.toLocaleDateString(LOC(), { year: "numeric" });
+  if ($("todayYear").textContent !== year) $("todayYear").textContent = year;
+  // long dates ("Wednesday 30 September 2026") or a bigger text size: shrink a little rather than cut it off
+  const line = $("todayLine");
+  line.style.fontSize = "";
+  for (let px = 22; px > 15 && line.scrollWidth > line.clientWidth; px--) line.style.fontSize = px - 1 + "px";
   // roll over at midnight even if the panel stays open
   clearTimeout(todayTimer);
   const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
@@ -1198,7 +1203,6 @@ function renderToday() {
 function applyState(st) {
   if (!st) return;
   S = st;
-  renderToday();
   const sig = (S.events || []).map((e) => e.id + e.start + e.end + e.title).join("|");
   if (eventsSig && sig !== eventsSig) {
     // something changed (here or in another app): drop cached ranges and reload what's open
@@ -1229,6 +1233,7 @@ function applyState(st) {
   checkDayClear();
   document.documentElement.style.setProperty("--z", String((S.textSize || 100) / 100));
   document.body.style.zoom = String((S.textSize || 100) / 100);
+  renderToday(); // after the zoom, so the fit check measures the real width
   if (drafts.length) renderDrafts();
   if (!$("settings").classList.contains("hidden")) renderGoogleBox();
   if (mkey(viewMonth) !== mkey(new Date())) loadMonth(viewMonth, true);

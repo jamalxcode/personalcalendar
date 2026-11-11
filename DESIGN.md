@@ -18,6 +18,10 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.2 — …and the year (11 Nov 2026)
+
+**Asked:** "add the year too". **Decided:** "Wednesday 11 November 2026", the year in the muted colour at a lighter weight. The longest dates ("Wednesday 30 September 2026") only just fit at 22 pt, so the line steps its size down (to 15 pt at most) when it would overflow — e.g. with Settings → text size above 100% — instead of being cut off with "…".
+
 ## v2.2.1 — Today's date first (11 Nov 2026)
 
 **Asked:** "when opening smart cal from the menu bar have today's date prominently shown as the first line in large letters, because sometimes you just need to know what day it is".

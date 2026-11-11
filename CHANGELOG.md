@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.2
+
+- The date at the top now includes the year — "Wednesday 11 November 2026" — in a lighter grey so the day and date still stand out. Long dates or a bigger text size shrink the line slightly instead of cutting it off
+
 ## v2.2.1
 
 - **Today's date at the top:** opening Smart Cal shows the date in large letters as the first line — "Wednesday 11 November" — because sometimes you just need to know what day it is. It rolls over at midnight, follows the app's language (Arabic too), and the full date with the year shows when you point at it
