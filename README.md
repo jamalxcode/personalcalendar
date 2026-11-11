@@ -17,7 +17,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Day timeline**: drag events to move them, drag the bottom edge to resize, Undo, double-click to add.
 - **Repeating events, clash warnings and free-slot finding**, by typing or in the editor; editing a repeat asks "this one or all future".
 - **Paste or drop** text and screenshots (flight bookings, invites) to create events; **Undo** for every change.
-- **To-dos** from Apple Reminders, default alerts, and **Leave now** alerts from Apple Maps drive time.
+- **To-dos** from Apple Reminders (right-click one to reschedule: Today, Tomorrow, In 2 or 3 days, Next week, Pick a date…, or remove the date), default alerts, and **Leave now** alerts from Apple Maps drive time.
 - **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
 - **A proper Mac app:** Settings window that saves instantly (⌘,) and is titled after the pane you're on, standard About panel, Apple-ordered menu bar item menu, a full menu bar (Smart Cal · File · Edit · View · Window · Help) when shown in the Dock, system accent colour and clock, Reduce Motion / Increase Contrast, VoiceOver labels, monochrome icon or Dock icon options, Arabic with right-to-left layout.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.

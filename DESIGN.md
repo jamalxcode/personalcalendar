@@ -18,6 +18,11 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.4 — Right-click to reschedule to-dos (11 Nov 2026)
+
+**Asked:** "i got these todos and i want to right click and reschedule after a few days, give me that option".
+**Decided:** a Mac context menu on each to-do (opens at the pointer, nothing preselected): Today · Tomorrow · In 2 days · In 3 days · Next week, each with the date it lands on in grey, then Pick a date… (an inline date field), Remove date, Mark as done, Delete. Days count from today — rescheduling is about "not now", so an overdue to-do moved "in 3 days" lands 3 days from today, not 3 days after its old date. A to-do with a time keeps the time. Undo restores the old date. It saves only title and date, so the reminder's notes and list stay as they were.
+
 ## v2.2.3 — Notes, alerts and the waiting event (11 Nov 2026)
 
 **Reported:** a screenshot of an event card with "240 h before" and notes reading `<p>Ali&#x27;s last day for his Dubai/UAE visa…</p>` — "fix this formatting error".

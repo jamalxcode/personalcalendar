@@ -815,7 +815,7 @@ const SYM = {
 const sym = (name) => `<svg class="sym" viewBox="0 0 24 24" aria-hidden="true">${SYM[name] || ""}</svg>`;
 
 // a small pop-up menu, like an NSMenu, anchored above/below a button
-function popMenu(anchor, items) {
+function popMenu(anchor, items, at) {
   document.querySelectorAll(".pop-menu").forEach((m) => m.remove());
   const m = el("div", "pop-menu");
   m.setAttribute("role", "menu");
@@ -824,7 +824,8 @@ function popMenu(anchor, items) {
   const btns = [];
   for (const it of items) {
     if (it === "-") { m.append(el("div", "pop-sep")); continue; }
-    const b = el("button", "pop-item", it.label);
+    const b = el("button", "pop-item" + (it.danger ? " danger" : ""), it.label);
+    if (it.hint) b.append(el("span", "pop-hint", it.hint));
     b.setAttribute("role", "menuitem");
     b.onclick = () => { close(); it.fn(); };
     m.append(b); btns.push(b);
@@ -834,19 +835,29 @@ function popMenu(anchor, items) {
     if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
     else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
       ev.preventDefault(); ev.stopPropagation();
-      const n = btns.length, j = ev.key === "ArrowDown" ? (i + 1) % n : (i - 1 + n) % n;
+      const n = btns.length, j = i < 0 ? (ev.key === "ArrowDown" ? 0 : n - 1) : ev.key === "ArrowDown" ? (i + 1) % n : (i - 1 + n) % n;
       btns[j].focus();
     }
   };
   document.body.append(m);
-  const r = anchor.getBoundingClientRect(), z = parseFloat(document.body.style.zoom || "1") || 1;
+  const z = parseFloat(document.body.style.zoom || "1") || 1;
   const h = m.offsetHeight, w = m.offsetWidth, vw = window.innerWidth / z, vh = window.innerHeight / z;
-  const top = r.top - h - 4 >= 4 ? r.top - h - 4 : Math.min(r.bottom + 4, vh - h - 4);
-  m.style.top = `${top}px`;
-  m.style.left = `${Math.max(4, Math.min(r.right - w, vw - w - 4))}px`;
+  if (at) { // right-click: open at the pointer, like a Mac context menu
+    const x = at.x / z, y = at.y / z;
+    m.style.left = `${Math.max(4, Math.min(x, vw - w - 4))}px`;
+    m.style.top = `${Math.max(4, y + h > vh - 4 ? y - h : y)}px`;
+  } else {
+    const r = anchor.getBoundingClientRect();
+    const top = r.top - h - 4 >= 4 ? r.top - h - 4 : Math.min(r.bottom + 4, vh - h - 4);
+    m.style.top = `${top}px`;
+    m.style.left = `${Math.max(4, Math.min(r.right - w, vw - w - 4))}px`;
+  }
   document.addEventListener("mousedown", outside, true);
   document.addEventListener("keydown", keys, true);
-  if (btns[0]) btns[0].focus();
+  // like a Mac menu: nothing is highlighted when opened with the mouse; from the keyboard the first item is
+  const byKeyboard = !at && window.event && window.event.detail === 0;
+  if (byKeyboard && btns[0]) btns[0].focus();
+  else { m.tabIndex = -1; m.style.outline = "none"; m.focus(); }
 }
 
 const linkify = (t) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="#" data-open="$1">$1</a>').replace(/\n/g, "<br>");
@@ -1962,7 +1973,67 @@ function todoRow(t, sod) {
     } catch (err) { toast(errMsg(err), true); }
   };
   r.append(cb, body, del);
+  r.title = "Right-click to reschedule";
+  r.oncontextmenu = (ev) => { ev.preventDefault(); todoMenu(t, r, { x: ev.clientX, y: ev.clientY }); };
   return r;
+}
+
+// Reschedule a to-do from its right-click menu. Days count from today; a to-do with a time keeps it.
+function todoMenu(t, row, at) {
+  const due = todoDue(t), today = startOfDay(new Date());
+  const on = (days) => {
+    const d = addDays(today, days);
+    if (t.hasTime && due) d.setHours(due.getHours(), due.getMinutes(), 0, 0);
+    return d;
+  };
+  const short = (d) => d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
+  const opt = (label, days) => ({ label, hint: short(on(days)), fn: () => rescheduleTodo(t, on(days), t.hasTime && !!due) });
+  const items = [opt("Today", 0), opt("Tomorrow", 1), opt("In 2 days", 2), opt("In 3 days", 3), opt("Next week", 7),
+    { label: "Pick a date…", fn: () => pickTodoDate(t, row) }];
+  if (due) items.push({ label: "Remove date", fn: () => rescheduleTodo(t, null, false) });
+  items.push("-",
+    { label: "Mark as done", fn: () => row.querySelector(".todo-check").click() },
+    { label: "Delete", danger: true, fn: () => row.querySelector(".todo-del").click() });
+  popMenu(row, items, at);
+}
+
+async function rescheduleTodo(t, when, hasTime) {
+  const before = { due: t.due ? new Date(t.due) : null, hasTime: t.hasTime };
+  try {
+    applyState(await go("UpdateTodo", t.id, t.title, when ? when.toISOString() : null, hasTime));
+    const msg = when ? `“${t.title}” moved to ${dayLabel(when)}${hasTime ? " " + fmtTime(when) : ""}` : `“${t.title}” has no date now`;
+    toastAction(msg, "Undo", async () => {
+      try { applyState(await go("UpdateTodo", t.id, t.title, before.due ? before.due.toISOString() : null, before.hasTime)); } catch (err) { toast(errMsg(err), true); }
+    });
+  } catch (err) { toast(errMsg(err), true); }
+}
+
+// "Pick a date…": a date field in place of the to-do's date line; ↩ or picking a day saves, Esc cancels
+function pickTodoDate(t, row) {
+  const body = row.querySelector(".todo-body");
+  const old = body.querySelector(".todo-meta");
+  const inp = el("input", "todo-date");
+  inp.type = "date";
+  const due = todoDue(t) || addDays(startOfDay(new Date()), 1);
+  inp.value = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, "0")}-${String(due.getDate()).padStart(2, "0")}`;
+  if (old) old.replaceWith(inp); else body.append(inp);
+  let done = false;
+  const save = () => {
+    if (done || !inp.value) return;
+    done = true;
+    const [y, m, d] = inp.value.split("-").map(Number);
+    const when = new Date(y, m - 1, d);
+    const cur = todoDue(t);
+    if (t.hasTime && cur) when.setHours(cur.getHours(), cur.getMinutes(), 0, 0);
+    rescheduleTodo(t, when, t.hasTime && !!cur);
+  };
+  inp.onkeydown = (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); save(); }
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); done = true; renderTodos(); }
+  };
+  inp.onchange = save;
+  inp.onblur = () => { if (!done) renderTodos(); };
+  inp.focus();
 }
 
 // ---------- settings tabs ----------
