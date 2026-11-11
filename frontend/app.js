@@ -1180,9 +1180,25 @@ function renderFooter() {
 }
 
 let eventsSig = "";
+// ---------- today's date at the top of the panel ----------
+let todayTimer;
+function renderToday() {
+  const now = new Date();
+  const dow = now.toLocaleDateString(LOC(), { weekday: "long" });
+  const date = now.toLocaleDateString(LOC(), { day: "numeric", month: "long" });
+  if ($("todayDow").textContent !== dow) $("todayDow").textContent = dow;
+  if ($("todayDate").textContent !== date) $("todayDate").textContent = date;
+  $("todayLine").title = now.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  // roll over at midnight even if the panel stays open
+  clearTimeout(todayTimer);
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+  todayTimer = setTimeout(renderToday, Math.min(next - now, 36e5));
+}
+
 function applyState(st) {
   if (!st) return;
   S = st;
+  renderToday();
   const sig = (S.events || []).map((e) => e.id + e.start + e.end + e.title).join("|");
   if (eventsSig && sig !== eventsSig) {
     // something changed (here or in another app): drop cached ranges and reload what's open
@@ -2678,6 +2694,7 @@ function wire() {
   });
   Events.On("popover:shown", () => {
     if (SETTINGS_WIN) return;
+    renderToday();
     lastHourScroll = "";
     const now = new Date();
     viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
@@ -2709,6 +2726,7 @@ if (SETTINGS_WIN) {
   document.body.classList.add("settings-win");
   $("closeSettings").classList.add("hidden"); // a Mac Settings window closes with its red button or ⌘W
 }
+renderToday();
 wire();
 renderMiniCal();
 if (SETTINGS_WIN) loadSettings("");

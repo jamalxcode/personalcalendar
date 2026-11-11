@@ -18,6 +18,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.1 — Today's date first (11 Nov 2026)
+
+**Asked:** "when opening smart cal from the menu bar have today's date prominently shown as the first line in large letters, because sometimes you just need to know what day it is".
+
+**Decided:** the panel's first line is the date at 22 pt bold — weekday in the accent colour, then day and month ("Wednesday 11 November"); the year is in the tooltip, since the month header already shows it. It gets the full width so long dates never get cut off; the brand ("Smart Cal · from go.sala.company") moved to a small muted line underneath. It refreshes when the panel opens and at midnight, and uses the app's language.
+
 ## v2.2 — Siri & Apple Intelligence removed, Mac conventions, AI edit fixes (10 Nov 2026)
 
 Screenshots: [panel](docs/design/v2.2-panel.png) · [event card](docs/design/v2.2-event-card.png) · [Settings](docs/design/v2.2-settings-window.png).

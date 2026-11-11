@@ -63,11 +63,18 @@ a:hover { text-decoration: underline; }
 
 /* ---------- brand line ---------- */
 .brand {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-  padding: 10px 14px 0; flex: none;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 10px 14px 2px; flex: none;
 }
-.brand-icon { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; }
-.brand-name { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--accent); }
+/* the first thing you see: today's date */
+.today-line {
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 22px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; font-variant-numeric: tabular-nums;
+}
+.today-dow { color: var(--accent); }
+.brand-side { display: flex; align-items: baseline; gap: 6px; line-height: 1.25; }
+.brand-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+.brand-name { font-size: 11px; font-weight: 700; color: var(--muted); }
 .brand-by { font-size: 10.5px; color: var(--muted); }
 .brand-by a { font-weight: 600; }
 

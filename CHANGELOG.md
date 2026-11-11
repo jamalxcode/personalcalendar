@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.1
+
+- **Today's date at the top:** opening Smart Cal shows the date in large letters as the first line — "Wednesday 11 November" — because sometimes you just need to know what day it is. It rolls over at midnight, follows the app's language (Arabic too), and the full date with the year shows when you point at it
+
 ## v2.2.0
 
 - Removed Apple Intelligence and Siri / Shortcuts for now — they rely on features Apple hasn't officially released yet. The AI box uses your OpenRouter or OpenAI key (Settings → AI); simple lines still work offline without a key
