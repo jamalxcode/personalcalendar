@@ -172,6 +172,7 @@ function renderMonthGrid() {
       tips.push(`${n} event${n > 1 ? "s" : ""}`);
     }
     if (hols.has(k)) { cell.classList.add("holiday"); tips.push(...hols.get(k)); }
+    if (drafts.some((x) => sameDay(new Date(x.start), d))) { cell.classList.add("pending"); tips.push("Waiting to be added — click Add above"); }
     if (tips.length) cell.title = tips.join("\n");
     const ds = dots.get(k);
     if (ds) {
@@ -181,6 +182,7 @@ function renderMonthGrid() {
     }
     cell.onclick = () => openDay(d);
     cell.ondblclick = () => {
+      if (drafts.length) { moveDraftsTo(d); return; } // an event is waiting: move it, don't type into the box
       const q = $("quick");
       q.value = `${q.value ? q.value + " " : ""}on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `;
       q.focus();
@@ -611,12 +613,15 @@ function renderList() {
     list.append(head);
     if (!dayView.events) { list.append(emptyState("⏳", "Loading…")); return; }
     const evsDay = dayView.events;
+    const waiting = drafts.filter((x) => sameDay(new Date(x.start), d));
+    if (waiting.length) list.append(pendingBox(waiting));
     if (calView !== "day" && !evsDay.filter((e) => S.showHolidayRows || !e.holiday).length) {
+      if (waiting.length) return;
       const hol = evsDay.filter((e) => e.holiday);
       if (hol.length) list.append(holidayTags(hol));
       const em = emptyState("☀️", "Nothing planned.");
       const add = el("button", "btn", "Add something this day");
-      add.onclick = () => { const q = $("quick"); q.value = `on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
+      add.onclick = () => { if (drafts.length) { moveDraftsTo(d); return; } const q = $("quick"); q.value = `on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
       em.append(add);
       list.append(em);
       return;
@@ -1796,7 +1801,14 @@ function alarmText(choice, allDay) {
   if (choice === "dayBefore9") return "09:00 the day before";
   if (choice === "sameDay9") return "09:00 on the day";
   const m = +choice;
-  return m === 0 ? "At start" : m >= 60 && m % 60 === 0 ? `${m / 60} h before` : `${m} min before`;
+  if (m === 0) return "At start";
+  const unit = (n, one, many) => `${n} ${n === 1 ? one : many} before`;
+  if (m % 10080 === 0) return unit(m / 10080, "week", "weeks");
+  if (m % 1440 === 0) return unit(m / 1440, "day", "days");
+  if (m % 60 === 0) return unit(m / 60, "hour", "hours");
+  if (m > 1440) return `${Math.floor(m / 1440)} d ${Math.round((m % 1440) / 60)} h before`;
+  if (m > 60) return `${Math.floor(m / 60)} h ${m % 60} min before`;
+  return `${m} min before`;
 }
 
 function draftFromDetail(d) {
@@ -2136,6 +2148,14 @@ async function applyAI() {
 function renderDrafts() {
   const box = $("drafts");
   box.innerHTML = "";
+  if (!SETTINGS_WIN) {
+    const sig = drafts.map((x) => x.start).join("|");
+    if (sig !== renderDrafts.sig) {
+      renderDrafts.sig = sig;
+      renderMiniCal();
+      if (listMode === "day") renderList();
+    }
+  }
   if (!drafts.length) return;
   const writable = S.calendars.filter((c) => c.writable);
   drafts.forEach((d, i) => {
@@ -2176,8 +2196,41 @@ function renderDrafts() {
   const add = el("button", "btn primary", drafts.length > 1 ? `Add ${drafts.length} events ↩` : "Add ↩");
   add.id = "addBtn";
   add.onclick = addDrafts;
-  actions.append(cancel, add);
+  actions.append(el("span", "draft-hint", "Not added yet"), cancel, add);
   box.append(actions);
+}
+
+// events typed into the AI box but not added yet (Confirm before adding is on)
+function pendingBox(list) {
+  const box = el("div", "pending-box"), rows = el("div", "pending-list");
+  for (const x of list) {
+    const row = el("div", "pending-row");
+    const when = x.allDay ? "All day" : `${fmtTime(new Date(x.start))} – ${fmtTime(new Date(x.end))}`;
+    const txt = el("div", "pending-text");
+    txt.append(el("div", "pending-title", x.title), el("div", "muted small", `${when} · not added yet`));
+    row.append(txt);
+    rows.append(row);
+  }
+  box.append(rows);
+  const add = el("button", "btn primary small-btn", list.length > 1 ? `Add ${list.length}` : "Add");
+  add.onclick = addDrafts;
+  box.append(add);
+  return box;
+}
+
+// move the waiting event(s) to another day, keeping their times and length
+async function moveDraftsTo(day) {
+  const first = new Date(drafts[0].start);
+  const shift = Math.round((startOfDay(day) - startOfDay(first)) / 864e5);
+  if (!shift) return;
+  drafts = drafts.map((x) => {
+    const s = new Date(x.start), e = new Date(x.end);
+    s.setDate(s.getDate() + shift); e.setDate(e.getDate() + shift); // calendar days, so DST can't shift the time
+    return { ...x, start: s.toISOString(), end: e.toISOString() };
+  });
+  try { draftClashes = await Promise.all(drafts.map((x) => go("CheckClashes", x, ""))); } catch (_) { draftClashes = []; }
+  renderDrafts();
+  toast(`Moved to ${day.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} — press Add to save it`);
 }
 
 function clearDrafts() { drafts = []; draftClashes = []; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }

@@ -2,6 +2,15 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.3
+
+- Fixed: notes from Google Calendar showed raw HTML (`<p>Ali&#x27;s last day…</p>`). They now show as plain text — paragraphs, line breaks, lists and links included — in the event card, the editor, search and the AI
+- Fixed: long alerts read "240 h before"; they now say "10 days before" (and "1 week before", "2 hours before"…)
+- Fixed: an event typed in the AI box but not yet added (with *Confirm before adding* on) was easy to lose — the day showed "Nothing planned". Now:
+  - the waiting event shows in that day's list with an **Add** button, and its day gets a dashed ring in the calendar
+  - double-clicking a day (or "Add something this day") moves the waiting event to that day, keeping its time, instead of typing "on Sun 15 Nov" into the box
+  - the preview says "Not added yet" next to Cancel / Add
+
 ## v2.2.2
 
 - The date at the top now includes the year — "Wednesday 11 November 2026" — in a lighter grey so the day and date still stand out. Long dates or a bigger text size shrink the line slightly instead of cutting it off

@@ -276,7 +276,7 @@ func (c *Cal) Range(cfg *Config, from, to time.Time) ([]Event, error) {
 func rawToEvent(r rawEvent) Event {
 	ev := Event{ID: r.ID, CalendarID: r.CalendarID, Calendar: r.Calendar, Color: r.Color,
 		Title: r.Title, Location: r.Location, AllDay: r.AllDay, TimeZone: r.TimeZone,
-		Recurring: r.Recurring, Notes: r.Notes,
+		Recurring: r.Recurring, Notes: notesText(r.Notes),
 		Start: time.Unix(int64(r.Start), 0), End: time.Unix(int64(r.End), 0)}
 	if r.AllDay {
 		ev.TimeZone = ""
@@ -322,7 +322,7 @@ func (c *Cal) Detail(eventID string, start time.Time) (EventDetail, error) {
 	if d.Attendees == nil {
 		d.Attendees = []Attendee{}
 	}
-	return EventDetail{Event: ev, Notes: d.Notes, URL: d.URL, Organizer: d.Organizer, Attendees: d.Attendees,
+	return EventDetail{Event: ev, Notes: notesText(d.Notes), URL: d.URL, Organizer: d.Organizer, Attendees: d.Attendees,
 		Repeat: d.Repeat.toRepeat(), HasAlarm: d.HasAlarm, AlarmSecs: d.AlarmSecs}, nil
 }
 

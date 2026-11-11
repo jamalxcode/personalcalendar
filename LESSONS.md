@@ -74,3 +74,5 @@
 - **Ad-hoc signing proves integrity, not identity.** `codesign --verify --strict` plus a published SHA-256 catches damaged downloads; only a Developer ID would stop a swapped release.
 - **"Up to date" can be right.** The updater only sees published releases; branch work reaches it after a merge to `main` with a new `VERSION`.
 - **Previewing the UI without a Mac:** serve `frontend/` in Playwright and route `/wails/runtime.js` to a small mock module exporting `Call.ByName` (canned `GetState`, `GetSettings`, `GetEvent`…) and `Events.On`. Set `textSize: 100` in the mock state — it's a percentage used as page zoom.
+- **Google Calendar descriptions are HTML** (`<p>`, `<br>`, `&#x27;`, links, lists) and EventKit returns them as-is. Convert once where events are read (Go's `html.UnescapeString` plus a few regexes), not in each view; leave notes without tags alone.
+- **An unsaved preview is invisible state.** If the user can confirm later, show the waiting item where they'll look for it (its day, the calendar) — otherwise "my meeting isn't there" is the first bug report.

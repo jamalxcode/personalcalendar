@@ -85,6 +85,7 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 | `ai.go` (+ `ai_test.go`) | structured AI requests (OpenRouter / OpenAI): one call decides add / answer / update / delete / slots / to-do; edit guards (English + Arabic) and exact relative dates |
 | `types.go` | repeats, alarms, to-dos, free-slot and clash helpers |
 | `fun.go` | weather (Open-Meteo), greeting, emoji cache, countdowns |
+| `notes.go` (+ `notes_test.go`) | turns Google Calendar's HTML descriptions into plain text |
 | `parse_local.go` (+ `parse_local_test.go`) | offline parser for simple lines when there's no key or no network |
 | `config.go` | settings file |
 | `icons.go` | app, menu bar (colour + monochrome) icons; sources in `assets/src` |

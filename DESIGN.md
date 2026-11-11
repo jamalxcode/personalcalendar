@@ -18,6 +18,14 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.3 — Notes, alerts and the waiting event (11 Nov 2026)
+
+**Reported:** a screenshot of an event card with "240 h before" and notes reading `<p>Ali&#x27;s last day for his Dubai/UAE visa…</p>` — "fix this formatting error".
+**Decided:** Google Calendar keeps descriptions as HTML and EventKit passes it through, so `notesText` (Go, `notes.go`) turns it into plain text where events are read — one place, so the card, the editor, search and the AI all get clean text. Plain notes pass through untouched. Alerts are written in the largest whole unit (weeks, days, hours).
+
+**Reported:** "i have a meeting for saturday, but its not showing below the calendar". The screenshot showed the meeting still in the AI preview (not added), and "on Sun 15 Nov on Sun 15 Nov" in the box from double-clicking days.
+**Decided:** a waiting event must be visible where you look for it: it shows in its day's list with an Add button and a dashed ring on its day; double-clicking a day while an event is waiting moves it there (the obvious intent) instead of typing into the box; the preview is labelled "Not added yet".
+
 ## v2.2.2 — …and the year (11 Nov 2026)
 
 **Asked:** "add the year too". **Decided:** "Wednesday 11 November 2026", the year in the muted colour at a lighter weight. The longest dates ("Wednesday 30 September 2026") only just fit at 22 pt, so the line steps its size down (to 15 pt at most) when it would overflow — e.g. with Settings → text size above 100% — instead of being cut off with "…".

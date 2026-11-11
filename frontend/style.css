@@ -906,3 +906,14 @@ body.more-contrast .day.has .num { box-shadow: inset 0 0 0 1.5px var(--fg); }
 [dir="rtl"] .mb-opt, [dir="rtl"] .wrow-ev, [dir="rtl"] .hrow-ev { text-align: right; }
 [dir="rtl"] body, [dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] select, [dir="rtl"] button { font-family: -apple-system, "SF Arabic", "Geeza Pro", sans-serif; }
 
+
+/* events typed into the AI box but not added yet */
+.day.pending .num { outline: 1.5px dashed var(--accent); outline-offset: 1px; }
+.pending-box {
+  display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; padding: 9px 10px; border-radius: 10px;
+  border: 1.5px dashed rgba(var(--accent-rgb), .55); background: var(--accent-soft);
+}
+.pending-list { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pending-row + .pending-row { border-top: .5px solid var(--line); padding-top: 6px; }
+.pending-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-hint { margin-right: auto; font-size: 11.5px; color: var(--muted); align-self: center; }
