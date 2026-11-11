@@ -411,6 +411,7 @@ function renderWeekRows(list, start, events) {
       it.style.setProperty("--c", e.color || "var(--accent)");
       it.append(el("span", "wrow-t", e.allDay ? "All day" : fmtTime(e.s)), el("span", "wrow-ttl", withEmoji(e)));
       it.onclick = (ev) => { ev.stopPropagation(); openEvent(e); };
+      it._ev = e;
       items.append(it);
     }
     row.append(lab, items);
@@ -479,6 +480,7 @@ function renderHourRows(list, d, events) {
 
 function hourItem(e) {
   const it = el("button", "hrow-ev");
+  it._ev = e;
   it.style.setProperty("--c", e.color || "var(--accent)");
   it.append(el("span", "hrow-ttl", withEmoji(e)));
   const sub = e.allDay ? (e.location || "") : `${fmtTime(e.s)} – ${fmtTime(e.e)}${e.location ? " · " + e.location : ""}`;
@@ -1682,6 +1684,7 @@ function renderTimeline(list, d, events) {
 
 function timelineBlock(e, col, cols, h0, day0) {
   const b = el("div", "tl-ev");
+  b._ev = e;
   const top = ((e.s - day0) / 36e5 - h0) * HOUR;
   const height = Math.max(18, ((e.e - e.s) / 36e5) * HOUR - 2);
   Object.assign(b.style, { top: `${top}px`, height: `${height}px`, left: `calc(52px + (100% - 56px) * ${col / cols})`, width: `calc((100% - 56px) / ${cols} - 3px)`, "--c": e.color || "var(--accent)" });
@@ -1976,6 +1979,80 @@ function todoRow(t, sod) {
   r.title = "Right-click to reschedule";
   r.oncontextmenu = (ev) => { ev.preventDefault(); todoMenu(t, r, { x: ev.clientX, y: ev.clientY }); };
   return r;
+}
+
+// ---------- right-click an event: reschedule it ----------
+// Same choices as to-dos. Days count from today, the event keeps its time of day and its length.
+function eventMenu(e, row, at) {
+  const s = new Date(e.start), today = startOfDay(new Date());
+  const short = (d) => d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
+  const items = [];
+  if (e.writable !== false && !e.holiday) {
+    for (const [label, n] of [["Today", 0], ["Tomorrow", 1], ["In 2 days", 2], ["In 3 days", 3], ["Next week", 7]]) {
+      const day = addDays(today, n);
+      if (sameDay(day, s)) continue; // already on that day
+      items.push({ label, hint: short(day), fn: () => moveEventToDay(e, day) });
+    }
+    items.push({ label: "Pick a date…", fn: () => pickEventDate(e, at) }, "-");
+  }
+  items.push({ label: "Open", fn: () => openEvent(e) });
+  if (e.writable !== false) items.push({ label: "Edit…", fn: async () => { let d = e; try { d = await go("GetEvent", e.id, e.start); } catch (_) {} $("sheet").classList.remove("hidden"); renderEdit(d, "edit"); } });
+  items.push({ label: "Duplicate", fn: async () => { let d = e; try { d = await go("GetEvent", e.id, e.start); } catch (_) {} $("sheet").classList.remove("hidden"); renderEdit(d, "duplicate"); } });
+  if (e.writable !== false) items.push("-", { label: "Delete", danger: true, fn: () => deleteEvent(e) });
+  popMenu(row, items, at);
+}
+
+// move an event to another day, same time and length; keeps notes and time zone; asks for repeats; Undo
+async function moveEventToDay(e, day) {
+  const s = new Date(e.start), en = new Date(e.end);
+  const shift = Math.round((startOfDay(day) - startOfDay(s)) / 864e5);
+  if (!shift) return;
+  const ns = new Date(s), ne = new Date(en);
+  ns.setDate(ns.getDate() + shift); ne.setDate(ne.getDate() + shift); // calendar days, so DST can't shift the time
+  const draft = { title: e.title, start: ns.toISOString(), end: ne.toISOString(), allDay: !!e.allDay, location: e.location || "", notes: "", calendarId: e.calendarId, reminderMinutes: 0, timeZone: e.timeZone || "" };
+  try {
+    try { const full = await go("GetEvent", e.id, e.start); draft.notes = full.notes || ""; draft.timeZone = full.timeZone || draft.timeZone; } catch (_) {}
+    let allFuture = false;
+    if (e.recurring) {
+      const sc = await scopeBox(`Move “${e.title}”`, "Move");
+      if (!sc) return;
+      allFuture = sc === "future";
+    }
+    applyState(await go("UpdateEvent", e.id, e.start, draft, allFuture));
+    go("CheckClashes", draft, e.id).then((cl) => { if (cl && cl.length) setTimeout(() => toast(`⚠️ Now overlaps “${cl[0].title}”`), 2500); }).catch(() => {});
+    sound("pop");
+    const undo = { ...draft, start: new Date(e.start).toISOString(), end: new Date(e.end).toISOString() };
+    toastAction(`Moved to ${dayLabel(ns)}${e.allDay ? "" : " " + fmtTime(ns)}`, "Undo", async () => {
+      try { applyState(await go("UpdateEvent", e.id, draft.start, undo, allFuture)); afterChange(); toast("Undone"); } catch (err) { toast(errMsg(err), true); }
+    });
+    afterChange();
+  } catch (err) { toast(errMsg(err), true); }
+}
+
+// "Pick a date…" for an event: a small date field at the pointer; ↩ or picking a day moves it, Esc cancels
+function pickEventDate(e, at) {
+  document.querySelectorAll(".pop-date").forEach((x) => x.remove());
+  const box = el("div", "pop-menu pop-date");
+  const inp = el("input", "todo-date");
+  inp.type = "date";
+  const s = new Date(e.start);
+  inp.value = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+  const go_ = el("button", "btn primary small-btn", "Move");
+  box.append(el("div", "small muted", `Move “${e.title}” to`), inp, go_);
+  document.body.append(box);
+  const z = parseFloat(document.body.style.zoom || "1") || 1, vw = window.innerWidth / z, vh = window.innerHeight / z;
+  box.style.left = `${Math.max(4, Math.min((at ? at.x / z : 40), vw - box.offsetWidth - 4))}px`;
+  box.style.top = `${Math.max(4, Math.min((at ? at.y / z : 120), vh - box.offsetHeight - 4))}px`;
+  const close = () => { box.remove(); document.removeEventListener("mousedown", outside, true); };
+  const outside = (ev) => { if (!box.contains(ev.target)) close(); };
+  const save = () => { if (!inp.value) return; const [y, m, d] = inp.value.split("-").map(Number); close(); moveEventToDay(e, new Date(y, m - 1, d)); };
+  inp.onkeydown = (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); save(); }
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
+  };
+  go_.onclick = save;
+  document.addEventListener("mousedown", outside, true);
+  inp.focus();
 }
 
 // Reschedule a to-do from its right-click menu. Days count from today; a to-do with a time keeps it.
@@ -2820,6 +2897,13 @@ function wire() {
   Events.On("alert", (ev) => {
     const a = ev.data;
     toast(`⏰ ${a.title} — ${a.body}`);
+  });
+  $("scroll").addEventListener("contextmenu", (ev) => {
+    let n = ev.target;
+    while (n && n !== ev.currentTarget && !n._ev) n = n.parentElement;
+    if (!n || !n._ev) return;
+    ev.preventDefault();
+    eventMenu(n._ev, n, { x: ev.clientX, y: ev.clientY });
   });
   Events.On("popover:shown", () => {
     if (SETTINGS_WIN) return;

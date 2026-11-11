@@ -18,6 +18,11 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.5 — Right-click to reschedule events (11 Nov 2026)
+
+**Asked:** "add the same right-click reschedule to events".
+**Decided:** the to-do menu's choices for every event row in the panel (one listener on the list, so the upcoming, day, week and timeline rows all get it): Today · Tomorrow · In 2 days · In 3 days · Next week (the day it's already on is left out), Pick a date…, then Open · Edit… · Duplicate · Delete. Moves keep the time of day and length (whole calendar days, so DST can't shift the clock), carry over notes and time zone, ask "this one or all future" for repeats, check clashes and offer Undo — the same path as drag-to-move. Read-only and holiday events get only Open/Duplicate. The big week window keeps drag-to-move for now.
+
 ## v2.2.4 — Right-click to reschedule to-dos (11 Nov 2026)
 
 **Asked:** "i got these todos and i want to right click and reschedule after a few days, give me that option".

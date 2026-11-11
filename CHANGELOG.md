@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.5
+
+- **Right-click an event to reschedule it** (or Control-click), anywhere in the panel — upcoming list, day, week and timeline: Today, Tomorrow, In 2 days, In 3 days, Next week (each with its date), or **Pick a date…**. It keeps the event's time, length, notes and time zone, asks "this one or all future" for repeating events, warns about overlaps, and has Undo. The same menu also has Open, Edit…, Duplicate and Delete
+
 ## v2.2.4
 
 - **Reschedule to-dos with a right-click** (or Control-click): Today, Tomorrow, In 2 days, In 3 days, Next week — each showing the date it lands on — or **Pick a date…**, **Remove date**, **Mark as done** and **Delete**. Days count from today, a to-do with a time keeps its time, and every change has Undo

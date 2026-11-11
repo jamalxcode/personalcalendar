@@ -14,6 +14,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Search** (⌘F or `/`) across titles, places and notes, the past year and the next.
 - **Meeting alerts** with a Join button, optional **start at login** (it asks), **highlight colour** of your choice (or the Mac's), self-**updates** from GitHub.
 - **Playful mode** (one switch): a mascot whose mood follows your day, an AI greeting and emojis on events (these two need the AI key), weather, countdowns (pin events; birthdays automatic), a weekly recap, confetti, optional sounds, and a choice of AI voice.
+- **Right-click an event** to reschedule it — Today, Tomorrow, In 2 or 3 days, Next week, Pick a date… (same time and length, notes kept, Undo) — or Open, Edit, Duplicate, Delete.
 - **Day timeline**: drag events to move them, drag the bottom edge to resize, Undo, double-click to add.
 - **Repeating events, clash warnings and free-slot finding**, by typing or in the editor; editing a repeat asks "this one or all future".
 - **Paste or drop** text and screenshots (flight bookings, invites) to create events; **Undo** for every change.
