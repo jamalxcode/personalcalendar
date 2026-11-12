@@ -59,6 +59,7 @@ type Config struct {
 	TodoList     string `json:"todo_list"`     // Reminders list for new to-dos ("" = default)
 	Hotkey       string `json:"hotkey"`        // global shortcut ("off" = none)
 	TextSize     int    `json:"text_size"`     // 100 | 115 | 130 (%)
+	Layout       string `json:"layout"`        // wide (month + day side by side) | compact (one column)
 
 	// Mac conventions (v2.0)
 	ClockMode  string `json:"clock_mode"`   // system | 12 | 24
@@ -175,6 +176,7 @@ func loadConfig() *Config {
 	if c.Hotkey == "" {
 		c.Hotkey = "Ctrl+Alt+C"
 	}
+	c.Layout = oneOf(c.Layout, "wide", "wide", "compact")
 	switch c.TextSize {
 	case 100, 115, 130:
 	default:

@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.9
+
+- **Month and day side by side:** the panel is wider, with the month (and Up next) on the left and the selected day's timeline on the right — today when it opens, or any day you click; ‹ › step through days and **Today** comes back. To-dos and your upcoming events are below. You can drag events in the day timeline as before. Prefer the narrow panel? Settings → Look → Layout → **Compact — one column**
+- Fixed: the red "now" line in a day timeline was drawn at the top when it was earlier than the first hour shown
+
 ## v2.2.8
 
 - **Bigger headings in the list:** "To-do", "Today · Thu 12 Nov", "Tomorrow · Fri 13 Nov" and the other day headings — plus a single day's and the week's heading — are now the same size as today's date at the top. The day name is bold ("Today" in your highlight colour) and the date after it lighter; the event count and weather stay small on the right

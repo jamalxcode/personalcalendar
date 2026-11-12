@@ -47,6 +47,7 @@ type State struct {
 	ShowTodos        bool           `json:"showTodos"`
 	Travel           map[string]int `json:"travel"` // "id|unixStart" → driving minutes
 	TextSize         int            `json:"textSize"`
+	Layout           string         `json:"layout"` // wide | compact
 	Lang             string         `json:"lang"`
 	ReduceMotion     bool           `json:"reduceMotion"`
 	Contrast         bool           `json:"contrast"`
@@ -85,6 +86,7 @@ func (a *App) state() State {
 		AskLogin:         !a.cfg.LoginAsked,
 		ShowTodos:        !a.cfg.NoTodos,
 		TextSize:         a.cfg.TextSize,
+		Layout:           a.cfg.Layout,
 		Now:              time.Now(),
 		GoogleAccounts:   []string{},
 	}
@@ -287,6 +289,7 @@ type Settings struct {
 	TodoLists        []TodoList `json:"todoLists"`
 	Hotkey           string     `json:"hotkey"`
 	TextSize         int        `json:"textSize"`
+	Layout           string     `json:"layout"`
 	ClockMode        string     `json:"clockMode"`
 	TrayIcon         string     `json:"trayIcon"`
 	ShowInDock       bool       `json:"showInDock"`
@@ -313,7 +316,7 @@ func (s *CalService) GetSettings() Settings {
 		Playful: !c.NoPlayful, Confetti: !c.NoConfetti, Sounds: c.Sounds, Voice: c.Voice, Name: c.Name,
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
 		TravelFrom: c.TravelFrom, ShowTodos: !c.NoTodos, TodoList: c.TodoList, TodoLists: s.a.cal.ReminderLists(),
-		Hotkey: c.Hotkey, TextSize: c.TextSize, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
+		Hotkey: c.Hotkey, TextSize: c.TextSize, Layout: c.Layout, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
 		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent}
 }
 
@@ -407,6 +410,10 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 		s.a.clearTravel()
 	}
 	c.NoTodos, c.TodoList = !in.ShowTodos, in.TodoList
+	if l := oneOf(in.Layout, "", "wide", "compact"); l != "" && l != c.Layout {
+		c.Layout = l
+		s.a.applyTextSize() // resizes the panel and tells it to re-lay itself out
+	}
 	switch in.TextSize {
 	case 100, 115, 130:
 		if in.TextSize != c.TextSize {

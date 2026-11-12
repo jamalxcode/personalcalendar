@@ -18,6 +18,10 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.9 — Month and day side by side (12 Nov 2026)
+
+**Asked:** "lets have a month with a day view next to it, and todo below". **Decided:** a wide layout (760 pt, shrinks to fit the screen) as the default: the AI box across the top; the month and the Up next card on the left; the selected day as an hour timeline on the right (today on open, any day you click, ‹ › and Today), with all-day items and waiting events on top, drag-to-move and double-click-to-add as in the day view; to-dos and the upcoming list full width below. Clicking a day no longer replaces the list in this layout. The one-column panel stays as Settings → Look → Layout → Compact.
+
 ## v2.2.8 — Headings as big as the date (12 Nov 2026)
 
 **Asked:** "Make the To-do and Today title bigger, as big as the title today's date". **Decided:** every list heading (To-do, each day in the upcoming list, a single day, the week) uses the top date's style — 22 pt bold, day name in full weight, the date part in the muted colour at a lighter weight ("Today · Thu 12 Nov"), "Today" in the accent colour. Counts and weather stay small; long headings shrink to an ellipsis rather than pushing the count off the row.

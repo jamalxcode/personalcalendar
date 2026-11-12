@@ -47,6 +47,9 @@
         <button class="mascot" id="mascot" title="Hi! Click me"></button>
         <div class="bubble" id="greetText">Hi there 👋</div>
       </div>
+      <!-- wide layout: month on the left, the selected day on the right (compact: one column) -->
+      <div class="cal-row" id="calRow">
+      <div class="cal-left" id="calLeft">
       <header class="top">
         <div class="title-row">
           <div class="views" id="views">
@@ -78,6 +81,9 @@
         <div class="grid" id="grid"></div>
       </div>
       <div id="countdowns" class="countdowns"></div>
+      </div>
+      <aside class="side-day" id="sideDay" aria-label="Selected day"></aside>
+      </div>
 
       <div class="scroll" id="scroll">
         <div id="upnext"></div>
@@ -262,6 +268,8 @@
             <select id="sLang"><option value="auto">Same as the Mac</option><option value="en">English</option><option value="ar">العربية (Arabic)</option></select></label>
           <label class="check"><input type="checkbox" id="sConfirm"> Preview before adding</label>
           <label class="check"><input type="checkbox" id="sHolRows"> Show holidays as full rows (instead of small tags)</label>
+          <label class="field"><span>Layout</span>
+            <select id="sLayout"><option value="wide">Month and day side by side</option><option value="compact">Compact — one column</option></select></label>
           <label class="field"><span>Text size</span>
             <select id="sTextSize"><option value="100">Normal</option><option value="115">Large</option><option value="130">Extra large</option></select></label>
           <label class="field"><span>Show next</span>

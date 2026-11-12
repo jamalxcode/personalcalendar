@@ -486,11 +486,18 @@ func (a *App) setHotkey(accel string) error {
 // panelSize: the drop-down grows to fit the AI box + calendar + list, up to the screen's height.
 func (a *App) panelSize() (int, int) {
 	z := float64(a.cfg.TextSize) / 100
-	w, h := int(380*z), int(880*z)
+	base := 380
+	if a.cfg.Layout == "wide" {
+		base = 760 // month on the left, the selected day on the right
+	}
+	w, h := int(float64(base)*z), int(880*z)
 	if a.wa.Screen != nil {
 		if sc := a.wa.Screen.GetPrimary(); sc != nil && sc.WorkArea.Height > 0 {
 			if max := sc.WorkArea.Height - 20; h > max {
 				h = max
+			}
+			if max := sc.WorkArea.Width - 40; w > max && max > 380 {
+				w = max
 			}
 		}
 	}

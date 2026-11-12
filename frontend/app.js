@@ -497,6 +497,7 @@ let searchResults = [];
 let searchQ = "";
 
 async function openDay(d, keepView) {
+  if (isWide()) { setSideDay(d); return; } // wide layout: the day shows next to the month
   if (!keepView && sameDay(d, new Date()) && listMode === "day" && dayView && sameDay(dayView.d, d)) { closeDay(); return; }
   selectedDay = d;
   if (calView === "day" || calView === "week") weekAnchor = weekStartFor(d);
@@ -760,6 +761,7 @@ async function deleteEvent(e) {
 
 // keep day view / search / month dots fresh after any change
 function afterChange() {
+  if (isWide()) loadSideDay(false);
   monthCache.clear();
   loadMonth(viewMonth);
   if (listMode === "day" && dayView) openDay(dayView.d);
@@ -1155,6 +1157,84 @@ function renderFooter() {
 }
 
 let eventsSig = "";
+// ---------- wide layout: the selected day next to the month ----------
+const isWide = () => !SETTINGS_WIN && S.layout === "wide";
+let sideDay = startOfDay(new Date());
+let sideEvents = null; // { key, events }
+let wideOn = null;
+
+function applyLayout() {
+  const wide = isWide();
+  if (wide === wideOn) return;
+  wideOn = wide;
+  document.body.classList.toggle("wide", wide);
+  // Up next sits under the month in the wide layout, at the top of the list otherwise
+  const up = $("upnext");
+  if (wide) $("calLeft").append(up); else $("scroll").prepend(up);
+  if (wide) { listMode = listMode === "day" ? "upcoming" : listMode; dayView = null; loadSideDay(true); }
+  else $("sideDay").innerHTML = "";
+}
+
+function setSideDay(d) {
+  sideDay = startOfDay(d);
+  selectedDay = sameDay(sideDay, new Date()) ? null : sideDay;
+  if (d.getMonth() !== viewMonth.getMonth() || d.getFullYear() !== viewMonth.getFullYear()) viewMonth = startOfMonth(d);
+  renderMiniCal();
+  loadSideDay(true);
+}
+
+// fresh = the day changed (scroll to the first event / now); otherwise keep the scroll position
+async function loadSideDay(fresh) {
+  const d = sideDay, key = dayKey(d);
+  if (fresh || !sideEvents || sideEvents.key !== key) renderSideDay(fresh, sideEvents && sideEvents.key === key ? sideEvents.events : null);
+  try {
+    const list = withDates(await go("EventsBetween", d.toISOString(), addDays(d, 1).toISOString()));
+    if (dayKey(sideDay) !== key) return;
+    sideEvents = { key, events: list };
+    renderSideDay(fresh, list);
+  } catch (err) { toast(errMsg(err), true); }
+}
+
+function renderSideDay(fresh, events) {
+  const box = $("sideDay");
+  if (!box || !isWide()) return;
+  const oldBody = box.querySelector(".side-body"), keep = oldBody && !fresh ? oldBody.scrollTop : null;
+  box.innerHTML = "";
+  const d = sideDay, isToday = sameDay(d, new Date());
+  const head = el("div", "side-head" + (isToday ? " is-today" : ""));
+  const t = headTitle(dayHead(d));
+  const prev = el("button", "icon-btn small-nav", "‹"); prev.title = "Previous day"; prev.onclick = () => setSideDay(addDays(d, -1));
+  const next = el("button", "icon-btn small-nav", "›"); next.title = "Next day"; next.onclick = () => setSideDay(addDays(d, 1));
+  head.append(t, prev, next);
+  if (!isToday) { const tb = el("button", "pill-btn", "Today"); tb.onclick = () => setSideDay(new Date()); head.append(tb); }
+  const body = el("div", "side-body");
+  box.append(head, body);
+  if (!events) { body.append(el("div", "side-empty", "Loading…")); return; }
+  const shown = events;
+  const waiting = drafts.filter((x) => sameDay(new Date(x.start), d));
+  if (waiting.length) body.append(pendingBox(waiting));
+  if (!events.some((e) => !e.holiday || S.showHolidayRows)) {
+    const hol = events.filter((e) => e.holiday);
+    if (hol.length) body.append(holidayTags(hol));
+    body.append(el("div", "side-empty", isToday ? "Nothing else today." : "Nothing planned."));
+    const add = el("button", "btn small-btn", "Add something this day");
+    add.onclick = () => { if (drafts.length) { moveDraftsTo(d); return; } const q = $("quick"); q.value = `on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
+    body.append(add);
+    return;
+  }
+  renderTimeline(body, d, shown);
+  // open on now (today) or the first event, an hour before
+  if (keep != null) body.scrollTop = keep;
+  else {
+    // today: the "now" line if it's inside the timeline, else the first event
+    const tl = body.querySelector(".timeline");
+    const nowLine = isToday ? body.querySelector(".tl-now") : null;
+    const inside = nowLine && tl && nowLine.offsetTop >= 0 && nowLine.offsetTop <= tl.offsetHeight;
+    const target = inside ? nowLine : body.querySelector(".tl-ev");
+    if (target) body.scrollTop = Math.max(0, target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - HOUR);
+  }
+}
+
 // ---------- today's date at the top of the panel ----------
 let todayTimer;
 function renderToday() {
@@ -1178,6 +1258,7 @@ function renderToday() {
 function applyState(st) {
   if (!st) return;
   S = st;
+  applyLayout();
   const sig = (S.events || []).map((e) => e.id + e.start + e.end + e.title).join("|");
   if (eventsSig && sig !== eventsSig) {
     // something changed (here or in another app): drop cached ranges and reload what's open
@@ -1186,6 +1267,7 @@ function applyState(st) {
       if (calView === "year") loadYear(viewYear);
       if (listMode === "week" && weekView) loadWeekList(true);
       if (listMode === "day" && dayView) reloadDay();
+      if (isWide()) loadSideDay(false);
     }
   }
   eventsSig = sig;
@@ -1611,7 +1693,7 @@ function renderTimeline(list, d, events) {
     line.append(el("span", "", h === 24 ? "" : fmtTime(lbl)));
     tl.append(line);
   }
-  if (sameDay(d, new Date())) {
+  if (sameDay(d, new Date()) && hourOf(new Date()) >= h0 && hourOf(new Date()) <= h1) {
     const nowLine = el("div", "tl-now");
     nowLine.style.top = `${(hourOf(new Date()) - h0) * HOUR}px`;
     tl.append(nowLine);
@@ -2594,6 +2676,7 @@ async function loadSettings(tab) {
   $("sTodos").checked = settingsCache.showTodos !== false;
   $("sHotkey").value = settingsCache.hotkey || "Ctrl+Alt+C";
   $("sTextSize").value = String(settingsCache.textSize || 100);
+  $("sLayout").value = settingsCache.layout || "wide";
   const tl = $("sTodoList"); tl.innerHTML = "";
   const dflt = el("option", "", "Default list"); dflt.value = ""; tl.append(dflt);
   (settingsCache.todoLists || []).forEach((l) => { const o = el("option", "", l.name); o.value = l.id; tl.append(o); });
@@ -2744,6 +2827,7 @@ async function saveSettings(silent) {
     todoList: $("sTodoList").value,
     hotkey: $("sHotkey").value,
     textSize: parseInt($("sTextSize").value, 10),
+    layout: $("sLayout").value,
   };
   try {
     pendingAccent = null;
@@ -2910,6 +2994,7 @@ function wire() {
   Events.On("popover:shown", () => {
     if (SETTINGS_WIN) return;
     renderToday();
+    if (isWide()) { sideDay = startOfDay(new Date()); loadSideDay(true); }
     lastHourScroll = "";
     const now = new Date();
     viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
