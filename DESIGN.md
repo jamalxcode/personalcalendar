@@ -18,6 +18,20 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.0 — From the critique: calmer, quicker, more helpful (12 Nov 2026)
+
+**Asked:** "critique smart cal, how can it be made more useful" → a numbered list → "do 5 6 7 8 9 11 12 15 16".
+**Decided:**
+- **5 Declutter:** the brand line is removed (credit stays in About); the greeting is one line (full text on hover/click); Up next is a highlighted row in the agenda/list with a pill ("Up next · in 35m · leave by 8:25") instead of a card.
+- **6 Now line:** today's group gets a red "Now · 10:42" line between past (dimmed) and remaining events, refreshed every 15 s.
+- **7 Add straight away:** "Preview before adding" is off by default (and switched off once for existing installs); Undo covers mistakes; the preview still appears for clashes, several events, or offline results. Fixed the bug that made this path drop the event (addDrafts refused to run while the AI call still marked the box busy).
+- **8 AI quality:** prompt rule + code guard for trailing minutes ("… 60"); `testdata/ai_eval.json` (33 English/Arabic sentences with expected results) and `TestAIEval`, run with `SMARTCAL_EVAL_KEY` — add every miss as a case.
+- **9 Quick add:** a second global shortcut (⌃⌥N; ⌃⌥Space was avoided because it switches keyboard languages) opens a small floating window with just the AI box; it sizes itself to its content and hides after adding.
+- **11 Actionable alerts:** Join / Snooze 10 min / Running late (mailto: the other attendees) — the categories depend on whether there's a link and other people.
+- **12 Morning brief:** once a day at the chosen time (default 8:00), skipped on empty days or if the Mac woke more than 4 h late.
+- **15 Code split (partial):** date and flight helpers moved to `dates.js` and `flights.js` (they were copied in `app.js` and `week.js`), alongside `menu.js`. The rest of `app.js` shares a lot of state; splitting it further safely needs automated UI tests first (critique item 4).
+- **16 Beta channel:** a `VERSION` like `2.4.0-beta.1` is published as a GitHub pre-release; "Get beta versions" makes the updater consider pre-releases. Versions compare with pre-releases before their release (2.4.0-beta.2 < 2.4.0).
+
 ## v2.2.10 — An agenda that runs on (12 Nov 2026)
 
 **Asked:** "remove the bottom today, and have the today next to the calendar, scroll and extend to the next day if space permits and the day after and beyond".

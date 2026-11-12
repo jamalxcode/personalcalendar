@@ -64,5 +64,7 @@ jobs:
           ZIP="build/SmartCal-$V-macos-arm64.zip"
           # the app's updater checks the download against this before installing it
           (cd build && shasum -a 256 "SmartCal-$V-macos-arm64.zip" | awk '{print $1}' > "SmartCal-$V-macos-arm64.zip.sha256")
-          gh release create "v$V" "$ZIP" "$ZIP.sha256" \
+          # a VERSION like 2.3.0-beta.1 is published as a pre-release: only "Get beta versions" sees it
+          PRE=""; case "$V" in *-*) PRE="--prerelease";; esac
+          gh release create "v$V" "$ZIP" "$ZIP.sha256" $PRE \
             --title "Smart Cal v$V" --notes "$NOTES" --target "$GITHUB_SHA"

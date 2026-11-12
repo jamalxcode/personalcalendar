@@ -1,5 +1,7 @@
 import { Call, Events } from "/wails/runtime.js";
 import { popMenu, pickDate } from "./menu.js";
+import { pad, startOfDay, addDays, sameDay, dateVal, timeVal, fromInputs } from "./dates.js";
+import { flightOf, flyingSoon } from "./flights.js";
 
 // Smart Cal — week window: 7-day timeline with drag to move (across days), resize, create, details, undo.
 const go = (m, ...a) => Call.ByName("main.CalService." + m, ...a);
@@ -7,13 +9,6 @@ const errMsg = (e) => (e && (e.message || e.toString())) || "Something went wron
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const pad = (n) => String(n).padStart(2, "0");
-const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-const dateVal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const timeVal = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const fromInputs = (date, time) => { const [y, m, dd] = date.split("-").map(Number); const [h, mi] = (time || "00:00").split(":").map(Number); return new Date(y, m - 1, dd, h, mi); };
 const HOUR = 52, SNAP = 15;
 
 let S = { weekStart: 6, weekendDays: [5, 6], use24h: true, calendars: [] };
@@ -415,21 +410,3 @@ go("GetState").then(applyState).catch((err) => toast(errMsg(err), true));
 setInterval(render, 60000);
 
 // ---------- flights: "KU 101", "EK857", "flight QR1077" → Flightradar24 ----------
-const AIRLINES = new Set(("KU EK QR EY GF WY SV J9 FZ G9 XY F3 MS RJ ME TK PC BA VS LH LX OS SN AF KL IB VY FR U2 W6 AZ " +
-  "LO SK AY TP A3 SU PS AA DL UA AC AS B6 WN SQ CX NH JL KE OZ TG MH GA PR CI BR QF NZ VA EI PK AI 6E UK SG " +
-  "IX WB UL KQ ET SA AT ZH MU CA CZ HU HX 3U KC HY FJ LY RO JU OU FB BG").split(" "));
-const FLIGHT_RE = /\b([A-Z][A-Z0-9]|[0-9][A-Z])\s?-?(\d{1,4})\b/g;
-function flightOf(...texts) {
-  const txt = texts.filter(Boolean).join("  ");
-  const ctx = /flight|✈|airport|depart|arriv|boarding|terminal|gate\b|رحلة/i.test(txt);
-  for (const m of txt.matchAll(FLIGHT_RE)) {
-    const code = m[1], num = m[2];
-    if (/^\d+$/.test(code)) continue;
-    if (AIRLINES.has(code) || (ctx && /^[A-Z]{2}$/.test(code))) {
-      return { code: code + num, label: `${code} ${num}`, url: `https://www.flightradar24.com/data/flights/${(code + num).toLowerCase()}` };
-    }
-  }
-  return null;
-}
-// in the air (or about to be): from 1 h before departure to 1 h after the event ends
-const flyingSoon = (e) => { const n = Date.now(); return !e.allDay && n >= +e.s - 36e5 && n <= +e.e + 36e5; };

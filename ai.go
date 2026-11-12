@@ -209,7 +209,7 @@ func askAI(ctx context.Context, cfg *Config, text, imageB64 string, cals []Calen
 Now is %s (%s), timezone %s (UTC%s). Interpret relative dates ("tomorrow", "next Tue", "this weekend") from now.
 
 Decide what the user wants:
-- "add": new event(s). Default duration 1 hour; a time with no date = next occurrence; a weekday = the next upcoming one; no time = all-day; "at/@ <place>" = location; several events → several items.
+- "add": new event(s). Default duration 1 hour; a bare number after the event words ("catch up with Miteb 60", "gym 90") is its length in minutes — never part of the title; a time with no date = next occurrence; a weekday = the next upcoming one; no time = all-day; "at/@ <place>" = location; several events → several items.
   Repeats: "every Monday", "daily", "every 2 weeks", "on the 1st of every month", "every weekday until June", "for 10 weeks" → fill repeat (weekly + weekdays for specific days). Otherwise repeat.freq = "none".
   Time zones: "3pm Dubai time" → set time_zone (e.g. Asia/Dubai) and give start/end converted to the user's local offset.
 - If the input is PASTED content (an email, chat message, ticket, invitation, school letter) or a SCREENSHOT/photo: extract every event in it with exact dates, times and places. Flights: one event per flight, title like "✈ KU 101 KWI→DXB", start/end at departure/arrival converted to local offset, time_zone = departure airport's zone, location = departure airport, booking reference and seat in notes. Ignore marketing and boilerplate. If it contains tasks rather than events, use "todo".
@@ -381,6 +381,22 @@ func applyChanges(t Event, c aiEvent, cals []CalendarInfo) (Draft, error) {
 	return d, nil
 }
 
+// reTrailingMins: a title ending in a usual meeting length ("Meet Miteb to catch up 60").
+var reTrailingMins = regexp.MustCompile(`^(.*\S)\s+(15|20|25|30|40|45|50|60|75|90|120|150|180|240)\s*(m|min|mins|minutes)?$`)
+
+// fixTrailingMinutes moves a trailing length out of the title and into the event's end.
+func fixTrailingMinutes(d *Draft) {
+	m := reTrailingMins.FindStringSubmatch(strings.TrimSpace(d.Title))
+	if m == nil {
+		return
+	}
+	d.Title = strings.TrimSpace(m[1])
+	if !d.AllDay {
+		n, _ := strconv.Atoi(m[2])
+		d.End = d.Start.Add(time.Duration(n) * time.Minute)
+	}
+}
+
 func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {
 	var out []Draft
 	for _, e := range evs {
@@ -413,6 +429,7 @@ func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {
 			}
 			d.Start, d.End = s.Local(), en.Local()
 		}
+		fixTrailingMinutes(&d)
 		out = append(out, d)
 	}
 	return out, nil

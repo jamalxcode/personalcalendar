@@ -2,6 +2,18 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.0
+
+- **Typed events are added straight away**, with Undo — no more waiting in a preview you can forget. (The preview still appears when something clashes, for several events at once, or offline; turn it back on in Settings → Look → *Preview before adding*.) This also fixes a bug where, with the preview off, a typed event could silently disappear
+- **Quick add from any app:** press **⌃⌥N** for a small AI box in the middle of the screen — type, press ↩, done. Esc closes it, ⌘↩ opens the full panel. Change or turn off the shortcut in Settings → Alerts
+- **Alerts you can act on:** **Join** (online meetings), **Snooze 10 min**, and **Running late…**, which drafts an email to the other people in the meeting
+- **Morning brief** at 8:00 (or the time you pick in Settings → Alerts): "3 events · first 9:00 Dentist · leave by 8:35 · 1 to-do overdue". Nothing is sent on an empty day
+- **Less clutter at the top:** the "Smart Cal from go.sala.company" line is gone, the greeting is one line (click it to read it all), and **Up next** is now a highlight on the next event in the agenda — with its countdown and "leave by" — instead of a separate card
+- **A "now" line** in today's events: what's over is dimmed above it, what's left is below
+- **Smarter AI entry:** a trailing number like "catch up with Miteb **60**" is the length in minutes, not part of the title. A set of real sentences (English and Arabic) can now be run against the AI to catch mistakes
+- **Beta versions:** Settings → About → *Get beta versions* to try new things before everyone else
+- Fixed: the "To-do added · Undo" message (and other messages with Undo) never went away
+
 ## v2.2.10
 
 - **The days run down the right side:** in the wide layout the right column is now an agenda that starts with today and carries on into tomorrow, the day after and beyond — each day with its own heading that stays in view while you scroll, more days loading as you go (up to a year). Click a day in the month to start there, ‹ › to move a day, **Today** to come back. The list that repeated today's events at the bottom is gone; the to-dos now sit under the month and the agenda gets the panel's full height

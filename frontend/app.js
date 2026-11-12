@@ -1,5 +1,7 @@
 import { Call, Events } from "/wails/runtime.js";
 import { popMenu, pickDate } from "./menu.js";
+import { pad, startOfMonth, startOfDay, addDays, sameDay, dayKey, dateVal, timeVal, fromInputs } from "./dates.js";
+import { flightOf, flyingSoon } from "./flights.js";
 
 // ---------- Go bridge ----------
 const SVC = "main.CalService.";
@@ -23,11 +25,6 @@ const el = (tag, cls, text) => {
 };
 
 // ---------- dates ----------
-function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
-function dayKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
 
 function fmtTime(d) {
   if (S.use24h) return d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
@@ -194,24 +191,6 @@ function renderMonthGrid() {
 
 
 // ---------- flights: "KU 101", "EK857", "flight QR1077" → Flightradar24 ----------
-const AIRLINES = new Set(("KU EK QR EY GF WY SV J9 FZ G9 XY F3 MS RJ ME TK PC BA VS LH LX OS SN AF KL IB VY FR U2 W6 AZ " +
-  "LO SK AY TP A3 SU PS AA DL UA AC AS B6 WN SQ CX NH JL KE OZ TG MH GA PR CI BR QF NZ VA EI PK AI 6E UK SG " +
-  "IX WB UL KQ ET SA AT ZH MU CA CZ HU HX 3U KC HY FJ LY RO JU OU FB BG").split(" "));
-const FLIGHT_RE = /\b([A-Z][A-Z0-9]|[0-9][A-Z])\s?-?(\d{1,4})\b/g;
-function flightOf(...texts) {
-  const txt = texts.filter(Boolean).join("  ");
-  const ctx = /flight|✈|airport|depart|arriv|boarding|terminal|gate\b|رحلة/i.test(txt);
-  for (const m of txt.matchAll(FLIGHT_RE)) {
-    const code = m[1], num = m[2];
-    if (/^\d+$/.test(code)) continue;
-    if (AIRLINES.has(code) || (ctx && /^[A-Z]{2}$/.test(code))) {
-      return { code: code + num, label: `${code} ${num}`, url: `https://www.flightradar24.com/data/flights/${(code + num).toLowerCase()}` };
-    }
-  }
-  return null;
-}
-// in the air (or about to be): from 1 h before departure to 1 h after the event ends
-const flyingSoon = (e) => { const n = Date.now(); return !e.allDay && n >= +e.s - 36e5 && n <= +e.e + 36e5; };
 
 // ---------- calendar views: year | month | week | day ----------
 let calView = (() => { try { return localStorage.getItem("calView") || "month"; } catch (_) { return "month"; } })();
@@ -533,42 +512,46 @@ function closeDay() {
 }
 
 // ---------- up next ----------
+// "Up next" is a highlight on the next event's row (in the agenda or the list), not a separate card:
+// a pill with the countdown (and "leave by" when there's a drive), refreshed every 15 s together
+// with the "now" line that separates today's finished events from what's left.
 function renderUpNext() {
+  $("upnext").innerHTML = "";
+  placeNowLines();
   const now = new Date();
-  const box = $("upnext");
-  box.innerHTML = "";
-  if (listMode !== "upcoming") return;
+  document.querySelectorAll(".ev.is-next").forEach((r) => { r.classList.remove("is-next"); const p = r.querySelector(".next-pill"); if (p) p.remove(); });
   const next = evs().find((e) => !e.allDay && !e.holiday && e.e > now);
   if (!next) return;
   const inProgress = next.s <= now;
-  let lbl = inProgress ? `Now · ${dur(next.e - now)} left` : `Up next · in ${dur(next.s - now)}`;
-  if (!inProgress && next.s - now > 24 * 36e5) lbl = `Up next · ${dayLabel(next.s)}`;
-  const card = el("div", "upnext");
-  const grow = el("div", "grow");
-  grow.append(el("div", "lbl", lbl), el("div", "ttl", withEmoji(next)));
-  let sub = `${fmtTime(next.s)} – ${fmtTime(next.e)}`;
-  if (next.location) sub += `  ·  ${next.location}`;
-  grow.append(el("div", "sub", sub));
+  let lbl = inProgress ? `Now · ${dur(next.e - now)} left` : next.s - now <= 24 * 36e5 ? `Up next · in ${dur(next.s - now)}` : "Up next";
   const tm = (S.travel || {})[`${next.id}|${Math.floor(next.s / 1000)}`];
-  if (tm && next.s > now) {
+  if (tm && !inProgress) {
     const leave = new Date(next.s - (tm + 5) * 6e4);
-    grow.append(el("div", "sub travel", leave <= now ? `🚗 ~${tm} min drive — leave now!` : `🚗 ~${tm} min drive · leave by ${fmtTime(leave)}`));
+    lbl += leave <= now ? ` · leave now (${tm} min drive)` : ` · leave by ${fmtTime(leave)}`;
   }
-  card.append(grow);
-  if (next.meetLink) {
-    const j = el("button", "join", "Join");
-    j.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", next.meetLink); };
-    card.append(j);
+  for (const r of document.querySelectorAll("#list .ev, #sideDay .ev")) {
+    if (!r._ev || r._ev.id !== next.id || +new Date(r._ev.start) !== +next.s) continue;
+    r.classList.add("is-next");
+    const body = r.querySelector(".body");
+    if (body) body.prepend(el("div", "next-pill", lbl));
   }
-  const nfl = flightOf(next.title, next.location);
-  if (nfl) {
-    const f = el("button", "join", flyingSoon(next) ? `✈︎ Live ${nfl.label}` : `✈︎ ${nfl.label}`);
-    f.title = "Track on Flightradar24";
-    f.onclick = (ev) => { ev.stopPropagation(); go("OpenURL", nfl.url); };
-    card.append(f);
+}
+
+// the "now" line in today's group: after the events that are over, before what's left
+function placeNowLines() {
+  const now = new Date();
+  document.querySelectorAll(".now-line").forEach((n) => n.remove());
+  for (const head of document.querySelectorAll("#list .day-head.is-today, #sideDay .day-head.is-today")) {
+    const rows = [];
+    for (let n = head.nextElementSibling; n && !n.classList.contains("day-head"); n = n.nextElementSibling) if (n._ev) rows.push(n);
+    const timed = rows.filter((r) => !r._ev.allDay);
+    if (!timed.length) continue;
+    timed.forEach((r) => r.classList.toggle("past", new Date(r._ev.end) < now));
+    const line = el("div", "now-line");
+    line.append(el("span", "", `Now · ${fmtTime(now)}`));
+    const firstLeft = timed.find((r) => new Date(r._ev.end) >= now);
+    if (firstLeft) firstLeft.before(line); else timed[timed.length - 1].after(line);
   }
-  card.onclick = () => openEvent(next);
-  box.append(card);
 }
 
 // ---------- list ----------
@@ -578,7 +561,7 @@ function renderList() {
   if (typeof renderCountdowns === "function") renderCountdowns();
   if (typeof renderTodos === "function") renderTodos();
   kbIndex = -1;
-  renderUpNext();
+  queueMicrotask(renderUpNext); // after the rows below exist
   const now = new Date();
 
   if (!S.connected) { list.append(emptyState("📅", "Allow calendar access to see what's coming up.")); return; }
@@ -896,10 +879,6 @@ function renderDetail(d) {
 
 // mode: edit | duplicate | new
 
-const pad = (n) => String(n).padStart(2, "0");
-const dateVal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const timeVal = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const fromInputs = (date, time) => { const [y, m, dd] = date.split("-").map(Number); const [h, mi] = (time || "00:00").split(":").map(Number); return new Date(y, m - 1, dd, h, mi); };
 
 // mode: edit | duplicate | new
 function renderEdit(d, mode) {
@@ -1132,7 +1111,7 @@ function renderBanner() {
     $("bannerAllow").onclick = allowAccess;
     return;
   }
-  if (S.askLogin && !SETTINGS_WIN) {
+  if (S.askLogin && !SETTINGS_WIN && !QUICK_WIN) {
     b.innerHTML = `<b>${esc(tr("Start Smart Cal when you log in?"))}</b> <span class="muted">${esc(tr("So your next event is always in the menu bar."))}</span> <button class="btn primary" id="loginYes">${esc(tr("Yes"))}</button> <button class="btn" id="loginNo">${esc(tr("Not now"))}</button>`;
     b.classList.remove("hidden");
     $("loginYes").onclick = async () => { try { applyState(await go("AnswerLogin", true)); toast("Smart Cal will start when you log in"); } catch (err) { toast(errMsg(err), true); } };
@@ -1161,7 +1140,7 @@ let eventsSig = "";
 // ---------- wide layout: an agenda next to the month ----------
 // The right column starts at today (or the day you click) and runs on through the following
 // days, loading more as you scroll. The list under the to-dos isn't shown in this layout.
-const isWide = () => !SETTINGS_WIN && S.layout === "wide";
+const isWide = () => !SETTINGS_WIN && !QUICK_WIN && S.layout === "wide";
 let sideDay = startOfDay(new Date()); // first day of the agenda
 let sideTo = null;                    // loaded up to (exclusive)
 let sideEvents = null;                // events from sideDay to sideTo
@@ -1249,6 +1228,7 @@ function renderSideDay(fresh) {
   body.append(more);
   if (keep != null) body.scrollTop = keep;
   body.onscroll = () => { if (body.scrollTop + body.clientHeight > body.scrollHeight - 240) loadMoreSide(); };
+  renderUpNext();
   // a short list: fill the column straight away
   if (body.scrollHeight <= body.clientHeight + 40) loadMoreSide();
 }
@@ -1357,7 +1337,7 @@ function emojiFor(e) {
   return "";
 }
 function queueEmojiLookup() {
-  if (SETTINGS_WIN) return;
+  if (SETTINGS_WIN || QUICK_WIN) return;
   clearTimeout(emojiTimer);
   emojiTimer = setTimeout(async () => {
     const titles = [...askedEmoji].filter((t) => !aiEmoji.has(t));
@@ -1458,7 +1438,7 @@ function mascotPoke() {
   const m = $("mascot");
   m.classList.remove("boing"); void m.offsetWidth; m.classList.add("boing");
   const lines = MASCOT_LINES[m.dataset.mood] || MASCOT_LINES.happy;
-  $("greetText").textContent = lines[Math.floor(Math.random() * lines.length)];
+  setGreet(lines[Math.floor(Math.random() * lines.length)]);
   sound("pop");
   clearTimeout(mascotPoke._t);
   mascotPoke._t = setTimeout(refreshGreeting, 6000);
@@ -1466,13 +1446,20 @@ function mascotPoke() {
 
 // ---------- greeting ----------
 let greetPending = false;
+// the greeting is one line (the rest on hover; click to read it all)
+function setGreet(text) {
+  const b = $("greetText");
+  b.textContent = text;
+  b.title = text;
+  b.classList.remove("open");
+}
 async function refreshGreeting() {
-  if (SETTINGS_WIN) return;
+  if (SETTINGS_WIN || QUICK_WIN) return;
   if (!playful() || greetPending) return;
   greetPending = true;
   try {
     const t = await go("GetGreeting");
-    if (t) { $("greetText").textContent = t; $("greet").classList.add("ready"); }
+    if (t) { setGreet(t); $("greet").classList.add("ready"); }
   } catch (_) { /* keep the last one */ }
   finally { greetPending = false; }
 }
@@ -1682,8 +1669,10 @@ function toastAction(msg, label, fn, redo) {
   const b = el("button", "toast-btn", label);
   b.onclick = () => { box.classList.add("hidden"); fn(); };
   box.append(b);
+  // goes away after 6 s — but not while the pointer is on it (so Undo stays reachable)
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add("hidden"), 6000);
+  const hide = () => { if (box.matches(":hover")) { toastTimer = setTimeout(hide, 1500); return; } box.classList.add("hidden"); };
+  toastTimer = setTimeout(hide, 6000);
 }
 
 // ---------- day timeline with drag-to-reschedule ----------
@@ -2229,7 +2218,9 @@ async function submitQuick(fromClipboard) {
       drafts = r.drafts;
       draftClashes = r.clashes || [];
       if (r.offline && r.answer) toast(r.answer);
-      if (!S.confirmBeforeAdd && !r.offline && !draftClashes.some((c) => c && c.length) && drafts.length === 1) { await addDrafts(); return; }
+      // added straight away (with Undo) unless the preview is on, it clashes, it's several events or offline.
+      // addDrafts() refuses to run while busy, so clear that first — otherwise the event was silently dropped
+      if (!S.confirmBeforeAdd && !r.offline && !draftClashes.some((c) => c && c.length) && drafts.length === 1) { setBusy(false); await addDrafts(); return; }
       renderDrafts();
     } else {
       drafts = [];
@@ -2360,6 +2351,7 @@ async function applyAI() {
     aiResult = null;
     renderAI();
     afterChange();
+    if (QUICK_WIN) quickDone();
   } catch (err) { toast(errMsg(err), true); }
   finally { setBusy(false); $("quick").focus(); }
 }
@@ -2468,6 +2460,7 @@ async function addDrafts() {
     celebrate("add");
     toastAction(n === 1 ? `Added “${first.title}”` : `Added ${n} events`, "Undo", () => undoAdd(r.created, list.map((d) => repeats(d.repeat))));
     flashDay(new Date(first.start));
+    if (QUICK_WIN) quickDone();
   } catch (err) {
     toast(errMsg(err), true);
   } finally {
@@ -2655,6 +2648,7 @@ function matchRegion() {
 // ---------- settings ----------
 // Settings live in their own window (index.html?settings=1). From the panel, ask Go to open it.
 const SETTINGS_WIN = new URLSearchParams(location.search).has("settings");
+const QUICK_WIN = new URLSearchParams(location.search).has("quick"); // the quick-add box (⌃⌥N anywhere)
 function openSettings(tab) {
   if (SETTINGS_WIN) return loadSettings(tab);
   return go("OpenSettings", typeof tab === "string" ? tab : "").catch(() => {});
@@ -2693,6 +2687,9 @@ async function loadSettings(tab) {
   $("sTravel").value = settingsCache.travelFrom || "";
   $("sTodos").checked = settingsCache.showTodos !== false;
   $("sHotkey").value = settingsCache.hotkey || "Ctrl+Alt+C";
+  $("sQuickKey").value = settingsCache.quickHotkey || "off";
+  $("sBrief").value = settingsCache.briefTime || "off";
+  $("sBeta").checked = !!settingsCache.betaUpdates;
   $("sTextSize").value = String(settingsCache.textSize || 100);
   $("sLayout").value = settingsCache.layout || "wide";
   const tl = $("sTodoList"); tl.innerHTML = "";
@@ -2844,6 +2841,9 @@ async function saveSettings(silent) {
     showTodos: $("sTodos").checked,
     todoList: $("sTodoList").value,
     hotkey: $("sHotkey").value,
+    quickHotkey: $("sQuickKey").value,
+    briefTime: $("sBrief").value,
+    betaUpdates: $("sBeta").checked,
     textSize: parseInt($("sTextSize").value, 10),
     layout: $("sLayout").value,
   };
@@ -2951,7 +2951,7 @@ function wire() {
       if ($("quick").value) { $("quick").value = ""; return; }
       if (!$("searchBar").classList.contains("hidden")) { closeSearch(); return; }
       if (listMode === "day") { closeDay(); return; }
-      go("Hide");
+      QUICK_WIN ? go("HideQuick") : go("Hide");
     }
     if (!inSettings && !sheetOpen) {
       // arrows move through the list (from the AI box too, when it's empty)
@@ -2976,7 +2976,7 @@ function wire() {
     if (ev.metaKey && ev.key === ",") { ev.preventDefault(); openSettings(); }
     if (ev.metaKey && ev.key.toLowerCase() === "r") { ev.preventDefault(); refresh(); }
     if (ev.metaKey && ev.key.toLowerCase() === "n" && !SETTINGS_WIN) { ev.preventDefault(); newEventNow(); }
-    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); SETTINGS_WIN ? go("CloseSettings") : go("Hide"); }
+    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); SETTINGS_WIN ? go("CloseSettings") : QUICK_WIN ? go("HideQuick") : go("Hide"); }
     if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "z" && !typing && !SETTINGS_WIN) { ev.preventDefault(); undoLast(); }
     if (ev.metaKey && ev.shiftKey && ev.key.toLowerCase() === "z" && !typing && !SETTINGS_WIN) { ev.preventDefault(); redoLast(); }
     if (ev.metaKey && ["1", "2", "3", "4"].includes(ev.key) && !SETTINGS_WIN) { ev.preventDefault(); setView(["year", "month", "week", "day"][+ev.key - 1]); }
@@ -2990,10 +2990,10 @@ function wire() {
   $("updClose").onclick = () => $("updOverlay").classList.add("hidden");
   Events.On("ui:updates", () => openSettings("about-check"));
   Events.On("settings:open", (ev) => { if (SETTINGS_WIN) loadSettings(ev.data || ""); });
-  Events.On("ui:new", () => { if (!SETTINGS_WIN) newEventNow(); });
-  Events.On("ui:help", () => { if (!SETTINGS_WIN) showHelp(); });
-  Events.On("ui:view", (ev) => { if (!SETTINGS_WIN && ["year", "month", "week", "day"].includes(ev.data)) setView(ev.data); });
-  Events.On("ui:today", () => { if (!SETTINGS_WIN) $("todayBtn").click(); });
+  Events.On("ui:new", () => { if (!SETTINGS_WIN && !QUICK_WIN) newEventNow(); });
+  Events.On("ui:help", () => { if (!SETTINGS_WIN && !QUICK_WIN) showHelp(); });
+  Events.On("ui:view", (ev) => { if (!SETTINGS_WIN && !QUICK_WIN && ["year", "month", "week", "day"].includes(ev.data)) setView(ev.data); });
+  Events.On("ui:today", () => { if (!SETTINGS_WIN && !QUICK_WIN) $("todayBtn").click(); });
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
   $("updatePill").onclick = () => openSettings("about");
@@ -3012,7 +3012,7 @@ function wire() {
   $("scroll").addEventListener("contextmenu", rowMenu);
   $("sideDay").addEventListener("contextmenu", rowMenu);
   Events.On("popover:shown", () => {
-    if (SETTINGS_WIN) return;
+    if (SETTINGS_WIN || QUICK_WIN) return;
     renderToday();
     if (isWide()) { sideDay = startOfDay(new Date()); loadSideDay(true); }
     lastHourScroll = "";
@@ -3029,6 +3029,7 @@ function wire() {
     refreshGreeting();
   });
   $("mascot").onclick = mascotPoke;
+  $("greetText").onclick = () => $("greetText").classList.toggle("open");
   $("recapBtn").onclick = () => { if (listMode !== "upcoming") closeDay(); const l = $("list"); l.querySelectorAll(".recap").forEach((x) => x.remove()); renderRecap(l, true); $("scroll").scrollTo({ top: 0, behavior: "smooth" }); };
   window.addEventListener("focus", () => { if ($("settings").classList.contains("hidden")) $("quick").focus(); });
 
@@ -3042,6 +3043,30 @@ async function refresh() {
   try { applyState(await go("Refresh")); } catch (err) { toast(errMsg(err), true); }
 }
 
+// quick add: just the AI box; ↩ adds, Esc closes, ⌘↩ opens the full panel
+function quickDone() { setTimeout(() => { if (!drafts.length && !aiResult) go("HideQuick"); }, 1400); }
+if (QUICK_WIN) {
+  document.body.classList.add("quick-win");
+  $("quickForm").after(el("div", "quick-hint", "↩ add or ask  ·  Esc close  ·  ⌘↩ open Smart Cal"));
+  Events.On("quick:shown", () => { if (!drafts.length && !aiResult) $("quick").value = ""; setTimeout(() => $("quick").focus(), 30); });
+  document.addEventListener("keydown", (ev) => { if (ev.metaKey && ev.key === "Enter") { ev.preventDefault(); go("OpenPanel"); } }, true);
+  // the window grows and shrinks with what it shows
+  let lastH = 0;
+  const fit = () => {
+    const z = parseFloat(document.body.style.zoom || "1") || 1;
+    let bottom = 0;
+    for (const n of document.querySelectorAll("#main > *")) {
+      if (n.offsetParent === null) continue;
+      bottom = Math.max(bottom, n.getBoundingClientRect().bottom);
+    }
+    const toast = $("toast");
+    if (!toast.classList.contains("hidden")) bottom += 50;
+    const h = Math.ceil((bottom + 14) * z);
+    if (Math.abs(h - lastH) > 2) { lastH = h; go("SetQuickHeight", h).catch(() => {}); }
+  };
+  new ResizeObserver(fit).observe($("main"));
+  new MutationObserver(() => requestAnimationFrame(fit)).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+}
 if (SETTINGS_WIN) {
   document.body.classList.add("settings-win");
   $("closeSettings").classList.add("hidden"); // a Mac Settings window closes with its red button or ⌘W
@@ -3058,7 +3083,7 @@ setTimeout(() => { if (calView !== "month") setView(calView); }, 300);
 // send the panel's emoji for upcoming events to the menu bar label ("👥 2h Meet")
 let lastLabelEmojis = "";
 function pushLabelEmojis() {
-  if (SETTINGS_WIN) return;
+  if (SETTINGS_WIN || QUICK_WIN) return;
   const m = {};
   for (const e of evs().slice(0, 12)) if (!e.allDay && !e.holiday) m[e.title] = emojiFor(e) || (flightOf(e.title, e.location) ? "✈️" : "");
   const j = JSON.stringify(m);

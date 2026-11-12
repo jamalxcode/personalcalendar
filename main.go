@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,6 +50,9 @@ type App struct {
 	searchEvs    []Event // cached two-year range for search (guarded by mu)
 	searchAt     time.Time
 	settings     *application.WebviewWindow
+	quick        *application.WebviewWindow // quick-add: just the AI box, from a shortcut anywhere
+	quickOn      string                     // currently registered quick-add shortcut
+	snoozed      map[string]time.Time       // event key → when to alert again (Snooze 10 min)
 	week         *application.WebviewWindow
 	travel       map[string]int // "id|unix" → driving minutes (guarded by mu)
 	travelAt     map[string]time.Time
@@ -76,7 +80,7 @@ func main() {
 	}
 
 	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1), alerted: map[string]bool{},
-		travel: map[string]int{}, travelAt: map[string]time.Time{}, leaveAlerted: map[string]bool{}}
+		travel: map[string]int{}, travelAt: map[string]time.Time{}, leaveAlerted: map[string]bool{}, snoozed: map[string]time.Time{}}
 	a.notif = notifications.New()
 	a.cal.Init()
 	storeChanged = a.RequestRefresh // macOS tells us when any calendar changes
@@ -157,6 +161,35 @@ func main() {
 		e.Cancel()
 	})
 
+	// Quick add: a small floating AI box (like Spotlight) from a shortcut anywhere
+	a.quick = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:            "quick",
+		Title:           "Quick Add",
+		Width:           600,
+		Height:          340,
+		Frameless:       true,
+		Hidden:          true,
+		DisableResize:   true,
+		AlwaysOnTop:     true,
+		HideOnFocusLost: true,
+		BackgroundType:  application.BackgroundTypeTranslucent,
+		URL:             "/?quick=1",
+		Mac: application.MacWindow{
+			Backdrop:                application.MacBackdropTranslucent,
+			TitleBar:                application.MacTitleBar{AppearsTransparent: true, Hide: true},
+			InvisibleTitleBarHeight: 0,
+			CollectionBehavior: application.MacWindowCollectionBehaviorCanJoinAllSpaces |
+				application.MacWindowCollectionBehaviorFullScreenAuxiliary,
+		},
+	})
+	a.quick.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		a.quick.Hide()
+		e.Cancel()
+	})
+	if err := a.setQuickHotkey(a.cfg.QuickHotkey); err != nil {
+		log.Printf("quick-add shortcut %s not registered: %v", a.cfg.QuickHotkey, err)
+	}
+
 	// Settings: its own window, like every Mac app (⌘, from anywhere in Smart Cal)
 	a.settings = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:      "settings",
@@ -196,10 +229,28 @@ func main() {
 		if r.Error != nil {
 			return
 		}
-		meet, _ := r.Response.UserInfo["meet"].(string)
-		if r.Response.ActionIdentifier == "join" && meet != "" {
-			openURL(meet)
-			return
+		info := r.Response.UserInfo
+		meet, _ := info["meet"].(string)
+		key, _ := info["key"].(string)
+		late, _ := info["late"].(string)
+		switch r.Response.ActionIdentifier {
+		case "join":
+			if meet != "" {
+				openURL(meet)
+				return
+			}
+		case "snooze":
+			if key != "" {
+				a.mu.Lock()
+				a.snoozed[key] = time.Now().Add(10 * time.Minute)
+				a.mu.Unlock()
+				return
+			}
+		case "late":
+			if strings.HasPrefix(late, "mailto:") {
+				openURL(late)
+				return
+			}
 		}
 		a.showPanel()
 	})
@@ -388,15 +439,191 @@ func (a *App) alertLoop() {
 	time.Sleep(3 * time.Second)
 	if ok, err := a.notif.RequestNotificationAuthorization(); err == nil && ok {
 		a.notifOK = true
-		_ = a.notif.RegisterNotificationCategory(notifications.NotificationCategory{
-			ID:      "meeting",
-			Actions: []notifications.NotificationAction{{ID: "join", Title: "Join"}},
-		})
+		// alerts you can act on: Join (online meetings), Snooze 10 min, Running late (emails the others)
+		join := notifications.NotificationAction{ID: "join", Title: "Join"}
+		snooze := notifications.NotificationAction{ID: "snooze", Title: "Snooze 10 min"}
+		late := notifications.NotificationAction{ID: "late", Title: "Running late…"}
+		for id, acts := range map[string][]notifications.NotificationAction{
+			"ev-join-late": {join, snooze, late}, "ev-join": {join, snooze}, "ev-late": {snooze, late}, "ev": {snooze},
+		} {
+			_ = a.notif.RegisterNotificationCategory(notifications.NotificationCategory{ID: id, Actions: acts})
+		}
 	}
 	t := time.NewTicker(15 * time.Second)
 	for range t.C {
 		a.checkAlerts()
+		a.checkSnoozed()
+		a.checkBrief()
 	}
+}
+
+// sendEventAlert posts the alert for one event with the actions that fit it.
+// It returns false when notifications aren't allowed.
+func (a *App) sendEventAlert(e Event, key, body string) bool {
+	if !a.notifOK {
+		return false
+	}
+	late := ""
+	if det, err := a.cal.Detail(e.ID, e.Start); err == nil {
+		late = lateMailto(det)
+	}
+	cat := "ev"
+	switch {
+	case e.MeetLink != "" && late != "":
+		cat = "ev-join-late"
+	case e.MeetLink != "":
+		cat = "ev-join"
+	case late != "":
+		cat = "ev-late"
+	}
+	opts := notifications.NotificationOptions{
+		ID: "meet-" + key + "-" + strconv.FormatInt(time.Now().Unix(), 10), Title: e.Title, Body: body, CategoryID: cat,
+		Data: map[string]interface{}{"meet": e.MeetLink, "eventId": e.ID, "key": key, "late": late},
+	}
+	return a.notif.SendNotificationWithActions(opts) == nil
+}
+
+// lateMailto drafts "running late" to the other attendees ("" when there's nobody to tell).
+func lateMailto(d EventDetail) string {
+	var to []string
+	for _, p := range d.Attendees {
+		if !p.Me && strings.Contains(p.Email, "@") {
+			to = append(to, p.Email)
+		}
+	}
+	if len(to) == 0 {
+		return ""
+	}
+	q := func(s string) string { return strings.ReplaceAll(url.QueryEscape(s), "+", "%20") }
+	subject := "Running a few minutes late — " + d.Title
+	body := "Hi,\n\nI'm running about 10 minutes late for \"" + d.Title + "\". Sorry — I'll be there as soon as I can.\n"
+	return "mailto:" + strings.Join(to, ",") + "?subject=" + q(subject) + "&body=" + q(body)
+}
+
+// checkSnoozed re-sends alerts whose 10-minute snooze is up.
+func (a *App) checkSnoozed() {
+	now := time.Now()
+	a.mu.Lock()
+	due := []string{}
+	for k, t := range a.snoozed {
+		if !now.Before(t) {
+			due = append(due, k)
+			delete(a.snoozed, k)
+		}
+	}
+	a.mu.Unlock()
+	if len(due) == 0 {
+		return
+	}
+	evs, _ := a.snapshot()
+	for _, k := range due {
+		for _, e := range evs {
+			if e.ID+e.Start.Format(time.RFC3339) != k || now.After(e.End) {
+				continue
+			}
+			when := "Started " + shortDur(now.Sub(e.Start)) + " ago"
+			if e.Start.After(now) {
+				when = "In " + shortDur(e.Start.Sub(now))
+			}
+			if !a.sendEventAlert(e, k, "Snoozed · "+when+" · "+a.fmtTime(e.Start)+"–"+a.fmtTime(e.End)) {
+				a.showPanel()
+			}
+		}
+	}
+}
+
+// checkBrief sends the morning brief once a day at the chosen time: "3 events · first 9:00
+// Dentist · leave by 8:35 · 1 to-do overdue". Skipped when the day is empty, or if the Mac
+// was asleep until more than four hours after the time.
+func (a *App) checkBrief() {
+	bt := a.cfg.BriefTime
+	if bt == "off" || bt == "" || !a.notifOK || !a.cal.Connected() {
+		return
+	}
+	now := time.Now()
+	today := now.Format("2006-01-02")
+	if a.cfg.BriefLast == today {
+		return
+	}
+	t, err := time.Parse("15:04", bt)
+	if err != nil {
+		return
+	}
+	at := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, time.Local)
+	if now.Before(at) {
+		return
+	}
+	a.cfg.BriefLast = today
+	_ = a.cfg.Save()
+	if now.After(at.Add(4 * time.Hour)) {
+		return
+	}
+	title, body := a.briefText(now)
+	if body == "" {
+		return
+	}
+	_ = a.notif.SendNotification(notifications.NotificationOptions{ID: "brief-" + today, Title: title, Body: body})
+}
+
+func (a *App) briefText(now time.Time) (string, string) {
+	evs, _ := a.snapshot()
+	sod := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	eod := sod.AddDate(0, 0, 1)
+	var timed []Event
+	allDay := 0
+	for _, e := range evs {
+		if e.Holiday || !e.Start.Before(eod) || !e.End.After(sod) {
+			continue
+		}
+		if e.AllDay {
+			allDay++
+		} else {
+			timed = append(timed, e)
+		}
+	}
+	var parts []string
+	if n := len(timed) + allDay; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d event%s", n, map[bool]string{true: "", false: "s"}[n == 1]))
+	}
+	var first *Event
+	for i := range timed {
+		if timed[i].Start.After(now) && (first == nil || timed[i].Start.Before(first.Start)) {
+			first = &timed[i]
+		}
+	}
+	if first != nil {
+		parts = append(parts, "first "+a.fmtTime(first.Start)+" "+truncate(first.Title, 30))
+		a.mu.Lock()
+		mins := a.travel[first.ID+"|"+strconv.FormatInt(first.Start.Unix(), 10)]
+		a.mu.Unlock()
+		if mins > 0 {
+			parts = append(parts, "leave by "+a.fmtTime(first.Start.Add(-time.Duration(mins+5)*time.Minute)))
+		}
+	}
+	overdue, dueToday := 0, 0
+	a.mu.Lock()
+	todos := a.extras.Todos
+	a.mu.Unlock()
+	for _, td := range todos {
+		if td.Done || td.Due == nil {
+			continue
+		}
+		if td.Due.Before(sod) || (td.HasTime && td.Due.Before(now)) {
+			overdue++
+		} else if td.Due.Before(eod) {
+			dueToday++
+		}
+	}
+	if dueToday > 0 {
+		parts = append(parts, fmt.Sprintf("%d to-do%s today", dueToday, map[bool]string{true: "", false: "s"}[dueToday == 1]))
+	}
+	if overdue > 0 {
+		parts = append(parts, fmt.Sprintf("%d to-do%s overdue", overdue, map[bool]string{true: "", false: "s"}[overdue == 1]))
+	}
+	if len(parts) == 0 {
+		return "", ""
+	}
+	return "Good morning — " + now.Format("Monday 2 January"), strings.Join(parts, " · ")
 }
 
 func (a *App) checkAlerts() {
@@ -437,27 +664,47 @@ func (a *App) checkAlerts() {
 		if e.Location != "" {
 			body += " · " + e.Location
 		}
-		sent := false
-		if a.notifOK {
-			opts := notifications.NotificationOptions{
-				ID: "meet-" + key, Title: e.Title, Body: body,
-				Data: map[string]interface{}{"meet": e.MeetLink, "eventId": e.ID},
-			}
-			var err error
-			if e.MeetLink != "" {
-				opts.CategoryID = "meeting"
-				err = a.notif.SendNotificationWithActions(opts)
-			} else {
-				err = a.notif.SendNotification(opts)
-			}
-			sent = err == nil
-		}
-		if !sent { // notifications not allowed: drop the panel down instead
+		if !a.sendEventAlert(e, key, body) { // notifications not allowed: drop the panel down instead
 			a.showPanel()
 		}
 		a.wa.Event.Emit("alert", map[string]any{"title": e.Title, "body": body, "meet": e.MeetLink,
 			"id": e.ID, "start": e.Start})
 	}
+}
+
+// toggleQuick shows the quick-add box in the middle of the screen (or hides it).
+func (a *App) toggleQuick() {
+	if a.quick.IsVisible() {
+		a.quick.Hide()
+		return
+	}
+	a.quick.Center()
+	a.quick.Show().Focus()
+	appActivate()
+	a.wa.Event.Emit("quick:shown")
+}
+
+// setQuickHotkey swaps the quick-add shortcut ("off" = none). On failure the old one is kept.
+func (a *App) setQuickHotkey(accel string) error {
+	old := a.quickOn
+	if old != "" {
+		_ = a.wa.GlobalShortcut.Unregister(old)
+		a.quickOn = ""
+	}
+	if accel != "off" {
+		if accel == a.hotkeyOn {
+			return fmt.Errorf("that shortcut already opens the panel")
+		}
+		if err := a.wa.GlobalShortcut.Register(accel, func() { a.toggleQuick() }); err != nil {
+			if old != "" && a.wa.GlobalShortcut.Register(old, func() { a.toggleQuick() }) == nil {
+				a.quickOn = old
+			}
+			return fmt.Errorf("couldn't use that shortcut (another app may have it): %v", err)
+		}
+		a.quickOn = accel
+	}
+	a.cfg.QuickHotkey = accel
+	return nil
 }
 
 // setHotkey swaps the global shortcut ("off" = none). On failure the old one is kept.
@@ -642,7 +889,7 @@ func (a *App) updateLoop() {
 func (a *App) checkForUpdate() (UpdateInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	info, err := checkLatest(ctx)
+	info, err := checkLatest(ctx, a.cfg.BetaUpdates)
 	if err == nil {
 		a.mu.Lock()
 		a.update = info

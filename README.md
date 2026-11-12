@@ -12,7 +12,9 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **AI box**: add (`dinner with Sara Thursday 8pm at Mais Alghanim`), ask (`what's on Thursday?`, `am I free tomorrow afternoon?`) or change (`move lunch to 3pm`, `push the dentist back by a week`, `move this to 1 month from now`, `cancel Friday's dentist`) — changes show a before/after preview first, only touch what you mention (in English or Arabic), keep the event's notes and time zone, and relative dates are calculated exactly. Uses your OpenRouter or OpenAI key; simple lines work offline without one.
 - **Flights**: flight numbers (KU 101, EK857) get a ✈︎ button that opens Flightradar24 — "Track live" while the plane is in the air.
 - **Search** (⌘F or `/`) across titles, places and notes, the past year and the next.
-- **Meeting alerts** with a Join button, optional **start at login** (it asks), **highlight colour** of your choice (or the Mac's), self-**updates** from GitHub.
+- **Quick add from any app** (⌃⌥N): a small AI box in the middle of the screen — type, ↩, done.
+- **Morning brief** (8:00 by default): events, the first one, when to leave, to-dos due.
+- **Meeting alerts** with Join, Snooze 10 min and Running late (emails the others), optional **start at login** (it asks), **highlight colour** of your choice (or the Mac's), self-**updates** from GitHub.
 - **Playful mode** (one switch): a mascot whose mood follows your day, an AI greeting and emojis on events (these two need the AI key), weather, countdowns (pin events; birthdays automatic), a weekly recap, confetti, optional sounds, and a choice of AI voice.
 - **Right-click an event** (in the panel or the week window) to reschedule it — Today, Tomorrow, In 2 or 3 days, Next week, Pick a date… (same time and length, notes kept, Undo) — or Open, Edit, Duplicate, Delete.
 - **Day timeline**: drag events to move them, drag the bottom edge to resize, Undo, double-click to add.
@@ -51,7 +53,7 @@ cd personalcalendar
 
 Drag it into /Applications. Smart Cal asks once whether to start at login (also in Settings → Alerts).
 
-**Tests:** `go test ./...` (on a Mac — the package uses cgo and EventKit). `ai_test.go` covers the AI edit safeguards (relative moves, "push back", fields you didn't mention, Arabic keywords), `parse_local_test.go` the offline parser, free slots and menu bar labels. CI runs them, plus `go vet` and a full build, on every push to a branch.
+**Tests:** `go test ./...` (on a Mac — the package uses cgo and EventKit). The AI test set (`testdata/ai_eval.json`) runs against the real AI with `SMARTCAL_EVAL_KEY=sk-or-… go test -run TestAIEval -v` — add a line for every sentence it gets wrong. `ai_test.go` covers the AI edit safeguards (relative moves, "push back", fields you didn't mention, Arabic keywords), `parse_local_test.go` the offline parser, free slots and menu bar labels. CI runs them, plus `go vet` and a full build, on every push to a branch.
 
 ## Setup (2 clicks)
 
@@ -65,6 +67,8 @@ Works with every calendar macOS syncs — Google, iCloud, Exchange — and you c
 ## Updates
 
 The app checks GitHub for a newer release at launch and every 6 hours. When one exists an **Update to vX** pill appears in the panel footer (also Settings → Updates, or right-click the menu bar icon → Check for Updates…). One click downloads it — a progress card shows each step (Download · Check · Install · Restart) and the menu bar reads "⬇︎ Updating 40%" — checks it against the SHA-256 published with the release and verifies the app's signature, then swaps the app in place and relaunches. If you're told you're up to date, there is simply no newer release yet — changes only reach the Update button once they're merged into `main` with a new `VERSION`.
+
+**Beta versions:** set `VERSION` to e.g. `2.4.0-beta.1` and it's published as a pre-release that only "Get beta versions" (Settings → About) installs; a plain `2.4.0` later goes to everyone.
 
 **Publishing a new version:** bump `VERSION`, add a `## vX.Y.Z` section to `CHANGELOG.md` (those lines become the release notes shown in the app), push to `main` (or merge a pull request that does). The *Release* workflow runs `go vet` and the tests, builds the app on a macOS runner and attaches `SmartCal-X.Y.Z-macos-arm64.zip` plus its `.sha256` to a new GitHub release. Pushes that don't change `VERSION` don't publish anything.
 

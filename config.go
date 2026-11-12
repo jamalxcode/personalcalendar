@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Config is persisted to ~/Library/Application Support/PersonalCalendar/config.json.
@@ -70,6 +71,13 @@ type Config struct {
 	WeekBounds *Rect  `json:"week_bounds,omitempty"`
 	SetBounds  *Rect  `json:"settings_bounds,omitempty"`
 	MacSet     bool   `json:"mac_set"` // v2.0 defaults applied
+
+	// v2.3
+	QuickHotkey string `json:"quick_hotkey"` // global shortcut for the quick-add window ("off" = none)
+	BriefTime   string `json:"brief_time"`   // morning brief notification "HH:MM" or "off"
+	BriefLast   string `json:"brief_last"`   // date of the last brief (YYYY-MM-DD), so it's sent once a day
+	BetaUpdates bool   `json:"beta_updates"` // also offer pre-release (beta) versions
+	V23Set      bool   `json:"v23_set"`      // v2.3 defaults applied once
 }
 
 // Pin is an event pinned as a countdown.
@@ -96,7 +104,7 @@ func credentialsPath() string { return filepath.Join(appDir(), "credentials.json
 func tokenPath() string       { return filepath.Join(appDir(), "token.json") }
 
 func loadConfig() *Config {
-	c := &Config{OpenAIModel: "gpt-4o-mini", ConfirmBeforeAdd: true, DaysAhead: 14}
+	c := &Config{OpenAIModel: "gpt-4o-mini", DaysAhead: 14}
 	b, err := os.ReadFile(configPath())
 	if err == nil {
 		_ = json.Unmarshal(b, c)
@@ -175,6 +183,26 @@ func loadConfig() *Config {
 	}
 	if c.Hotkey == "" {
 		c.Hotkey = "Ctrl+Alt+C"
+	}
+	if !c.V23Set {
+		// v2.3: typed events are added straight away (with Undo) instead of waiting in a preview,
+		// a quick-add shortcut and a morning brief
+		c.ConfirmBeforeAdd = false
+		if c.QuickHotkey == "" {
+			c.QuickHotkey = "Ctrl+Alt+N" // ⌃⌥Space often switches keyboard languages, so N for "new"
+		}
+		if c.BriefTime == "" {
+			c.BriefTime = "08:00"
+		}
+		c.V23Set = true
+	}
+	if c.QuickHotkey == "" {
+		c.QuickHotkey = "off"
+	}
+	if c.BriefTime != "off" {
+		if _, err := time.Parse("15:04", c.BriefTime); err != nil {
+			c.BriefTime = "08:00"
+		}
 	}
 	c.Layout = oneOf(c.Layout, "wide", "wide", "compact")
 	switch c.TextSize {

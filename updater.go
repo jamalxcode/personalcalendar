@@ -52,9 +52,28 @@ type UpdateInfo struct {
 	Checked   time.Time `json:"checked"`
 }
 
-func checkLatest(ctx context.Context) (UpdateInfo, error) {
+type ghRelease struct {
+	TagName     string `json:"tag_name"`
+	Body        string `json:"body"`
+	HTMLURL     string `json:"html_url"`
+	PublishedAt string `json:"published_at"`
+	Draft       bool   `json:"draft"`
+	Prerelease  bool   `json:"prerelease"`
+	Assets      []struct {
+		Name string `json:"name"`
+		URL  string `json:"browser_download_url"`
+	} `json:"assets"`
+}
+
+// checkLatest finds the newest release: the latest stable one, or — with beta — the highest
+// version among recent releases including pre-releases ("2.3.0-beta.1").
+func checkLatest(ctx context.Context, beta bool) (UpdateInfo, error) {
 	info := UpdateInfo{Current: version, Checked: time.Now()}
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/repos/"+releaseRepo+"/releases/latest", nil)
+	u := "https://api.github.com/repos/" + releaseRepo + "/releases/latest"
+	if beta {
+		u = "https://api.github.com/repos/" + releaseRepo + "/releases?per_page=20"
+	}
+	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "PersonalCalendar-updater")
 	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
@@ -68,17 +87,26 @@ func checkLatest(ctx context.Context) (UpdateInfo, error) {
 	if resp.StatusCode != 200 {
 		return info, fmt.Errorf("GitHub returned %s", resp.Status)
 	}
-	var rel struct {
-		TagName     string `json:"tag_name"`
-		Body        string `json:"body"`
-		HTMLURL     string `json:"html_url"`
-		PublishedAt string `json:"published_at"`
-		Assets      []struct {
-			Name string `json:"name"`
-			URL  string `json:"browser_download_url"`
-		} `json:"assets"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	var rel ghRelease
+	if beta {
+		var list []ghRelease
+		if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+			return info, err
+		}
+		best := -1
+		for i, r := range list {
+			if r.Draft || !hasZip(r) {
+				continue
+			}
+			if best < 0 || compareVersions(r.TagName, list[best].TagName) > 0 {
+				best = i
+			}
+		}
+		if best < 0 {
+			return info, fmt.Errorf("no releases published yet")
+		}
+		rel = list[best]
+	} else if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
 		return info, err
 	}
 	info.Latest = strings.TrimPrefix(rel.TagName, "v")
@@ -97,22 +125,89 @@ func checkLatest(ctx context.Context) (UpdateInfo, error) {
 	return info, nil
 }
 
-// newerVersion reports whether a > b for dotted numeric versions ("1.2.10" > "1.2.9").
-func newerVersion(a, b string) bool {
-	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
-	for i := 0; i < len(pa) || i < len(pb); i++ {
-		var x, y int
-		if i < len(pa) {
-			x, _ = strconv.Atoi(strings.TrimFunc(pa[i], func(r rune) bool { return r < '0' || r > '9' }))
-		}
-		if i < len(pb) {
-			y, _ = strconv.Atoi(strings.TrimFunc(pb[i], func(r rune) bool { return r < '0' || r > '9' }))
-		}
-		if x != y {
-			return x > y
+func hasZip(r ghRelease) bool {
+	for _, a := range r.Assets {
+		if strings.HasSuffix(a.Name, "-macos-arm64.zip") {
+			return true
 		}
 	}
 	return false
+}
+
+// newerVersion reports whether a > b ("1.2.10" > "1.2.9", "2.3.0" > "2.3.0-beta.2").
+func newerVersion(a, b string) bool { return compareVersions(a, b) > 0 }
+
+// compareVersions compares dotted versions with an optional pre-release part: -1, 0 or 1.
+// A pre-release comes before its release: 2.3.0-beta.1 < 2.3.0-beta.2 < 2.3.0.
+func compareVersions(a, b string) int {
+	split := func(v string) ([]int, string) {
+		v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+		pre := ""
+		if i := strings.IndexByte(v, '-'); i >= 0 {
+			v, pre = v[:i], v[i+1:]
+		}
+		var nums []int
+		for _, p := range strings.Split(v, ".") {
+			n, _ := strconv.Atoi(strings.TrimFunc(p, func(r rune) bool { return r < '0' || r > '9' }))
+			nums = append(nums, n)
+		}
+		return nums, pre
+	}
+	na, pa := split(a)
+	nb, pb := split(b)
+	for i := 0; i < len(na) || i < len(nb); i++ {
+		var x, y int
+		if i < len(na) {
+			x = na[i]
+		}
+		if i < len(nb) {
+			y = nb[i]
+		}
+		if x != y {
+			if x > y {
+				return 1
+			}
+			return -1
+		}
+	}
+	switch {
+	case pa == pb:
+		return 0
+	case pa == "": // a release beats its pre-releases
+		return 1
+	case pb == "":
+		return -1
+	}
+	// both pre-releases: "beta.2" vs "beta.10" piece by piece, numbers as numbers
+	xa, xb := strings.Split(pa, "."), strings.Split(pb, ".")
+	for i := 0; i < len(xa) || i < len(xb); i++ {
+		if i >= len(xa) {
+			return -1
+		}
+		if i >= len(xb) {
+			return 1
+		}
+		ia, ea := strconv.Atoi(xa[i])
+		ib, eb := strconv.Atoi(xb[i])
+		switch {
+		case ea == nil && eb == nil && ia != ib:
+			if ia > ib {
+				return 1
+			}
+			return -1
+		case (ea == nil) != (eb == nil): // numbers sort before words
+			if ea == nil {
+				return -1
+			}
+			return 1
+		case ea != nil && xa[i] != xb[i]:
+			if xa[i] > xb[i] {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
 }
 
 // currentBundle returns the path of the running app bundle.

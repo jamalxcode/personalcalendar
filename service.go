@@ -290,6 +290,9 @@ type Settings struct {
 	Hotkey           string     `json:"hotkey"`
 	TextSize         int        `json:"textSize"`
 	Layout           string     `json:"layout"`
+	QuickHotkey      string     `json:"quickHotkey"`
+	BriefTime        string     `json:"briefTime"`
+	BetaUpdates      bool       `json:"betaUpdates"`
 	ClockMode        string     `json:"clockMode"`
 	TrayIcon         string     `json:"trayIcon"`
 	ShowInDock       bool       `json:"showInDock"`
@@ -316,7 +319,7 @@ func (s *CalService) GetSettings() Settings {
 		Playful: !c.NoPlayful, Confetti: !c.NoConfetti, Sounds: c.Sounds, Voice: c.Voice, Name: c.Name,
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
 		TravelFrom: c.TravelFrom, ShowTodos: !c.NoTodos, TodoList: c.TodoList, TodoLists: s.a.cal.ReminderLists(),
-		Hotkey: c.Hotkey, TextSize: c.TextSize, Layout: c.Layout, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
+		Hotkey: c.Hotkey, TextSize: c.TextSize, Layout: c.Layout, QuickHotkey: c.QuickHotkey, BriefTime: c.BriefTime, BetaUpdates: c.BetaUpdates, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
 		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent}
 }
 
@@ -410,6 +413,20 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 		s.a.clearTravel()
 	}
 	c.NoTodos, c.TodoList = !in.ShowTodos, in.TodoList
+	if in.QuickHotkey != "" && in.QuickHotkey != c.QuickHotkey {
+		if err := s.a.setQuickHotkey(in.QuickHotkey); err != nil {
+			return s.a.state(), err
+		}
+	}
+	if in.BriefTime == "off" {
+		c.BriefTime = "off"
+	} else if _, err := time.Parse("15:04", in.BriefTime); err == nil {
+		c.BriefTime = in.BriefTime
+	}
+	if in.BetaUpdates != c.BetaUpdates {
+		c.BetaUpdates = in.BetaUpdates
+		go s.a.checkForUpdate() // switching channels: look again straight away
+	}
 	if l := oneOf(in.Layout, "", "wide", "compact"); l != "" && l != c.Layout {
 		c.Layout = l
 		s.a.applyTextSize() // resizes the panel and tells it to re-lay itself out
@@ -504,6 +521,26 @@ func (s *CalService) InstallUpdate() (err error) {
 
 func (s *CalService) Hide() { s.a.win.Hide() }
 
+// SetQuickHeight fits the quick-add window to what it shows (Spotlight-style).
+func (s *CalService) SetQuickHeight(h int) {
+	if h < 90 {
+		h = 90
+	}
+	if h > 560 {
+		h = 560
+	}
+	s.a.quick.SetSize(600, h)
+}
+
+// HideQuick closes the quick-add box.
+func (s *CalService) HideQuick() { s.a.quick.Hide() }
+
+// OpenPanel closes the quick-add box and opens the full panel (⌘↩ in quick add).
+func (s *CalService) OpenPanel() {
+	s.a.quick.Hide()
+	s.a.showPanel()
+}
+
 func (s *CalService) Quit() { s.a.wa.Quit() }
 
 // ======================= events: ask / add / edit / delete =======================
@@ -533,6 +570,7 @@ func (s *CalService) AskWith(text, imageB64 string) (AskResult, error) {
 			return AskResult{}, fmt.Errorf("reading screenshots needs your OpenRouter key (Settings → AI)")
 		}
 		if d, ok := localParse(text, now); ok && imageB64 == "" {
+			fixTrailingMinutes(&d)
 			res = AskResult{Kind: "add", Drafts: []Draft{d}, Offline: true}
 			if err == errNoKey {
 				res.Answer = "Understood without AI — add your OpenRouter key in Settings for smarter results."

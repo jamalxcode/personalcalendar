@@ -144,3 +144,24 @@ func TestNewerVersionCases(t *testing.T) {
 		}
 	}
 }
+
+func TestCompareVersionsPrerelease(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"2.3.0", "2.3.0-beta.2", 1},
+		{"2.3.0-beta.2", "2.3.0-beta.1", 1},
+		{"2.3.0-beta.10", "2.3.0-beta.9", 1},
+		{"2.3.0-beta.1", "2.2.10", 1},
+		{"2.2.10", "2.3.0-beta.1", -1},
+		{"2.3.0-rc.1", "2.3.0-beta.5", 1},
+		{"v2.3.0", "2.3.0", 0},
+		{"2.2.10", "2.2.9", 1},
+	}
+	for _, c := range cases {
+		if got := compareVersions(c.a, c.b); got != c.want {
+			t.Errorf("compareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}

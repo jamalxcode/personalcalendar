@@ -14,10 +14,6 @@
     <div class="brand">
       <!-- today's date, big, because sometimes you just need to know what day it is -->
       <div class="today-line" id="todayLine"><span class="today-dow" id="todayDow"></span> <span class="today-date" id="todayDate"></span> <span class="today-year" id="todayYear"></span></div>
-      <div class="brand-side">
-        <span class="brand-name"><img src="icon.png" alt="" class="brand-icon">Smart Cal</span>
-        <span class="brand-by">from <a href="#" data-url="https://go.sala.company">go.sala.company</a></span>
-      </div>
     </div>
     <!-- ===== main view ===== -->
     <section id="main" class="view">
@@ -233,6 +229,12 @@
               <option value="0">When it starts</option>
               <option value="off">Off</option>
             </select></label>
+          <label class="field"><span>Morning brief</span>
+            <select id="sBrief">
+              <option value="07:00">7:00</option><option value="07:30">7:30</option><option value="08:00">8:00</option>
+              <option value="08:30">8:30</option><option value="09:00">9:00</option><option value="off">Off</option>
+            </select></label>
+          <div class="small muted">One notification each morning: how many events, the first one, when to leave, and to-dos due or overdue. Alerts offer Join, Snooze 10 min and Running late.</div>
           <label class="check"><input type="checkbox" id="sLogin"> Start Smart Cal at login</label>
         </div>
 
@@ -257,7 +259,12 @@
               <option value="Ctrl+Alt+C">⌃⌥C</option><option value="Ctrl+Alt+Space">⌃⌥Space</option><option value="Alt+Space">⌥Space</option>
               <option value="Ctrl+Space">⌃Space</option><option value="CmdOrCtrl+Shift+C">⌘⇧C</option><option value="Ctrl+Alt+CmdOrCtrl+C">⌃⌥⌘C</option><option value="off">Off</option>
             </select></label>
-          <div class="small muted">⌘⇧W opens the week window.</div>
+          <label class="field"><span>Quick add</span>
+            <select id="sQuickKey">
+              <option value="Ctrl+Alt+N">⌃⌥N</option><option value="Ctrl+Alt+A">⌃⌥A</option><option value="Ctrl+Alt+Space">⌃⌥Space</option>
+              <option value="CmdOrCtrl+Shift+Space">⌘⇧Space</option><option value="off">Off</option>
+            </select></label>
+          <div class="small muted">Quick add opens just the AI box from any app — type, press ↩, done. ⌘⇧W opens the week window.</div>
         </div>
 
         <div data-tab="look" class="group">
@@ -288,6 +295,7 @@
           </div>
           <ul id="updNotes" class="upd-notes hidden"></ul>
           <button class="btn primary hidden" id="installUpdBtn">Update now</button>
+          <label class="check"><input type="checkbox" id="sBeta"> Get beta versions <span class="muted small">— try new things first; they may have rough edges</span></label>
         </div>
 
         <div data-tab="about" class="group about-group">

@@ -989,3 +989,20 @@ body.wide .side-day { display: flex; flex-direction: column; min-width: 0; min-h
 .side-body { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
 .side-body .timeline { margin-top: 2px; }
 .side-empty { color: var(--muted); font-size: 12.5px; padding: 14px 2px; }
+
+/* v2.3: Up next as a highlight on the next event; the "now" line; a one-line greeting */
+.ev.is-next { box-shadow: inset 0 0 0 1.5px var(--accent), var(--shadow); background: var(--accent-soft); }
+.next-pill { display: inline-block; margin-bottom: 3px; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 700; color: #fff; background: var(--accent); font-variant-numeric: tabular-nums; }
+.now-line { position: relative; height: 0; margin: 7px 0 7px 4px; border-top: 1.5px solid #e5484d; }
+.now-line::before { content: ""; position: absolute; left: -4px; top: -4.5px; width: 7px; height: 7px; border-radius: 50%; background: #e5484d; }
+.now-line span { position: absolute; right: 2px; top: -8px; padding: 0 5px; font-size: 10px; font-weight: 700; color: #e5484d; background: var(--panel); border-radius: 4px; }
+.bubble { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+.bubble.open { white-space: normal; }
+
+/* quick add window: only the AI box and its results */
+body.quick-win .brand, body.quick-win #setupBanner, body.quick-win #greet, body.quick-win #calRow, body.quick-win #scroll,
+body.quick-win .foot, body.quick-win #settings, body.quick-win #upnext { display: none !important; }
+body.quick-win .shell { border-radius: 14px; }
+body.quick-win #main { overflow-y: auto; padding-top: 12px; }
+body.quick-win .quick textarea { font-size: 16px; }
+.quick-hint { font-size: 11px; color: var(--muted); text-align: center; margin: 2px 0 6px; }

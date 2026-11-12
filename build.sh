@@ -8,6 +8,7 @@ cd "$(dirname "$0")"
 APP="Smart Cal.app"
 MODE="${1:-}"
 VERSION=$(tr -d ' \n' < VERSION)
+PLISTVER=${VERSION%%-*}   # macOS wants plain numbers in the bundle (2.3.0-beta.1 → 2.3.0)
 export CGO_ENABLED=1
 export MACOSX_DEPLOYMENT_TARGET=14.0
 
@@ -48,8 +49,8 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>company.sala.personalcalendar</string>
   <key>CFBundleIconFile</key><string>icon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-  <key>CFBundleVersion</key><string>${VERSION}</string>
+  <key>CFBundleShortVersionString</key><string>${PLISTVER}</string>
+  <key>CFBundleVersion</key><string>${PLISTVER}</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Smart Cal shows your upcoming events in the menu bar and adds the events you type.</string>
   <key>NSCalendarsUsageDescription</key><string>Smart Cal shows your upcoming events in the menu bar and adds the events you type.</string>
