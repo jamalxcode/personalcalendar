@@ -18,6 +18,10 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.8 — Headings as big as the date (12 Nov 2026)
+
+**Asked:** "Make the To-do and Today title bigger, as big as the title today's date". **Decided:** every list heading (To-do, each day in the upcoming list, a single day, the week) uses the top date's style — 22 pt bold, day name in full weight, the date part in the muted colour at a lighter weight ("Today · Thu 12 Nov"), "Today" in the accent colour. Counts and weather stay small; long headings shrink to an ellipsis rather than pushing the count off the row.
+
 ## v2.2.7 — Never vanish from a full menu bar (12 Nov 2026)
 
 **Reported:** after updating to v2.2.6, "i cant see it in menu bar, i get a calendar window when i start it, not menubar, no dock icon, even force quit doesnt show smart cal". (Menu-bar-only apps never appear in Force Quit; the week window reopens because it was open at quit.)

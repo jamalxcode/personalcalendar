@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.8
+
+- **Bigger headings in the list:** "To-do", "Today · Thu 12 Nov", "Tomorrow · Fri 13 Nov" and the other day headings — plus a single day's and the week's heading — are now the same size as today's date at the top. The day name is bold ("Today" in your highlight colour) and the date after it lighter; the event count and weather stay small on the right
+
 ## v2.2.7
 
 - Fixed: when the menu bar is full (on MacBooks with a notch especially), macOS hides the menu bar item that was added last — and Smart Cal was always added last, at the far left, on every launch and after every update, so it could vanish completely. Now:

@@ -593,7 +593,7 @@ function renderList() {
 
   if (listMode === "week" && weekView) {
     const head = el("div", "mode-head");
-    head.append(el("span", "", "This week" === "" ? "" : `Week of ${weekView.start.toLocaleDateString(LOC(), { day: "numeric", month: "short" })}`));
+    head.append(el("span", "head-title", `Week of ${weekView.start.toLocaleDateString(LOC(), { day: "numeric", month: "short" })}`));
     const big = el("button", "pill-btn", "⤢ Big week view");
     big.title = "Open the week window (⌘⇧W)";
     big.onclick = () => go("OpenWeek");
@@ -607,7 +607,7 @@ function renderList() {
   if (listMode === "day" && dayView) {
     const d = dayView.d;
     const head = el("div", "mode-head");
-    const ttl = el("span", "", d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" }));
+    const ttl = el("span", "head-title", d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" }));
     const back = el("button", "pill-btn", "Upcoming ›");
     back.onclick = closeDay;
     const wxd = weatherChip(d);
@@ -668,7 +668,7 @@ function renderGroups(list, events, { now, showPast, spread, dayOnly, from }) {
     const right = el("span", "count", timed ? `${timed} event${timed > 1 ? "s" : ""}` : "");
     const wxc = weatherChip(g.d);
     if (wxc) right.prepend(wxc);
-    head.append(el("span", "", dayHead(g.d)), right);
+    head.append(headTitle(dayHead(g.d)), right);
     list.append(head);
     if (g.hols.length) list.append(holidayTags(g.hols));
     for (const e of g.items) list.append(eventRow(e, now));
@@ -1865,6 +1865,16 @@ function dueText(due, hasTime, now = new Date()) {
   if (days < 14) return `${date}${time ? ", " + time : ""} · in ${days} days`;
   return `${date}${time ? ", " + time : ""}`;
 }
+// a list heading as big as today's date at the top: "Today" in full weight, "· Thu 12 Nov" lighter
+function headTitle(text) {
+  const t = el("span", "head-title");
+  const [first, ...rest] = text.split(" · ");
+  t.append(first);
+  if (rest.length) t.append(" ", el("span", "head-sub", "· " + rest.join(" · ")));
+  t.title = text;
+  return t;
+}
+
 function renderTodos() {
   const box = $("todos");
   box.innerHTML = "";
@@ -1890,7 +1900,7 @@ function renderTodos() {
   });
   const head = el("div", "todo-head");
   const overdue = list.filter((t) => todoDue(t) && todoDue(t) < sod).length;
-  head.innerHTML = `<span>To-do</span><span class="count">${list.length ? list.length + (overdue ? ` · <b class="od">${overdue} overdue</b>` : "") : "all done ✨"}</span>`;
+  head.innerHTML = `<span class="head-title">To-do</span><span class="count">${list.length ? list.length + (overdue ? ` · <b class="od">${overdue} overdue</b>` : "") : "all done ✨"}</span>`;
   const add = el("button", "icon-btn small", "+");
   add.title = "Add a to-do";
   add.onclick = () => { todoAdding = true; renderTodos(); };
