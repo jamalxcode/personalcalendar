@@ -652,6 +652,60 @@ void tray_show_image(int show) {
     }); }); });
 }
 
+// ---- menu bar item: remembered position, and whether macOS is actually showing it ----
+// The status bar window is NSStatusBarWindow; its statusItem isn't public API, so read it carefully.
+static NSStatusItem *ourStatusItem(void) {
+    for (NSWindow *w in [NSApp windows]) {
+        if (![NSStringFromClass([w class]) containsString:@"StatusBar"]) continue;
+        @try {
+            id it = [w valueForKey:@"statusItem"];
+            if ([it isKindOfClass:[NSStatusItem class]]) return (NSStatusItem *)it;
+        } @catch (NSException *e) {}
+    }
+    return nil;
+}
+
+static void onMain(dispatch_block_t b) {
+    if ([NSThread isMainThread]) b(); else dispatch_sync(dispatch_get_main_queue(), b);
+}
+
+// Give the item a saved name so macOS remembers where it sits (after you ⌘-drag it) across
+// launches and updates — without one, every launch puts it at the far left, the first spot
+// macOS hides behind the notch when the menu bar is full. Also make sure it isn't switched off.
+void tray_autosave(void) {
+    onMain(^{
+        NSStatusItem *it = ourStatusItem();
+        if (!it) return;
+        if (![it.autosaveName isEqualToString:@"SmartCalStatusItem"]) it.autosaveName = @"SmartCalStatusItem";
+        if (!it.visible) it.visible = YES;
+    });
+}
+
+// 1 when the item is really on screen; 0 when macOS hides it (full menu bar / behind the notch); -1 unknown.
+int tray_visible(void) {
+    __block int r = -1;
+    onMain(^{
+        for (NSWindow *w in [NSApp windows]) {
+            if (![NSStringFromClass([w class]) containsString:@"StatusBar"]) continue;
+            if (!findStatusButton(w.contentView) && ![w.contentView isKindOfClass:[NSButton class]]) continue;
+            if (!w.isVisible || !(w.occlusionState & NSWindowOcclusionStateVisible)) { r = 0; return; }
+            NSRect f = w.frame;
+            NSScreen *s = w.screen;
+            if (!s || f.size.width < 1 || !NSContainsRect(s.frame, f)) { r = 0; return; }
+            if (@available(macOS 12.0, *)) {
+                NSRect right = s.auxiliaryTopRightArea, left = s.auxiliaryTopLeftArea;
+                if (!NSIsEmptyRect(right) || !NSIsEmptyRect(left)) { // a notch: only the sides of it are visible
+                    BOOL ok = (!NSIsEmptyRect(right) && NSMinX(f) >= NSMinX(right) - 1) ||
+                              (!NSIsEmptyRect(left) && NSMaxX(f) <= NSMaxX(left) + 1);
+                    r = ok ? 1 : 0; return;
+                }
+            }
+            r = 1; return;
+        }
+    });
+    return r;
+}
+
 // ---- Mac conventions ----
 void show_about(const char *version, const char *credits) {
     NSString *v = [NSString stringWithUTF8String:version];

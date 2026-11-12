@@ -1138,6 +1138,7 @@ function renderBanner() {
   }
   const parts = [];
   if (!S.hasGoogle && !S.calendars.length) parts.push(`No calendars on this Mac yet <button class="btn" id="bannerGoogle">Add Google…</button>`);
+  if (S.trayHidden) parts.push(`macOS is hiding Smart Cal's menu bar item because the menu bar is full. Make room by quitting a menu bar app or holding ⌘ and dragging icons off the bar; then ⌘-drag Smart Cal where you want it — it stays there. Meanwhile ${esc(macKeys(S.hotkey && S.hotkey !== "off" ? S.hotkey : "Ctrl+Alt+C"))} opens Smart Cal, or turn on <b>Also show in the Dock</b> in Settings → Menu bar.`);
   if (!S.hasAI) parts.push(`Add an OpenRouter key for smarter AI (simple lines work without it) — <a href="#" id="bannerGo">Settings</a>`);
   if (S.error) parts.push(esc(S.error));
   if (!parts.length) { b.classList.add("hidden"); return; }

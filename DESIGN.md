@@ -18,6 +18,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.7 — Never vanish from a full menu bar (12 Nov 2026)
+
+**Reported:** after updating to v2.2.6, "i cant see it in menu bar, i get a calendar window when i start it, not menubar, no dock icon, even force quit doesnt show smart cal". (Menu-bar-only apps never appear in Force Quit; the week window reopens because it was open at quit.)
+**Found:** Wails creates the status item without an `autosaveName`, so macOS puts it at the far left on every launch — the first position hidden behind the notch when the menu bar is full. An update relaunch made it disappear.
+**Decided:** set `autosaveName` (macOS then remembers a ⌘-dragged position and visibility); detect when the item isn't on screen (window not visible / outside the areas beside the notch); in that case open the panel centred at launch with a banner explaining how to make room, and make every "show the panel" path (hotkey, menu items, reopening the app, launching it again) fall back to the centred panel.
+
 ## v2.2.6 — Update progress, due dates in words, week window menu (11 Nov 2026)
 
 **Asked:** "add it to the week window too". **Decided:** the same menu, now in a shared `menu.js` (pop-up menu + date picker) used by both windows.

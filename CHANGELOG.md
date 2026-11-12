@@ -2,6 +2,13 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.7
+
+- Fixed: when the menu bar is full (on MacBooks with a notch especially), macOS hides the menu bar item that was added last — and Smart Cal was always added last, at the far left, on every launch and after every update, so it could vanish completely. Now:
+  - macOS remembers where Smart Cal sits: ⌘-drag it to a visible spot once and it stays there through restarts and updates
+  - if macOS is hiding it anyway, Smart Cal opens its panel at launch and explains how to get the item back
+  - opening Smart Cal again (Applications, Spotlight, Launchpad) shows the panel, and ⌃⌥C opens it in the middle of the screen when the menu bar item can't be seen
+
 ## v2.2.6
 
 - **You can see an update happening:** after you click Update, a progress card shows the download percentage and each step — Download, Check, Install, Restart — in the panel and in Settings, and the menu bar reads "⬇︎ Updating 40%". If something goes wrong it says so, and that nothing was changed. (You'll see it from the *next* update on — this one is still installed by the previous version)

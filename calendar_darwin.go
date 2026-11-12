@@ -22,6 +22,8 @@ char *ek_rem_save(const char *json);
 char *ek_rem_delete(const char *rid);
 char *clip_read(void);
 void tray_show_image(int show);
+void tray_autosave(void);
+int  tray_visible(void);
 void tray_set_image(const void *data, int len, int tmpl);
 void show_about(const char *version, const char *credits);
 void set_dock_visible(int show);
@@ -519,6 +521,13 @@ func trayShowImage(show bool) {
 	}
 	C.tray_show_image(C.int(v))
 }
+
+// trayAutosave makes macOS remember where the menu bar item sits (and keeps it switched on).
+func trayAutosave() { C.tray_autosave() }
+
+// trayVisible: 1 shown, 0 hidden by macOS (full menu bar / behind the notch), -1 unknown.
+// Call it off the main thread.
+func trayVisible() int { return int(C.tray_visible()) }
 
 func showAbout(version, credits string) {
 	v, c := C.CString(version), C.CString(credits)

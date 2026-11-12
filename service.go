@@ -19,7 +19,8 @@ type State struct {
 	HasGoogle        bool           `json:"hasGoogle"`
 	GoogleAccounts   []string       `json:"googleAccounts"`
 	HasKey           bool           `json:"hasKey"`
-	HasAI            bool           `json:"hasAI"` // an OpenRouter/OpenAI key is set
+	HasAI            bool           `json:"hasAI"`      // an OpenRouter/OpenAI key is set
+	TrayHidden       bool           `json:"trayHidden"` // macOS is hiding the menu bar item (full menu bar / notch)
 	Use24h           bool           `json:"use24h"`
 	ConfirmBeforeAdd bool           `json:"confirmBeforeAdd"`
 	DaysAhead        int            `json:"daysAhead"`
@@ -125,6 +126,9 @@ func (a *App) state() State {
 	if err != nil && st.Connected {
 		st.Error = err.Error()
 	}
+	a.mu.Lock()
+	st.TrayHidden = a.trayHidden
+	a.mu.Unlock()
 	return st
 }
 
@@ -150,7 +154,7 @@ func (s *CalService) AllowAccess() (State, error) {
 			resetCalendarPermission()
 			ok = s.a.cal.RequestAccess()
 		}
-		s.a.tray.ShowWindow() // the system prompt takes focus away from the popover
+		s.a.showPanel() // the system prompt takes focus away from the popover
 		if ok {
 			return s.a.doRefresh(), nil
 		}
@@ -158,7 +162,7 @@ func (s *CalService) AllowAccess() (State, error) {
 		// refused earlier (often for an older build): clear that answer and ask again
 		resetCalendarPermission()
 		if s.a.cal.Access() == "notDetermined" && s.a.cal.RequestAccess() {
-			s.a.tray.ShowWindow()
+			s.a.showPanel()
 			return s.a.doRefresh(), nil
 		}
 	}
@@ -768,7 +772,7 @@ func (s *CalService) AllowReminders() (State, error) {
 			_ = exec.Command("/usr/bin/tccutil", "reset", "Reminders", "company.sala.personalcalendar").Run()
 		}
 		ok := s.a.cal.RequestReminders()
-		s.a.tray.ShowWindow()
+		s.a.showPanel()
 		if !ok {
 			openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
 			return s.a.state(), fmt.Errorf("macOS didn't show its prompt. Turn on “Smart Cal” under Reminders in the window that just opened")

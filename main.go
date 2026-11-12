@@ -55,6 +55,7 @@ type App struct {
 	labelEmoji   map[string]string // title → emoji, sent by the panel
 	leaveAlerted map[string]bool
 	hotkeyOn     string // currently registered shortcut
+	trayHidden   bool   // macOS is hiding the menu bar item (full menu bar / notch), guarded by mu
 	updating     string // while an update installs: the menu bar text ("⬇︎ Updating 40%"), guarded by trayMu
 	extras       extras // weather + countdowns, refreshed with events
 }
@@ -90,7 +91,11 @@ func main() {
 		Mac: application.MacOptions{
 			ActivationPolicy: application.ActivationPolicyAccessory, // no Dock icon
 		},
-		SingleInstance: &application.SingleInstanceOptions{UniqueID: "company.sala.personalcalendar"},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "company.sala.personalcalendar",
+			// opening Smart Cal again (Applications, Spotlight, Launchpad) while it runs: show the panel
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) { a.showPanel() },
+		},
 	})
 
 	a.win = a.wa.Window.NewWithOptions(application.WebviewWindowOptions{
@@ -171,6 +176,8 @@ func main() {
 		e.Cancel()
 	})
 	// window frames: restore once the native windows exist (before Run they're no-ops), then track changes
+	// clicking Smart Cal in Finder/Launchpad while it runs: show the panel
+	a.wa.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) { a.showPanel() })
 	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		a.rememberFrame(a.week, &a.cfg.WeekBounds)
 		a.rememberFrame(a.settings, &a.cfg.SetBounds)
@@ -178,7 +185,7 @@ func main() {
 
 	// clicking the Dock icon (when shown) opens the panel
 	a.wa.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
-		a.tray.ShowWindow()
+		a.showPanel()
 	})
 	// size the drop-down to the screen once the app (and its screen list) is up
 	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
@@ -194,7 +201,7 @@ func main() {
 			openURL(meet)
 			return
 		}
-		a.tray.ShowWindow()
+		a.showPanel()
 	})
 
 	go a.loop()
@@ -214,10 +221,10 @@ func (a *App) buildMenu() *application.Menu {
 	m.AddSeparator()
 	m.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { a.showSettings("") })
 	m.AddSeparator()
-	m.Add("Open Smart Cal").OnClick(func(*application.Context) { a.tray.ShowWindow() })
+	m.Add("Open Smart Cal").OnClick(func(*application.Context) { a.showPanel() })
 	m.Add("Open Week View").SetAccelerator("CmdOrCtrl+Shift+W").OnClick(func(*application.Context) { a.showWeek() })
 	m.Add("New Event…").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
-		a.tray.ShowWindow()
+		a.showPanel()
 		a.wa.Event.Emit("ui:new")
 	})
 	m.Add("Refresh").SetAccelerator("CmdOrCtrl+R").OnClick(func(*application.Context) { a.RequestRefresh() })
@@ -226,7 +233,7 @@ func (a *App) buildMenu() *application.Menu {
 	m.Add("Open Google Calendar (web)").OnClick(func(*application.Context) { openURL("https://calendar.google.com") })
 	m.AddSeparator()
 	m.Add("Smart Cal Help").OnClick(func(*application.Context) {
-		a.tray.ShowWindow()
+		a.showPanel()
 		a.wa.Event.Emit("ui:help")
 	})
 	m.AddSeparator()
@@ -238,6 +245,43 @@ func (a *App) buildMenu() *application.Menu {
 // About isn't ours and whose Help item loads wails.io inside our window. The Edit menu also makes
 // ⌘X/⌘C/⌘V/⌘A work in text fields. Shortcuts the panel already handles in JS (⌘N, ⌘R, ⌘1–4…)
 // are shown here too; the page handles them first, so they never fire twice.
+// showPanel opens the panel under the menu bar item — or, when macOS is hiding the item
+// (full menu bar, behind the notch), in the middle of the screen so it can still be reached.
+func (a *App) showPanel() {
+	go func() {
+		if a.checkTray() {
+			a.tray.ShowWindow()
+			return
+		}
+		application.InvokeSync(func() {
+			a.win.Center()
+			a.win.Show().Focus()
+		})
+	}()
+}
+
+func (a *App) togglePanel() {
+	if a.win.IsVisible() {
+		a.win.Hide()
+		return
+	}
+	a.showPanel()
+}
+
+// checkTray re-reads whether the menu bar item is visible, tells the panel when that changes,
+// and returns true if it is (or can't be told).
+func (a *App) checkTray() bool {
+	hidden := trayVisible() == 0
+	a.mu.Lock()
+	changed := hidden != a.trayHidden
+	a.trayHidden = hidden
+	a.mu.Unlock()
+	if changed {
+		a.wa.Event.Emit("state", a.state())
+	}
+	return !hidden
+}
+
 func (a *App) buildAppMenu() *application.Menu {
 	m := a.wa.NewMenu()
 
@@ -257,7 +301,7 @@ func (a *App) buildAppMenu() *application.Menu {
 
 	file := m.AddSubmenu("File")
 	file.Add("New Event…").SetAccelerator("CmdOrCtrl+N").OnClick(func(*application.Context) {
-		a.tray.ShowWindow()
+		a.showPanel()
 		a.wa.Event.Emit("ui:new")
 	})
 	file.Add("Open Week View").SetAccelerator("CmdOrCtrl+Shift+W").OnClick(func(*application.Context) { a.showWeek() })
@@ -270,13 +314,13 @@ func (a *App) buildAppMenu() *application.Menu {
 	for i, v := range []string{"Year", "Month", "Week", "Day"} {
 		key := strings.ToLower(v)
 		view.Add(v).SetAccelerator(fmt.Sprintf("CmdOrCtrl+%d", i+1)).OnClick(func(*application.Context) {
-			a.tray.ShowWindow()
+			a.showPanel()
 			a.wa.Event.Emit("ui:view", key)
 		})
 	}
 	view.AddSeparator()
 	view.Add("Go to Today").SetAccelerator("CmdOrCtrl+T").OnClick(func(*application.Context) {
-		a.tray.ShowWindow()
+		a.showPanel()
 		a.wa.Event.Emit("ui:today")
 	})
 	view.Add("Refresh").SetAccelerator("CmdOrCtrl+R").OnClick(func(*application.Context) { a.RequestRefresh() })
@@ -289,7 +333,7 @@ func (a *App) buildAppMenu() *application.Menu {
 
 	help := m.AddSubmenu("Help")
 	help.Add("Smart Cal Help").OnClick(func(*application.Context) {
-		a.tray.ShowWindow()
+		a.showPanel()
 		a.wa.Event.Emit("ui:help")
 	})
 	help.Add("What's New").OnClick(func(*application.Context) {
@@ -315,8 +359,14 @@ func (a *App) loop() {
 		a.cal.RequestAccess() // first launch: macOS asks "allow access to Calendars?"
 	}
 	a.doRefresh()
+	trayAutosave() // remember where the menu bar item sits from now on
+	time.Sleep(time.Second)
 	if !a.cal.Connected() { // first run: show the panel with its one-click Allow banner
-		a.tray.ShowWindow()
+		a.showPanel()
+	} else if !a.checkTray() {
+		// macOS is hiding the menu bar item (full menu bar / behind the notch): open the panel so
+		// Smart Cal doesn't seem to vanish; it explains how to get the item back
+		a.showPanel()
 	}
 	fetch := time.NewTicker(2 * time.Minute)
 	tick := time.NewTicker(15 * time.Second)
@@ -328,6 +378,7 @@ func (a *App) loop() {
 			a.doRefresh()
 		case <-tick.C:
 			a.updateLabel()
+			a.checkTray()
 		}
 	}
 }
@@ -402,7 +453,7 @@ func (a *App) checkAlerts() {
 			sent = err == nil
 		}
 		if !sent { // notifications not allowed: drop the panel down instead
-			a.tray.ShowWindow()
+			a.showPanel()
 		}
 		a.wa.Event.Emit("alert", map[string]any{"title": e.Title, "body": body, "meet": e.MeetLink,
 			"id": e.ID, "start": e.Start})
@@ -417,8 +468,8 @@ func (a *App) setHotkey(accel string) error {
 		a.hotkeyOn = ""
 	}
 	if accel != "off" {
-		if err := a.wa.GlobalShortcut.Register(accel, func() { a.tray.ToggleWindow() }); err != nil {
-			if old != "" && a.wa.GlobalShortcut.Register(old, func() { a.tray.ToggleWindow() }) == nil {
+		if err := a.wa.GlobalShortcut.Register(accel, func() { a.togglePanel() }); err != nil {
+			if old != "" && a.wa.GlobalShortcut.Register(old, func() { a.togglePanel() }) == nil {
 				a.hotkeyOn = old
 			}
 			return fmt.Errorf("couldn't use that shortcut (another app may have it): %v", err)
@@ -565,7 +616,7 @@ func (a *App) checkTravel() {
 				}) == nil
 			}
 			if !sent {
-				a.tray.ShowWindow()
+				a.showPanel()
 			}
 			a.wa.Event.Emit("alert", map[string]any{"title": "🚗 Leave now for " + e.Title, "body": body, "id": e.ID, "start": e.Start})
 		}
