@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.2.10
+
+- **The days run down the right side:** in the wide layout the right column is now an agenda that starts with today and carries on into tomorrow, the day after and beyond — each day with its own heading that stays in view while you scroll, more days loading as you go (up to a year). Click a day in the month to start there, ‹ › to move a day, **Today** to come back. The list that repeated today's events at the bottom is gone; the to-dos now sit under the month and the agenda gets the panel's full height
+- Fixed: in v2.2.9 the calendar list in Settings → Calendar lost its layout (a style name clash)
+
 ## v2.2.9
 
 - **Month and day side by side:** the panel is wider, with the month (and Up next) on the left and the selected day's timeline on the right — today when it opens, or any day you click; ‹ › step through days and **Today** comes back. To-dos and your upcoming events are below. You can drag events in the day timeline as before. Prefer the narrow panel? Settings → Look → Layout → **Compact — one column**

@@ -18,6 +18,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.2.10 — An agenda that runs on (12 Nov 2026)
+
+**Asked:** "remove the bottom today, and have the today next to the calendar, scroll and extend to the next day if space permits and the day after and beyond".
+**Decided:** in the wide layout the right column is a continuous agenda instead of a one-day timeline: it starts on today (or the clicked day; ‹ › and Today move it), shows each day's events under its own sticky heading — the first day always, later days when they have something — and loads two more weeks whenever you near the end (up to a year). It spans the panel's full height; the month, Up next and to-dos share the left column. The upcoming list under the to-dos is dropped in this layout (it duplicated the agenda). Rescheduling is by right-click there; the compact layout keeps the day timeline with drag-to-move.
+**Fixed along the way:** the new wrapper's class `cal-row` was already used by the calendar rows in Settings; renamed to `wide-row`/`wide-left`.
+
 ## v2.2.9 — Month and day side by side (12 Nov 2026)
 
 **Asked:** "lets have a month with a day view next to it, and todo below". **Decided:** a wide layout (760 pt, shrinks to fit the screen) as the default: the AI box across the top; the month and the Up next card on the left; the selected day as an hour timeline on the right (today on open, any day you click, ‹ › and Today), with all-day items and waiting events on top, drag-to-move and double-click-to-add as in the day view; to-dos and the upcoming list full width below. Clicking a day no longer replaces the list in this layout. The one-column panel stays as Settings → Look → Layout → Compact.

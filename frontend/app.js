@@ -634,6 +634,7 @@ function renderList() {
     return;
   }
 
+  if (isWide()) return; // wide layout: the agenda next to the month shows the days instead
   const all = evs();
   if (!all.length) {
     list.append(emptyState("🌴", S.error ? "Couldn't load events." : `Nothing in the next ${S.daysAhead} days.`));
@@ -1157,22 +1158,28 @@ function renderFooter() {
 }
 
 let eventsSig = "";
-// ---------- wide layout: the selected day next to the month ----------
+// ---------- wide layout: an agenda next to the month ----------
+// The right column starts at today (or the day you click) and runs on through the following
+// days, loading more as you scroll. The list under the to-dos isn't shown in this layout.
 const isWide = () => !SETTINGS_WIN && S.layout === "wide";
-let sideDay = startOfDay(new Date());
-let sideEvents = null; // { key, events }
+let sideDay = startOfDay(new Date()); // first day of the agenda
+let sideTo = null;                    // loaded up to (exclusive)
+let sideEvents = null;                // events from sideDay to sideTo
+let sideLoading = false;
 let wideOn = null;
+const SIDE_CHUNK = 14, SIDE_MAX = 366;
 
 function applyLayout() {
   const wide = isWide();
   if (wide === wideOn) return;
   wideOn = wide;
   document.body.classList.toggle("wide", wide);
-  // Up next sits under the month in the wide layout, at the top of the list otherwise
-  const up = $("upnext");
-  if (wide) $("calLeft").append(up); else $("scroll").prepend(up);
-  if (wide) { listMode = listMode === "day" ? "upcoming" : listMode; dayView = null; loadSideDay(true); }
-  else $("sideDay").innerHTML = "";
+  // wide: Up next and the to-dos sit under the month; compact: back in the one-column list
+  const up = $("upnext"), sc = $("scroll");
+  if (wide) { $("calLeft").append(up, sc); }
+  else { $("calRow").after(sc); sc.prepend(up); }
+  if (wide) { if (listMode === "day") { listMode = "upcoming"; dayView = null; } loadSideDay(true); renderList(); }
+  else { $("sideDay").innerHTML = ""; renderList(); }
 }
 
 function setSideDay(d) {
@@ -1183,56 +1190,67 @@ function setSideDay(d) {
   loadSideDay(true);
 }
 
-// fresh = the day changed (scroll to the first event / now); otherwise keep the scroll position
+// fresh = start over at sideDay (scroll to the top); otherwise reload what's loaded and keep the scroll
 async function loadSideDay(fresh) {
-  const d = sideDay, key = dayKey(d);
-  if (fresh || !sideEvents || sideEvents.key !== key) renderSideDay(fresh, sideEvents && sideEvents.key === key ? sideEvents.events : null);
+  const from = sideDay;
+  if (fresh || !sideTo) { sideTo = addDays(from, SIDE_CHUNK); sideEvents = null; renderSideDay(true); }
+  const to = sideTo;
   try {
-    const list = withDates(await go("EventsBetween", d.toISOString(), addDays(d, 1).toISOString()));
-    if (dayKey(sideDay) !== key) return;
-    sideEvents = { key, events: list };
-    renderSideDay(fresh, list);
+    const list = withDates(await go("EventsBetween", from.toISOString(), to.toISOString()));
+    if (+sideDay !== +from || +sideTo !== +to) return; // moved on meanwhile
+    sideEvents = list;
+    renderSideDay(fresh);
   } catch (err) { toast(errMsg(err), true); }
 }
 
-function renderSideDay(fresh, events) {
+// scrolled near the end: load the next two weeks
+async function loadMoreSide() {
+  if (sideLoading || !sideEvents || (sideTo - sideDay) / 864e5 >= SIDE_MAX) return;
+  sideLoading = true;
+  const from = sideTo, to = addDays(sideTo, SIDE_CHUNK), start = sideDay;
+  try {
+    const more = withDates(await go("EventsBetween", from.toISOString(), to.toISOString()));
+    if (+sideDay !== +start || +sideTo !== +from) return;
+    const seen = new Set(sideEvents.map((e) => e.id + "|" + e.start));
+    sideEvents = sideEvents.concat(more.filter((e) => !seen.has(e.id + "|" + e.start)));
+    sideTo = to;
+    renderSideDay(false);
+  } catch (_) {} finally { sideLoading = false; }
+}
+
+function renderSideDay(fresh) {
   const box = $("sideDay");
   if (!box || !isWide()) return;
   const oldBody = box.querySelector(".side-body"), keep = oldBody && !fresh ? oldBody.scrollTop : null;
   box.innerHTML = "";
-  const d = sideDay, isToday = sameDay(d, new Date());
-  const head = el("div", "side-head" + (isToday ? " is-today" : ""));
-  const t = headTitle(dayHead(d));
-  const prev = el("button", "icon-btn small-nav", "‹"); prev.title = "Previous day"; prev.onclick = () => setSideDay(addDays(d, -1));
-  const next = el("button", "icon-btn small-nav", "›"); next.title = "Next day"; next.onclick = () => setSideDay(addDays(d, 1));
-  head.append(t, prev, next);
-  if (!isToday) { const tb = el("button", "pill-btn", "Today"); tb.onclick = () => setSideDay(new Date()); head.append(tb); }
+  const d = sideDay, now = new Date(), isToday = sameDay(d, now);
+  const bar = el("div", "side-bar");
+  const prev = el("button", "icon-btn small-nav", "‹"); prev.title = "Start a day earlier"; prev.onclick = () => setSideDay(addDays(d, -1));
+  const next = el("button", "icon-btn small-nav", "›"); next.title = "Start a day later"; next.onclick = () => setSideDay(addDays(d, 1));
+  bar.append(el("span", "side-label", isToday ? "Coming up" : `From ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })}`));
+  if (!isToday) { const tb = el("button", "pill-btn", "Today"); tb.onclick = () => setSideDay(now); bar.append(tb); }
+  bar.append(prev, next);
   const body = el("div", "side-body");
-  box.append(head, body);
-  if (!events) { body.append(el("div", "side-empty", "Loading…")); return; }
-  const shown = events;
-  const waiting = drafts.filter((x) => sameDay(new Date(x.start), d));
+  box.append(bar, body);
+  if (!sideEvents) { body.append(el("div", "side-empty", "Loading…")); return; }
+  const waiting = drafts.filter((x) => new Date(x.start) >= d);
   if (waiting.length) body.append(pendingBox(waiting));
-  if (!events.some((e) => !e.holiday || S.showHolidayRows)) {
-    const hol = events.filter((e) => e.holiday);
-    if (hol.length) body.append(holidayTags(hol));
-    body.append(el("div", "side-empty", isToday ? "Nothing else today." : "Nothing planned."));
-    const add = el("button", "btn small-btn", "Add something this day");
-    add.onclick = () => { if (drafts.length) { moveDraftsTo(d); return; } const q = $("quick"); q.value = `on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `; q.focus(); };
-    body.append(add);
-    return;
+  // the first day always shows, even when it's empty
+  const firstHas = sideEvents.some((e) => e.s < addDays(d, 1) && e.e > d);
+  if (!firstHas) {
+    const head = el("div", "day-head" + (isToday ? " is-today" : ""));
+    const wx = weatherChip(d), right = el("span", "count", "");
+    if (wx) right.prepend(wx);
+    head.append(headTitle(dayHead(d)), right);
+    body.append(head, el("div", "side-empty", isToday ? "Nothing else today." : "Nothing planned."));
   }
-  renderTimeline(body, d, shown);
-  // open on now (today) or the first event, an hour before
+  renderGroups(body, sideEvents.filter((e) => e.e > d), { now, showPast: true, spread: true, from: d });
+  const more = el("div", "side-empty side-more", (sideTo - d) / 864e5 >= SIDE_MAX ? "That's a year ahead." : "Scroll for more…");
+  body.append(more);
   if (keep != null) body.scrollTop = keep;
-  else {
-    // today: the "now" line if it's inside the timeline, else the first event
-    const tl = body.querySelector(".timeline");
-    const nowLine = isToday ? body.querySelector(".tl-now") : null;
-    const inside = nowLine && tl && nowLine.offsetTop >= 0 && nowLine.offsetTop <= tl.offsetHeight;
-    const target = inside ? nowLine : body.querySelector(".tl-ev");
-    if (target) body.scrollTop = Math.max(0, target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - HOUR);
-  }
+  body.onscroll = () => { if (body.scrollTop + body.clientHeight > body.scrollHeight - 240) loadMoreSide(); };
+  // a short list: fill the column straight away
+  if (body.scrollHeight <= body.clientHeight + 40) loadMoreSide();
 }
 
 // ---------- today's date at the top of the panel ----------
@@ -2984,13 +3002,15 @@ function wire() {
     const a = ev.data;
     toast(`⏰ ${a.title} — ${a.body}`);
   });
-  $("scroll").addEventListener("contextmenu", (ev) => {
+  const rowMenu = (ev) => {
     let n = ev.target;
     while (n && n !== ev.currentTarget && !n._ev) n = n.parentElement;
     if (!n || !n._ev) return;
     ev.preventDefault();
     eventMenu(n._ev, n, { x: ev.clientX, y: ev.clientY });
-  });
+  };
+  $("scroll").addEventListener("contextmenu", rowMenu);
+  $("sideDay").addEventListener("contextmenu", rowMenu);
   Events.On("popover:shown", () => {
     if (SETTINGS_WIN) return;
     renderToday();
