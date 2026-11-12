@@ -13,14 +13,17 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 - **Menu bar space is precious.** Every character in the menu bar has to earn its place.
 - **Nothing moves under your cursor.** Controls that you click repeatedly (view switcher, arrows) stay in fixed positions.
 - **Behave like a Mac app.** System font at 13 pt, arrow cursor, light/dark and the Mac's accent colour, Reduce Motion / Increase Contrast, VoiceOver labels. Standard menus (About · Settings ⌘, · Quit ⌘Q; File · Edit · View · Window · Help), Mac keyboard symbols (⌃⌥⇧⌘), Settings that save instantly and close with the red button or ⌘W, the destructive button on the left and the main action on the right. Monochrome symbols in working UI; emoji only where Playful mode asks for them.
-- **The AI never edits silently.** Every AI change shows a before/after preview and is applied only on a click; it touches only what the user mentioned, keeps notes and time zone, and date maths is done in code.
+- **The AI never edits silently.** Changes and deletes to existing events show a before/after preview and apply only on a click; they touch only what the user mentioned, keep notes and time zone, and date maths is done in code. New events are added straight away with Undo (since v2.3), with a preview when something clashes, for several events, or offline.
+- **Ship small, straight to `main`.** No feature branches ("update directly and we can revert back if needed"). Each change bumps `VERSION` so it reaches the Update button the same day; docs-only changes don't. Every UI change is checked in a browser preview with a mocked Go backend (light, dark, compact and wide) before it ships, since there's no Mac in the loop — and anything that only a Mac can show (menu bar, notifications, windows) is called out as untested.
 - **Only officially released platform features.** Beta or unreleased Apple features (like v2.1's Apple Intelligence and Siri) stay out of the shipped app.
 
 ---
 
 ## v2.3.0 — From the critique: calmer, quicker, more helpful (12 Nov 2026)
 
-**Asked:** "critique smart cal, how can it be made more useful" → a numbered list → "do 5 6 7 8 9 11 12 15 16".
+**Asked:** "critique smart cal, how can it be made more useful". The critique, in short: it does a lot well; what holds it back is trust and clutter, not features. The list:
+1. Sign and notarize with an Apple Developer ID · 2. confirm the menu bar fix on a real Mac · 3. a "Copy diagnostics" button · 4. automated UI tests before each release · 5. declutter the top (today said four times) · 6. a "now" line in the agenda · 7. add straight away with Undo instead of a preview trap · 8. an AI test set from real sentences · 9. quick add from anywhere · 10. Hijri dates, Islamic occasions, optional prayer times · 11. alerts you can act on · 12. a morning brief · 13. birthdays from Contacts and event templates · 14. a second time zone when travelling · 15. split `app.js` · 16. a beta channel. Top three recommended: 1, 4, 5.
+→ "do 5 6 7 8 9 11 12 15 16".
 **Decided:**
 - **5 Declutter:** the brand line is removed (credit stays in About); the greeting is one line (full text on hover/click); Up next is a highlighted row in the agenda/list with a pill ("Up next · in 35m · leave by 8:25") instead of a card.
 - **6 Now line:** today's group gets a red "Now · 10:42" line between past (dimmed) and remaining events, refreshed every 15 s.
@@ -30,7 +33,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 - **11 Actionable alerts:** Join / Snooze 10 min / Running late (mailto: the other attendees) — the categories depend on whether there's a link and other people.
 - **12 Morning brief:** once a day at the chosen time (default 8:00), skipped on empty days or if the Mac woke more than 4 h late.
 - **15 Code split (partial):** date and flight helpers moved to `dates.js` and `flights.js` (they were copied in `app.js` and `week.js`), alongside `menu.js`. The rest of `app.js` shares a lot of state; splitting it further safely needs automated UI tests first (critique item 4).
+- **Reported while this was being built:** "why is this black box permanently showing? shouldn't it be temporary then go away?" — the "To-do added · Undo" message. Its hide timer referred to a variable from another function and failed silently; fixed, and it now waits while the pointer is on it so Undo stays reachable.
 - **16 Beta channel:** a `VERSION` like `2.4.0-beta.1` is published as a GitHub pre-release; "Get beta versions" makes the updater consider pre-releases. Versions compare with pre-releases before their release (2.4.0-beta.2 < 2.4.0).
+
+**Backlog (from the critique, not picked yet):** 1 Developer ID signing and notarization · 2 verify the menu bar fix on hardware (add a floating fallback if it still hides) · 3 "Copy diagnostics" in About · 4 run the browser preview tests in CI before every release (needed before splitting `app.js` further) · 10 Hijri dates / Islamic occasions / prayer times · 13 birthdays from Contacts, event templates · 14 a second time zone in the day view.
+
+**Asked:** "update all design decisions and convo and readme for this repo". **Done:** this log now records every request of the 10–12 Nov sessions, the critique and its backlog; README rewritten for the v2.3 panel (wide layout, agenda, Up next highlight, quick add, alerts, brief, betas, how changes ship) with new screenshots ([panel](docs/design/v2.3-panel-wide.png), [quick add](docs/design/v2.3-quick-add.png)).
 
 ## v2.2.10 — An agenda that runs on (12 Nov 2026)
 
@@ -92,13 +100,15 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 Screenshots: [panel](docs/design/v2.2-panel.png) · [event card](docs/design/v2.2-event-card.png) · [Settings](docs/design/v2.2-settings-window.png).
 
+**Context:** the session began with "look for menu bar calendar app in the repos" (Smart Cal is the menu bar calendar missing from the Flattery catalog), then "review it and tell me what we can improve". The review found it solid — well documented, sensible choices, no frontend security holes (text is escaped, `OpenURL` only opens https/ical) — with the real problems in AI editing and release safety (listed under "do all the fixes" below).
+
 **Asked:** "remove the siri ai, it hasn't been officially released yet".
 **Decided:** remove both halves of the v2.1 work — the Siri / Shortcuts actions and the Apple Intelligence engine — together with the Swift helper (`assistant/`) and `apple.go`. The AI box is OpenRouter / OpenAI only again (no engine setting), with the offline parser as the fallback; the greeting and event emojis need the key too. The v2.1 notes below are kept as history.
 
 **Asked:** "look at the app, is it following mac gui and standards, if not fix it where needed".
 **Found right already:** system font at 13 pt, arrow cursor, no text selection on controls, light/dark, accent colour, Reduce Motion, VoiceOver labels, Apple-ordered menu bar item menu, standard About panel, the week window.
 **Fixed:** our own app menu (Smart Cal · File · Edit · View · Window · Help) instead of Wails' default, whose Help item loaded wails.io inside our window; event card with monochrome symbols, Delete left / Edit right / the rest in a ⋯ pop-up menu so the row never wraps; Settings window titled after the selected pane, no "Done"; ⌃⌥C written with Mac symbols instead of "ctrlaltc"; sentence-case section headings; the gear sized like the other toolbar icons.
-**Kept:** the brand line at the top of the panel and the coloured *Up next* card — part of the look, not a platform convention.
+**Kept (then):** the brand line at the top of the panel and the coloured *Up next* card — part of the look, not a platform convention. Both went in v2.3 when the owner chose to declutter.
 
 **Asked:** "do all the fixes" (from a code review).
 **Fixed:**
@@ -112,6 +122,8 @@ Screenshots: [panel](docs/design/v2.2-panel.png) · [event card](docs/design/v2.
 **Not done:** splitting `frontend/app.js` — a refactor that needs the app running on a Mac to verify.
 
 **Asked:** "why does my update function say im up to date?" → the changes were on a branch; a release is built only when `VERSION` changes on `main`. **Decided:** merged and published v2.2.0. From now on changes go **straight to `main`** ("dont do any new branches, update directly and we can revert back if needed") — and anything that bumps `VERSION` ships to everyone's Update button.
+
+**Asked:** "update docs, specs and readme". **Done:** README, this log and LESSONS brought up to date for v2.2, with screenshots (there's no separate spec — this log and its standing principles serve as one).
 
 ## v2.1.1 — AI edits that only change what you said (9 Nov 2026)
 
