@@ -216,7 +216,7 @@ Decide what the user wants:
   Time zones: "3pm Dubai time" → set time_zone (e.g. Asia/Dubai) and give start/end converted to the user's local offset.
 - If the input is PASTED content (an email, chat message, ticket, invitation, school letter) or a SCREENSHOT/photo: extract every event in it with exact dates, times and places. Flights: one event per flight, title like "✈ KU 101 KWI→DXB", start/end at departure/arrival converted to local offset, time_zone = departure airport's zone, location = departure airport, booking reference and seat in notes. Ignore marketing and boilerplate. If it contains tasks rather than events, use "todo".
 - "answer": a question about their schedule. Answer briefly from the event list below; list items with times; say plainly when something isn't there. Put the [n] of mentioned events in refs.
-- "update": change ONE existing event ("move dentist to 5pm", "make gym 7am every week"). target = its [n]; in changes fill only what changes (empty strings / repeat.freq "keep" for the rest). Keep the duration when moving unless told otherwise; give start and end. scope = "future" for "every/all/from now on" on repeating events.
+- "update": change ONE existing event — ONLY when the user clearly asks to change it ("move dentist to 5pm", "reschedule", "change", "push", "postpone", "cancel", "make gym 7am every week"). A line that is just a time and a title ("10:00 drive geely", "gym 7pm") is a NEW event ("add"), even if a similar event exists. Never change an event that has already ended unless the user says so ("move yesterday's …"). target = its [n]; in changes fill only what changes (empty strings / repeat.freq "keep" for the rest). Keep the duration when moving unless told otherwise; give start and end. scope = "future" for "every/all/from now on" on repeating events.
 - "delete": remove ONE existing event; scope as above.
 - "slots": "find an hour for the gym this week", "when can I fit a 2h meeting tomorrow?" → fill slot (dates, duration, hours; include_weekend only if asked or the request is about the weekend). Do NOT invent the free times yourself — the app computes them.
 - "todo": tasks/reminders without a meeting: "remind me to call the bank tomorrow", "buy milk", "renew passport by Friday". Fill todos (due date if given; has_time only if a time was said).
@@ -277,6 +277,20 @@ The user's events (past week to next two months):
 		res.Target = t
 		if !t.Recurring {
 			res.AllFuture = false
+		}
+		if r.Kind == "update" && !meantAsChange(*t, text, time.Now()) {
+			// "10:00 drive geely" with a past "Test drive Geely car" in the list: that's a new event at
+			// 10:00, not a request to move the old one
+			if d, err := applyChanges(*t, guardChanges(*t, r.Changes, cals, text), cals); err == nil && !d.Start.IsZero() {
+				d.Repeat, d.SetRepeat = Repeat{}, false
+				d.Notes = ""
+				// a new event goes forward in time: "10:00" when it's already past 10 means tomorrow
+				for i := 0; i < 7 && d.Start.Before(time.Now()) && !rePastRef.MatchString(text); i++ {
+					d.Start, d.End = d.Start.AddDate(0, 0, 1), d.End.AddDate(0, 0, 1)
+				}
+				return AskResult{Kind: "add", Drafts: []Draft{d}}, nil
+			}
+			return AskResult{Kind: "answer", Answer: "Did you want a new event, or to move “" + t.Title + "”? Say “move " + t.Title + " to …” to change the existing one."}, nil
 		}
 		if r.Kind == "update" {
 			d, err := applyChanges(*t, guardChanges(*t, r.Changes, cals, text), cals)
@@ -676,6 +690,24 @@ func parseDay(s string) (time.Time, error) {
 		s = s[:10]
 	}
 	return time.ParseInLocation("2006-01-02", s, time.Local)
+}
+
+// reEditIntent: words that ask to change or remove an existing event (English and Arabic).
+var reEditIntent = regexp.MustCompile(`(?i)\b(move|moved|reschedul\w*|change|chang\w+|push|postpone|delay|shift|bring|cancel|delete|remove|rename|retitle|extend|shorten|update|make (it|this|that|the)|instead|earlier|later)\b|انقل|نقل|أجل|اجل|أخر|اخر|غير|غيّر|عدل|عدّل|الغ|ألغ|احذف|امسح|بدل|بدّل`)
+
+// rePastRef: the user is pointing at something that already happened.
+var rePastRef = regexp.MustCompile(`(?i)\b(yesterday|last|earlier today|this morning|ago|previous|missed)\b|أمس|امس|الماضي|البارحة`)
+
+// meantAsChange: should an AI "update" really change this existing event? Only when the words ask
+// for a change, and — for an event that has already ended — only when they point back at it.
+func meantAsChange(t Event, text string, now time.Time) bool {
+	if !reEditIntent.MatchString(text) {
+		return false
+	}
+	if t.End.Before(now) && !rePastRef.MatchString(text) {
+		return false
+	}
+	return true
 }
 
 // ---- keeping AI edits honest ----

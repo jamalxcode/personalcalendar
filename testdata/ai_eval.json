@@ -39,6 +39,14 @@
       ]
     },
     {
+      "text": "10:00 drive geely",
+      "kind": "add",
+      "time": "10:00",
+      "title_has": [
+        "eely"
+      ]
+    },
+    {
       "text": "gym 90 tomorrow 7am",
       "kind": "add",
       "day": "+1",

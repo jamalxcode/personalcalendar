@@ -19,6 +19,11 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.6 — Don't reschedule the past (13 Nov 2026)
+
+**Reported:** "the entry was 10:00 drive geely and i got a rescheduling, for a past event. unless its a future similar event, rescheduling a past event is not right." (Also: Settings still showed Gemini for the OpenAI backup key — the screenshot was of the version before v2.3.5, which shows "OpenAI key saved" and "→ Uses gpt-4o-mini via OpenAI" and corrects the stored model.)
+**Decided:** the AI prompt says a time + title is a new event and "update" needs a change request; in code, `meantAsChange` turns an AI "update" into an "add" (same title, the requested time, moved forward to the next day if that time has passed) unless the words ask for a change (English or Arabic) and — for an event that has already ended — refer back to it (yesterday, this morning, last…). Deletes are unchanged. The reported sentence is in the tests and the AI test set.
+
 ## v2.3.5 — No guessing which AI is used (13 Nov 2026)
 
 **Asked:** "i gave smart cal an openai key, and it had gemini on there, will it know it was an openai key?" → it did (any non-OpenRouter `sk-` key is OpenAI, and an OpenRouter-style model with an OpenAI key falls back to gpt-4o-mini) but Settings kept showing Gemini → "yes do it, eliminate all confusion" → "but how would you know the key was from openai? or from anywhere else?"

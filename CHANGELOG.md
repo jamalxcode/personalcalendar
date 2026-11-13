@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.6
+
+- Fixed: typing "10:00 drive geely" offered to *reschedule* the earlier "Test drive Geely car" — an event that was already over. A time and a title now make a **new** event; an existing event is only changed when you ask ("move…", "reschedule…", "change…", "push…", "cancel…"), and one that has already ended only when you point back at it ("move this morning's test drive to Sunday"). A new event whose time has passed today goes to the next day
+
 ## v2.3.5
 
 - **Settings → AI says exactly what it uses:** each saved key says which service it is ("OpenAI key saved", "OpenRouter key saved"), and under each model box a line shows exactly what will be sent — "→ Uses gpt-4o-mini via OpenAI". The model suggestions only offer models that service has

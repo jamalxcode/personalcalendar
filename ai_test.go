@@ -165,3 +165,29 @@ func TestCompareVersionsPrerelease(t *testing.T) {
 		}
 	}
 }
+
+func TestMeantAsChange(t *testing.T) {
+	kw := time.FixedZone("AST", 3*3600)
+	now := time.Date(2026, 11, 13, 9, 0, 0, 0, kw)
+	past := Event{Title: "Test drive Geely car", Start: time.Date(2026, 11, 13, 8, 0, 0, 0, kw), End: time.Date(2026, 11, 13, 8, 30, 0, 0, kw)}
+	future := Event{Title: "Dentist", Start: time.Date(2026, 11, 20, 15, 0, 0, 0, kw), End: time.Date(2026, 11, 20, 16, 0, 0, 0, kw)}
+	cases := []struct {
+		ev   Event
+		text string
+		want bool
+	}{
+		{past, "10:00 drive geely", false},            // the reported case: a new event
+		{past, "move the test drive to 10:00", false}, // past event, not pointed back at → new event
+		{past, "move this morning's test drive to sunday", true},
+		{future, "10:00 dentist", false}, // no change words → new event
+		{future, "move dentist to 5pm", true},
+		{future, "push the dentist back by a week", true},
+		{future, "cancel the dentist", true},
+		{future, "انقل موعد الأسنان للساعة ٥", true},
+	}
+	for _, c := range cases {
+		if got := meantAsChange(c.ev, c.text, now); got != c.want {
+			t.Errorf("%q on %s: %v, want %v", c.text, c.ev.Title, got, c.want)
+		}
+	}
+}
