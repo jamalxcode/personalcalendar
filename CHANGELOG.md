@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.7
+
+- **You can see the AI working:** while it thinks, the pointer becomes the Mac's busy cursor, a bar moves along the bottom of the AI box, and a line under it says "Thinking…" — then "Still working — long text takes a little longer…" after 6 seconds and "Waiting for the AI — this can take up to a minute…" after 20. Also in the quick-add box; the motion stops with Reduce Motion
+
 ## v2.3.6
 
 - Fixed: typing "10:00 drive geely" offered to *reschedule* the earlier "Test drive Geely car" — an event that was already over. A time and a title now make a **new** event; an existing event is only changed when you ask ("move…", "reschedule…", "change…", "push…", "cancel…"), and one that has already ended only when you point back at it ("move this morning's test drive to Sunday"). A new event whose time has passed today goes to the next day

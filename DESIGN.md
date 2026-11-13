@@ -19,6 +19,11 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.7 — Show that the AI is working (13 Nov 2026)
+
+**Asked:** "when writing in the ai text box, there is a slight 2-3 second delay that appears that nothing is happening then i get a response, change the cursor to an hourglass or icon that means something is happening".
+**Decided:** the Mac's equivalent of an hourglass is the busy cursor (`cursor: progress`, the arrow with the spinning wheel) — shown over the whole window while the AI works. Because a cursor is only seen when the mouse is over the window, the AI box also gets a moving accent bar and a status line ("Thinking…", then reassurance after 6 s and 20 s). All stop the moment the answer arrives; Reduce Motion keeps them still.
+
 ## v2.3.6 — Don't reschedule the past (13 Nov 2026)
 
 **Reported:** "the entry was 10:00 drive geely and i got a rescheduling, for a past event. unless its a future similar event, rescheduling a past event is not right." (Also: Settings still showed Gemini for the OpenAI backup key — the screenshot was of the version before v2.3.5, which shows "OpenAI key saved" and "→ Uses gpt-4o-mini via OpenAI" and corrects the stored model.)

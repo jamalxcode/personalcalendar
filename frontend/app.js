@@ -2195,10 +2195,23 @@ function slotLabel(s) {
 }
 
 // ---------- AI box ----------
+// While the AI works: a busy cursor, a moving bar in the AI box and a line saying what's going on,
+// so the 2–3 seconds (or longer, for pasted text) never look like nothing is happening.
+let busyTimers = [];
 function setBusy(b) {
   busy = b;
   $("spark").classList.toggle("busy", b);
   $("quick").disabled = b;
+  document.body.classList.toggle("ai-busy", b);
+  $("quickForm").classList.toggle("working", b);
+  busyTimers.forEach(clearTimeout);
+  busyTimers = [];
+  const line = $("aiBusy");
+  if (!b) { line.classList.add("hidden"); return; }
+  line.textContent = "Thinking…";
+  line.classList.remove("hidden");
+  busyTimers.push(setTimeout(() => { line.textContent = "Still working — long text takes a little longer…"; }, 6000));
+  busyTimers.push(setTimeout(() => { line.textContent = "Waiting for the AI — this can take up to a minute…"; }, 20000));
 }
 
 let aiResult = null;
