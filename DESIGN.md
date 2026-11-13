@@ -19,6 +19,11 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.8 — "Updated — all good" (13 Nov 2026)
+
+**Asked:** "when an update happens, the update works but then the calendar screen from the menubar gets closed, leaving a feeling that nothing happened, once the update is done, drop down the calendar to show its all good".
+**Decided:** the new version detects the update itself — it compares its version with `last_version` in the settings file (an existing install with no record counts as updated, so it works even when the old version didn't know to say so) — then drops the panel down and shows a green banner under the date, "✓ Updated to vX — all good" (the old version on hover), with What's new (the release notes when this is the latest release, else the GitHub release page) and a close button. The panel acknowledges it once shown, so it appears only that first time.
+
 ## v2.3.7 — Show that the AI is working (13 Nov 2026)
 
 **Asked:** "when writing in the ai text box, there is a slight 2-3 second delay that appears that nothing is happening then i get a response, change the cursor to an hourglass or icon that means something is happening".

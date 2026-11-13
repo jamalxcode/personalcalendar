@@ -1137,6 +1137,17 @@ function renderFooter() {
 }
 
 let eventsSig = "";
+// ---------- just updated: "✓ Updated to vX — everything's working" (once) ----------
+function showJustUpdated() {
+  if (!S.justUpdated || SETTINGS_WIN || QUICK_WIN) return;
+  const u = S.justUpdated;
+  $("updatedText").textContent = `Updated to v${u.to} — all good`;
+  $("updatedText").title = u.from ? `Updated from v${u.from} to v${u.to}` : `Now on v${u.to}`;
+  $("updatedBanner").classList.remove("hidden");
+  $("updatedNotes").classList.add("hidden");
+  go("AckUpdated").catch(() => {});
+}
+
 // ---------- wide layout: an agenda next to the month ----------
 // The right column starts at today (or the day you click) and runs on through the following
 // days, loading more as you scroll. The list under the to-dos isn't shown in this layout.
@@ -1257,6 +1268,7 @@ function applyState(st) {
   if (!st) return;
   S = st;
   applyLayout();
+  showJustUpdated();
   const sig = (S.events || []).map((e) => e.id + e.start + e.end + e.title).join("|");
   if (eventsSig && sig !== eventsSig) {
     // something changed (here or in another app): drop cached ranges and reload what's open
@@ -3039,6 +3051,20 @@ function wire() {
   $("installUpdBtn").onclick = installUpdate;
   $("updateBanner").onclick = () => installUpdate();
   $("footQuit").onclick = () => go("Quit");
+  $("updatedClose").onclick = () => $("updatedBanner").classList.add("hidden");
+  $("updatedNotesBtn").onclick = () => {
+    const ul = $("updatedNotes");
+    const v = S.justUpdated ? S.justUpdated.to : ($("updatedText").textContent.match(/v([\d.]+[\w.-]*)/) || [])[1];
+    // the release notes are in the latest-release check when this is the newest version; else GitHub's page
+    if (U && U.notes && (!v || U.current === v || U.latest === v)) {
+      ul.innerHTML = "";
+      U.notes.split("\n").map((l) => l.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean).slice(0, 8)
+        .forEach((l) => { const li = el("li"); li.innerHTML = esc(l).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); ul.append(li); });
+      ul.classList.toggle("hidden");
+    } else {
+      go("OpenURL", `https://github.com/jamalxcode/personalcalendar/releases${v ? "/tag/v" + v : ""}`);
+    }
+  };
   $("versionLbl").onclick = () => (U && U.available ? installUpdate() : go("ShowAbout"));
   Events.On("ui:settings", () => openSettings());
   Events.On("alert", (ev) => {

@@ -19,8 +19,9 @@ type State struct {
 	HasGoogle        bool           `json:"hasGoogle"`
 	GoogleAccounts   []string       `json:"googleAccounts"`
 	HasKey           bool           `json:"hasKey"`
-	HasAI            bool           `json:"hasAI"`      // an OpenRouter/OpenAI key is set
-	TrayHidden       bool           `json:"trayHidden"` // macOS is hiding the menu bar item (full menu bar / notch)
+	HasAI            bool           `json:"hasAI"`       // an OpenRouter/OpenAI key is set
+	TrayHidden       bool           `json:"trayHidden"`  // macOS is hiding the menu bar item (full menu bar / notch)
+	JustUpdated      *UpdatedInfo   `json:"justUpdated"` // first launch after an update: the panel says "✓ Updated to vX"
 	Use24h           bool           `json:"use24h"`
 	ConfirmBeforeAdd bool           `json:"confirmBeforeAdd"`
 	DaysAhead        int            `json:"daysAhead"`
@@ -130,6 +131,7 @@ func (a *App) state() State {
 	}
 	a.mu.Lock()
 	st.TrayHidden = a.trayHidden
+	st.JustUpdated = a.justUpdated
 	a.mu.Unlock()
 	return st
 }
@@ -593,6 +595,13 @@ func (s *CalService) SetQuickHeight(h int) {
 
 // AIStatus: how the last AI request went (Settings → AI).
 func (s *CalService) AIStatus() AIStatus { return lastAIStatus() }
+
+// AckUpdated: the panel has shown "✓ Updated to vX" — don't show it again.
+func (s *CalService) AckUpdated() {
+	s.a.mu.Lock()
+	s.a.justUpdated = nil
+	s.a.mu.Unlock()
+}
 
 // HideQuick closes the quick-add box.
 func (s *CalService) HideQuick() { s.a.quick.Hide() }

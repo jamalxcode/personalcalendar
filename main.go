@@ -58,8 +58,9 @@ type App struct {
 	travelAt     map[string]time.Time
 	labelEmoji   map[string]string // title → emoji, sent by the panel
 	leaveAlerted map[string]bool
-	hotkeyOn     string   // currently registered shortcut
-	mainCheck    KeyCheck // what the AI service said about the main key when it was saved (guarded by mu)
+	hotkeyOn     string       // currently registered shortcut
+	justUpdated  *UpdatedInfo // set on the first launch after an update, until the panel has shown it (guarded by mu)
+	mainCheck    KeyCheck     // what the AI service said about the main key when it was saved (guarded by mu)
 	backupCheck  KeyCheck
 	trayHidden   bool   // macOS is hiding the menu bar item (full menu bar / notch), guarded by mu
 	updating     string // while an update installs: the menu bar text ("⬇︎ Updating 40%"), guarded by trayMu
@@ -81,8 +82,11 @@ func main() {
 		return
 	}
 
+	_, statErr := os.Stat(configPath())
+	hadConfig := statErr == nil // an existing install (not the first launch ever)
 	a := &App{cfg: loadConfig(), cal: &Cal{}, kick: make(chan struct{}, 1), alerted: map[string]bool{},
 		travel: map[string]int{}, travelAt: map[string]time.Time{}, leaveAlerted: map[string]bool{}, snoozed: map[string]time.Time{}}
+	a.noteUpdate(hadConfig)
 	a.notif = notifications.New()
 	a.cal.Init()
 	storeChanged = a.RequestRefresh // macOS tells us when any calendar changes
@@ -335,6 +339,35 @@ func (a *App) checkTray() bool {
 	return !hidden
 }
 
+// UpdatedInfo: Smart Cal was just updated (shown once in the panel: "✓ Updated to vX").
+type UpdatedInfo struct {
+	From string `json:"from"` // "" when the previous version didn't record itself
+	To   string `json:"to"`
+}
+
+// noteUpdate compares this version with the one that last ran here. Older versions don't record
+// themselves, so an existing install with no record also counts as "just updated" (once).
+func (a *App) noteUpdate(hadConfig bool) {
+	if version == "0.0.0" { // a development build
+		return
+	}
+	prev := a.cfg.LastVersion
+	if prev == version {
+		return
+	}
+	if (prev != "" && newerVersion(version, prev)) || (prev == "" && hadConfig) {
+		a.justUpdated = &UpdatedInfo{From: prev, To: version}
+	}
+	a.cfg.LastVersion = version
+	_ = a.cfg.Save()
+}
+
+func (a *App) justUpdatedInfo() *UpdatedInfo {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.justUpdated
+}
+
 func (a *App) buildAppMenu() *application.Menu {
 	m := a.wa.NewMenu()
 
@@ -415,6 +448,9 @@ func (a *App) loop() {
 	trayAutosave() // remember where the menu bar item sits from now on
 	time.Sleep(time.Second)
 	if !a.cal.Connected() { // first run: show the panel with its one-click Allow banner
+		a.showPanel()
+	} else if a.justUpdatedInfo() != nil {
+		// just updated: drop the panel down so it's clear the new version is running and all is well
 		a.showPanel()
 	} else if !a.checkTray() {
 		// macOS is hiding the menu bar item (full menu bar / behind the notch): open the panel so

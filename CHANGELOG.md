@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.8
+
+- **After an update, Smart Cal shows it worked:** the new version opens the panel by itself with a green "✓ Updated to vX — all good" under today's date, and **What's new** shows the release notes. (Before, the panel just closed and it felt like nothing happened.) This works from this update on — even though the previous version didn't announce it, the new one notices it's newer than what last ran
+
 ## v2.3.7
 
 - **You can see the AI working:** while it thinks, the pointer becomes the Mac's busy cursor, a bar moves along the bottom of the AI box, and a line under it says "Thinking…" — then "Still working — long text takes a little longer…" after 6 seconds and "Waiting for the AI — this can take up to a minute…" after 20. Also in the quick-add box; the motion stops with Reduce Motion

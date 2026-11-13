@@ -18,6 +18,12 @@
       <button class="update-banner hidden" id="updateBanner" title="Download and install it — Smart Cal restarts by itself">
         <span class="ub-dot" aria-hidden="true"></span><span class="ub-text" id="updateBannerText">A new version is available</span><span class="ub-go">Update now</span>
       </button>
+      <!-- the first time the new version opens after an update -->
+      <div class="updated-banner hidden" id="updatedBanner" role="status">
+        <div class="ud-row"><span class="ud-check" aria-hidden="true">✓</span><span class="ud-text" id="updatedText">Updated</span>
+          <button class="ud-link" id="updatedNotesBtn">What's new</button><button class="ud-x" id="updatedClose" title="Close" aria-label="Close">✕</button></div>
+        <ul class="ud-notes hidden" id="updatedNotes"></ul>
+      </div>
     </div>
     <!-- ===== main view ===== -->
     <section id="main" class="view">
