@@ -98,6 +98,9 @@
         <button class="icon-btn gear foot-gear" id="openSettings" title="Settings (⌘,)">
           <svg viewBox="0 0 24 24" class="gear-svg"><path fill-rule="evenodd" d="M19.39 10.23 L22.11 10.64 L22.11 13.36 L19.39 13.77 L18.48 15.97 L20.11 18.19 L18.19 20.11 L15.97 18.48 L13.77 19.39 L13.36 22.11 L10.64 22.11 L10.23 19.39 L8.03 18.48 L5.81 20.11 L3.89 18.19 L5.52 15.97 L4.61 13.77 L1.89 13.36 L1.89 10.64 L4.61 10.23 L5.52 8.03 L3.89 5.81 L5.81 3.89 L8.03 5.52 L10.23 4.61 L10.64 1.89 L13.36 1.89 L13.77 4.61 L15.97 5.52 L18.19 3.89 L20.11 5.81 L18.48 8.03 Z M15.20 12 A3.2 3.2 0 1 0 8.80 12 A3.2 3.2 0 1 0 15.20 12 Z"/></svg>
         </button>
+        <button class="icon-btn foot-quit" id="footQuit" title="Quit Smart Cal (⌘Q)" aria-label="Quit Smart Cal">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5v7" /><path d="M6.2 5.1a6 6 0 1 0 7.6 0" /></svg>
+        </button>
       </footer>
     </section>
 
@@ -233,7 +236,7 @@
           <div class="mb-row"><span>Hide during a meeting<small>Instead of “now” (shows the icon)</small></span><input type="checkbox" class="switch" id="mbHide"></div>
           <div class="mb-row"><span>Orange dot before meetings</span><select id="mbDot"><option value="off">Off</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option></select></div>
           <div class="mb-row"><span>Menu bar icon<small>Monochrome matches Apple's own icons</small></span><div class="seg" id="mbIcon" data-k="trayIcon"><button data-v="color">Colour</button><button data-v="mono">Monochrome</button></div></div>
-          <div class="mb-row"><span>Also show in the Dock<small>Handy if the menu bar is crowded or hidden by the notch</small></span><input type="checkbox" class="switch" id="sDock"></div>
+          <div class="mb-row"><span>Also show in the Dock<small>Then Smart Cal also appears in Force Quit (⌥⌘⎋) and has Quit in its Dock menu — macOS only lists apps with a Dock icon there. Handy too if the menu bar is crowded or hidden by the notch.</small></span><input type="checkbox" class="switch" id="sDock"></div>
           <div class="muted small">With text showing, the app icon is hidden to save space; it comes back when there's nothing to show. ⌃⌥C always opens Smart Cal.</div>
         </div>
 

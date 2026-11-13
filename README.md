@@ -28,7 +28,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
 - **A proper Mac app:** Settings window that saves instantly (⌘,) and is titled after the pane you're on, standard About panel, Apple-ordered menu bar item menu, a full menu bar (Smart Cal · File · Edit · View · Window · Help) when shown in the Dock, system accent colour and clock, Reduce Motion / Increase Contrast, VoiceOver labels, monochrome icon or Dock icon options, Arabic with right-to-left layout.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
-- Keys: `⌃⌥C` toggle · `⌃⌥N` quick add (anywhere) · `⌘N` new · `⌘Z`/`⌘⇧Z` undo/redo · `⌘1–4` Year/Month/Week/Day · `⌘⇧W` week window · `?` help · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings (or the gear on the bottom line) · `⌘W` close · `Esc` back/close.
+- Keys: `⌃⌥C` toggle · `⌃⌥N` quick add (anywhere) · `⌘N` new · `⌘Z`/`⌘⇧Z` undo/redo · `⌘1–4` Year/Month/Week/Day · `⌘⇧W` week window · `?` help · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings (or the gear on the bottom line) · `⌘Q` quit (or ⏻ on the bottom line) · `⌘W` close · `Esc` back/close.
 
 Design decisions and the conversations behind them: [DESIGN.md](DESIGN.md).
 

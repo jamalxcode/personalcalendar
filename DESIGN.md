@@ -19,6 +19,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.4 — An easy Quit (13 Nov 2026)
+
+**Asked:** "smart cal doesn't show in apple menu → force quit and there is not easily accessible quit in the drop down, fix it".
+**Found:** Force Quit lists only apps with a Dock icon (regular activation policy); a menu-bar-only (accessory) app can't appear there — a macOS rule, not something Smart Cal can change. Quit existed only in the menu bar item's right-click menu and in Settings → About.
+**Decided:** a Quit button (power symbol, tooltip "Quit Smart Cal (⌘Q)", red on hover) at the end of the panel's bottom line, no confirmation (like ⌘Q in any Mac app); ⌘Q handled in the panel too. The existing "Also show in the Dock" setting now explains that it also puts Smart Cal in Force Quit and gives it a Dock menu with Quit.
+
 ## v2.3.3 — Updates in plain sight; the gear at the bottom (13 Nov 2026)
 
 **Asked:** "update is confusing and hidden, have a button showing update is available right under today's date, have the gear / setting button on the last line, not next to the calendar, for the current version number on the last line, if there is an update, let it indicate it also and make it clickable link to initiate an update".

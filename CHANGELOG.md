@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.4
+
+- **Quit is easy to find:** a Quit button (⏻) at the right end of the panel's bottom line, and **⌘Q** works whenever the panel is open (right-clicking the menu bar item → Quit Smart Cal still works too)
+- **Force Quit:** macOS only lists apps with a Dock icon there, so a menu-bar-only Smart Cal never appears. Turn on Settings → Menu bar → *Also show in the Dock* and it shows up in Force Quit (⌥⌘⎋) and gets a Dock menu with Quit — the setting now says so
+
 ## v2.3.3
 
 - **Updates you can't miss:** when a new version is out, a banner right under today's date says "Smart Cal vX is available" with **Update now** — one click downloads and installs it (with the progress card). The bottom line shows your version, and "· Update to vX" next to it, which also starts the update. (Before, the footer button only opened Settings.)

@@ -1040,3 +1040,7 @@ body.quick-win .quick textarea { font-size: 16px; }
 .foot > * { white-space: nowrap; }
 /* narrow panel with an update waiting: the shortcut hint makes room for "Update to vX" */
 body:not(.wide) .foot.has-update #hotkeyHint { display: none; }
+
+.foot .foot-quit { width: 24px; height: 24px; border-radius: 6px; color: var(--muted); }
+.foot .foot-quit svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.foot .foot-quit:hover { background: rgba(217, 48, 54, .12); color: #d93036; }

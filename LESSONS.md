@@ -82,3 +82,4 @@
 - **Timers that reference a variable from another function fail silently** (`t` vs `box` in `toastAction`): the toast never hid. Prefer one toast helper.
 - **"AI unavailable" is useless to a person.** Keep provider errors structured (status + provider message) and translate them: 402 = no credits, 401 = bad key, 404 = model gone, 429 = rate limit, 5xx = their side. OpenRouter adds the upstream provider's words in `error.metadata.raw`, and `/api/v1/credits` and `/api/v1/key` tell you the balance and whether it's a free-tier key.
 - **A backup should be a different company,** or one outage / one empty account stops both.
+- **Force Quit (⌥⌘⎋) only lists apps with a Dock icon.** A menu-bar-only (LSUIElement / accessory) app never appears there — give it a visible Quit in its own UI, and point to a "show in Dock" option for people who want it listed.

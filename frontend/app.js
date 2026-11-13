@@ -2994,6 +2994,7 @@ function wire() {
     if (ev.metaKey && ev.key.toLowerCase() === "f") { ev.preventDefault(); openSearch(); }
     if (ev.metaKey && ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); go("OpenWeek"); }
     if (ev.metaKey && ev.key === ",") { ev.preventDefault(); openSettings(); }
+    if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "q") { ev.preventDefault(); go("Quit"); }
     if (ev.metaKey && ev.key.toLowerCase() === "r") { ev.preventDefault(); refresh(); }
     if (ev.metaKey && ev.key.toLowerCase() === "n" && !SETTINGS_WIN) { ev.preventDefault(); newEventNow(); }
     if (ev.metaKey && !ev.shiftKey && ev.key.toLowerCase() === "w") { ev.preventDefault(); SETTINGS_WIN ? go("CloseSettings") : QUICK_WIN ? go("HideQuick") : go("Hide"); }
@@ -3017,6 +3018,7 @@ function wire() {
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
   $("updateBanner").onclick = () => installUpdate();
+  $("footQuit").onclick = () => go("Quit");
   $("versionLbl").onclick = () => (U && U.available ? installUpdate() : go("ShowAbout"));
   Events.On("ui:settings", () => openSettings());
   Events.On("alert", (ev) => {
