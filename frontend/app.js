@@ -2552,11 +2552,17 @@ let U = null;
 function renderUpdate(info, statusMsg) {
   if (info) U = info;
   const cur = (U && U.current) || "";
-  $("versionLbl").textContent = cur ? `v${cur}` : "";
+  // bottom line: the version — or, when there's a newer one, "Update to vX" that starts the update
+  const vl = $("versionLbl");
+  vl.textContent = U && U.available ? `v${cur} · Update to v${U.latest}` : cur ? `v${cur}` : "";
+  vl.classList.toggle("has-update", !!(U && U.available));
+  vl.title = U && U.available ? `You have v${cur}. Click to update to v${U.latest} — Smart Cal restarts by itself.` : "About Smart Cal";
+  // under today's date: a banner that can't be missed
+  $("updateBanner").classList.toggle("hidden", !(U && U.available));
+  document.querySelector(".foot").classList.toggle("has-update", !!(U && U.available));
+  if (U && U.available) $("updateBannerText").textContent = `Smart Cal v${U.latest} is available`;
   $("updVersion").textContent = cur ? `Smart Cal v${cur}` : "Smart Cal";
   const avail = U && U.available;
-  $("updatePill").classList.toggle("hidden", !avail);
-  if (avail) $("updatePill").textContent = `Update to v${U.latest}`;
   $("installUpdBtn").classList.toggle("hidden", !avail);
   if (avail) $("installUpdBtn").textContent = `Update to v${U.latest} now`;
   $("updNotes").classList.toggle("hidden", !(avail && U.notes));
@@ -2583,13 +2589,13 @@ async function checkUpdate() {
 
 async function installUpdate() {
   $("installUpdBtn").disabled = true;
-  $("updatePill").disabled = true;
+  $("updateBanner").disabled = true;
   showUpdateStep({ stage: "checking", text: "Getting ready…", pct: -1 });
   try { await go("InstallUpdate"); }
   catch (err) {
     showUpdateStep({ stage: "error", text: errMsg(err), pct: -1 });
     $("installUpdBtn").disabled = false;
-    $("updatePill").disabled = false;
+    $("updateBanner").disabled = false;
   }
 }
 
@@ -3010,7 +3016,8 @@ function wire() {
   Events.On("ui:today", () => { if (!SETTINGS_WIN && !QUICK_WIN) $("todayBtn").click(); });
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
-  $("updatePill").onclick = () => openSettings("about");
+  $("updateBanner").onclick = () => installUpdate();
+  $("versionLbl").onclick = () => (U && U.available ? installUpdate() : go("ShowAbout"));
   Events.On("ui:settings", () => openSettings());
   Events.On("alert", (ev) => {
     const a = ev.data;

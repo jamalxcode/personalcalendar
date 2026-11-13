@@ -28,7 +28,7 @@ A Fantastical-style **macOS menu bar calendar**, written in Go with **Wails v3**
 - **Big week window** (⌘⇧W): drag across days, resize, double-click to add.
 - **A proper Mac app:** Settings window that saves instantly (⌘,) and is titled after the pane you're on, standard About panel, Apple-ordered menu bar item menu, a full menu bar (Smart Cal · File · Edit · View · Window · Help) when shown in the Dock, system accent colour and clock, Reduce Motion / Increase Contrast, VoiceOver labels, monochrome icon or Dock icon options, Arabic with right-to-left layout.
 - **Week settings**: week starts Saturday, weekend Fri+Sat by default — presets for the Gulf, Saudi, UAE, Egypt, Europe and US, or pick your own days.
-- Keys: `⌃⌥C` toggle · `⌃⌥N` quick add (anywhere) · `⌘N` new · `⌘Z`/`⌘⇧Z` undo/redo · `⌘1–4` Year/Month/Week/Day · `⌘⇧W` week window · `?` help · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings · `⌘W` close · `Esc` back/close.
+- Keys: `⌃⌥C` toggle · `⌃⌥N` quick add (anywhere) · `⌘N` new · `⌘Z`/`⌘⇧Z` undo/redo · `⌘1–4` Year/Month/Week/Day · `⌘⇧W` week window · `?` help · `↑↓` move · `↩` open · `⌫` delete · `← →` previous/next day · `⌘F` search · `⌘R` refresh · `⌘T` today · `⌘,` settings (or the gear on the bottom line) · `⌘W` close · `Esc` back/close.
 
 Design decisions and the conversations behind them: [DESIGN.md](DESIGN.md).
 
@@ -76,7 +76,7 @@ Works with every calendar macOS syncs — Google, iCloud, Exchange — and you c
 
 ## Updates
 
-The app checks GitHub for a newer release at launch and every 6 hours. When one exists an **Update to vX** pill appears in the panel footer (also Settings → About → Check now, or right-click the menu bar icon → Check for Updates…). One click downloads it — a progress card shows each step (Download · Check · Install · Restart) and the menu bar reads "⬇︎ Updating 40%" — checks it against the SHA-256 published with the release and verifies the app's signature, then swaps the app in place and relaunches. If you're told you're up to date, there is simply no newer release yet — changes only reach the Update button once they're merged into `main` with a new `VERSION`.
+The app checks GitHub for a newer release at launch and every 6 hours. When one exists a banner appears right under today's date — **Smart Cal vX is available · Update now** — and the version on the panel's bottom line becomes "· Update to vX" (also Settings → About → Check now, or right-click the menu bar icon → Check for Updates…). One click downloads it — a progress card shows each step (Download · Check · Install · Restart) and the menu bar reads "⬇︎ Updating 40%" — checks it against the SHA-256 published with the release and verifies the app's signature, then swaps the app in place and relaunches. If you're told you're up to date, there is simply no newer release yet — changes only reach the Update button once they're merged into `main` with a new `VERSION`.
 
 **Beta versions:** set `VERSION` to e.g. `2.4.0-beta.1` and it's published as a pre-release that only "Get beta versions" (Settings → About) installs; a plain `2.4.0` later goes to everyone.
 

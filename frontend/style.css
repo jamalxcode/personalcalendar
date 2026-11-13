@@ -1021,3 +1021,22 @@ body.quick-win .quick textarea { font-size: 16px; }
 #aiLast.bad { color: #d93036; }
 .backup-ai { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .group-sub { font-weight: 600; font-size: 12.5px; }
+
+/* update available: a banner under today's date, and a link in the bottom line */
+.update-banner {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin: 6px 0 2px; padding: 7px 10px; border-radius: 9px;
+  background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 600; text-align: start;
+}
+.update-banner:hover { filter: brightness(1.06); }
+.update-banner:disabled { opacity: .6; }
+.update-banner .ub-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-banner .ub-go { flex: none; padding: 2px 9px; border-radius: 6px; background: rgba(255, 255, 255, .22); }
+.update-banner .ub-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .3); }
+.version-link { font-size: 11px; color: var(--muted); padding: 2px 4px; border-radius: 5px; white-space: nowrap; }
+.version-link:hover { background: var(--faint); color: var(--fg); }
+.version-link.has-update { color: var(--accent); font-weight: 700; }
+.foot .foot-gear { width: 24px; height: 24px; margin-left: 0; border-radius: 6px; color: var(--muted); }
+.foot .foot-gear .gear-svg { width: 15px; height: 15px; stroke-width: .8; }
+.foot > * { white-space: nowrap; }
+/* narrow panel with an update waiting: the shortcut hint makes room for "Update to vX" */
+body:not(.wide) .foot.has-update #hotkeyHint { display: none; }

@@ -19,6 +19,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.3 — Updates in plain sight; the gear at the bottom (13 Nov 2026)
+
+**Asked:** "update is confusing and hidden, have a button showing update is available right under today's date, have the gear / setting button on the last line, not next to the calendar, for the current version number on the last line, if there is an update, let it indicate it also and make it clickable link to initiate an update".
+**Found:** the footer's "Update to vX" pill only opened Settings → About, where a second button did the update — two steps, the first one misleading.
+**Decided:** an accent-coloured banner under the date line ("Smart Cal vX is available · Update now") that installs directly; the bottom line reads "v2.3.2 · Update to v2.3.3" in the accent colour and installs on click (otherwise the version opens About); the gear moves from the calendar header to the bottom line, right of refresh. In the narrow layout the shortcut hint gives way to the update link so the line never wraps.
+
 ## v2.3.2 — Say why the AI failed; a backup AI (13 Nov 2026)
 
 **Asked:** "ai key for openrouter is there, why is it not working? i need more reasons and clues from smart cal? do i need to pay? is it not accessible? why?" — then, while a *Test AI* button was being built: "i want to know the reason from smart cal, i dont want to do a test button, as soon as it fails, i need to know a reason, also add a second backup ai option so if one fails, the other ai tries to do it".

@@ -14,6 +14,10 @@
     <div class="brand">
       <!-- today's date, big, because sometimes you just need to know what day it is -->
       <div class="today-line" id="todayLine"><span class="today-dow" id="todayDow"></span> <span class="today-date" id="todayDate"></span> <span class="today-year" id="todayYear"></span></div>
+      <!-- shown only when a newer version is out: one click updates -->
+      <button class="update-banner hidden" id="updateBanner" title="Download and install it — Smart Cal restarts by itself">
+        <span class="ub-dot" aria-hidden="true"></span><span class="ub-text" id="updateBannerText">A new version is available</span><span class="ub-go">Update now</span>
+      </button>
     </div>
     <!-- ===== main view ===== -->
     <section id="main" class="view">
@@ -64,9 +68,6 @@
           <button class="icon-btn search-btn" id="searchBtn" title="Search (⌘F)">
             <svg viewBox="0 0 20 20"><path d="M8.5 3a5.5 5.5 0 0 1 4.38 8.83l3.65 3.64-1.06 1.06-3.64-3.65A5.5 5.5 0 1 1 8.5 3Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>
           </button>
-          <button class="icon-btn gear" id="openSettings" title="Settings (⌘,)">
-            <svg viewBox="0 0 24 24" class="gear-svg"><path fill-rule="evenodd" d="M19.39 10.23 L22.11 10.64 L22.11 13.36 L19.39 13.77 L18.48 15.97 L20.11 18.19 L18.19 20.11 L15.97 18.48 L13.77 19.39 L13.36 22.11 L10.64 22.11 L10.23 19.39 L8.03 18.48 L5.81 20.11 L3.89 18.19 L5.52 15.97 L4.61 13.77 L1.89 13.36 L1.89 10.64 L4.61 10.23 L5.52 8.03 L3.89 5.81 L5.81 3.89 L8.03 5.52 L10.23 4.61 L10.64 1.89 L13.36 1.89 L13.77 4.61 L15.97 5.52 L18.19 3.89 L20.11 5.81 L18.48 8.03 Z M15.20 12 A3.2 3.2 0 1 0 8.80 12 A3.2 3.2 0 1 0 15.20 12 Z"/></svg>
-          </button>
         </div>
       </header>
       <div class="search-bar hidden" id="searchBar">
@@ -91,10 +92,12 @@
       <footer class="foot">
         <span id="updated" class="muted"></span>
         <span class="muted" id="hotkeyHint"></span>
-        <button class="update-pill hidden" id="updatePill" title="A new version is ready">Update</button>
         <button class="link-btn small" id="recapBtn" title="Your week at a glance">This week</button>
-        <span class="muted small" id="versionLbl"></span>
+        <button class="version-link" id="versionLbl" title="About Smart Cal"></button>
         <button class="icon-btn small" id="refreshBtn" title="Refresh (⌘R)">↻</button>
+        <button class="icon-btn gear foot-gear" id="openSettings" title="Settings (⌘,)">
+          <svg viewBox="0 0 24 24" class="gear-svg"><path fill-rule="evenodd" d="M19.39 10.23 L22.11 10.64 L22.11 13.36 L19.39 13.77 L18.48 15.97 L20.11 18.19 L18.19 20.11 L15.97 18.48 L13.77 19.39 L13.36 22.11 L10.64 22.11 L10.23 19.39 L8.03 18.48 L5.81 20.11 L3.89 18.19 L5.52 15.97 L4.61 13.77 L1.89 13.36 L1.89 10.64 L4.61 10.23 L5.52 8.03 L3.89 5.81 L5.81 3.89 L8.03 5.52 L10.23 4.61 L10.64 1.89 L13.36 1.89 L13.77 4.61 L15.97 5.52 L18.19 3.89 L20.11 5.81 L18.48 8.03 Z M15.20 12 A3.2 3.2 0 1 0 8.80 12 A3.2 3.2 0 1 0 15.20 12 Z"/></svg>
+        </button>
       </footer>
     </section>
 

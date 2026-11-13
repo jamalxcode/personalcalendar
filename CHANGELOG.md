@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.3
+
+- **Updates you can't miss:** when a new version is out, a banner right under today's date says "Smart Cal vX is available" with **Update now** — one click downloads and installs it (with the progress card). The bottom line shows your version, and "· Update to vX" next to it, which also starts the update. (Before, the footer button only opened Settings.)
+- **The settings gear moved to the bottom line**, next to refresh, out of the calendar header. Clicking the version number (when there's no update) opens About
+
 ## v2.3.2
 
 - **Smart Cal tells you why the AI failed, the moment it fails** — in plain words, right under the AI box, until you close it: "OpenRouter says your credits have run out (402) — add credits at openrouter.ai/credits", "OpenRouter doesn't accept this key (401)", "the model isn't available (404)", "too many requests (429)", "couldn't reach OpenRouter — check the connection", "took too long". For credit, limit and key problems it also shows what OpenRouter reports about your account (credits left, free tier). Settings → AI shows the last failure too
