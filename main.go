@@ -58,7 +58,9 @@ type App struct {
 	travelAt     map[string]time.Time
 	labelEmoji   map[string]string // title → emoji, sent by the panel
 	leaveAlerted map[string]bool
-	hotkeyOn     string // currently registered shortcut
+	hotkeyOn     string   // currently registered shortcut
+	mainCheck    KeyCheck // what the AI service said about the main key when it was saved (guarded by mu)
+	backupCheck  KeyCheck
 	trayHidden   bool   // macOS is hiding the menu bar item (full menu bar / notch), guarded by mu
 	updating     string // while an update installs: the menu bar text ("⬇︎ Updating 40%"), guarded by trayMu
 	extras       extras // weather + countdowns, refreshed with events

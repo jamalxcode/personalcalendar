@@ -19,6 +19,14 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.5 — No guessing which AI is used (13 Nov 2026)
+
+**Asked:** "i gave smart cal an openai key, and it had gemini on there, will it know it was an openai key?" → it did (any non-OpenRouter `sk-` key is OpenAI, and an OpenRouter-style model with an OpenAI key falls back to gpt-4o-mini) but Settings kept showing Gemini → "yes do it, eliminate all confusion" → "but how would you know the key was from openai? or from anywhere else?"
+**Decided:**
+- One function (`effectiveModel`) decides the service and the exact model name for requests *and* for Settings, so they can't disagree. Saved models are corrected to ones the key's service has (`fitModel`), on save and when the settings load.
+- Settings shows per key: "OpenAI key saved" / "OpenRouter key saved", "→ Uses gpt-4o-mini via OpenAI", and model suggestions for that service only.
+- Prefixes identify the company (sk-or- OpenRouter; sk-proj-/sk-svcacct-/sk- OpenAI; sk-ant- Anthropic; AIza Google; gsk_ Groq; xai- xAI) — but a prefix is only a convention, so every saved key is **checked with its service** (OpenRouter `/key` + credits, OpenAI `/models`) and the answer shown under it; "accepted but no credits" counts as a problem (red). Keys for services Smart Cal can't call are refused with an explanation, rather than being sent to the wrong company.
+
 ## v2.3.4 — An easy Quit (13 Nov 2026)
 
 **Asked:** "smart cal doesn't show in apple menu → force quit and there is not easily accessible quit in the drop down, fix it".

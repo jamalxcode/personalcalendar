@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.5
+
+- **Settings → AI says exactly what it uses:** each saved key says which service it is ("OpenAI key saved", "OpenRouter key saved"), and under each model box a line shows exactly what will be sent — "→ Uses gpt-4o-mini via OpenAI". The model suggestions only offer models that service has
+- **Models that fit the key:** an OpenAI key can't use Gemini or other non-OpenAI models, so saving an OpenAI key with such a model switches the box to gpt-4o-mini (your existing settings are corrected the same way)
+- **Every key is checked with its own service when you save it** — "OpenAI accepted the key ✓", or why not ("doesn't accept this key (401)", "accepted, but no credits left"). Keys Smart Cal can't use (Anthropic, Google Gemini, Groq, xAI) aren't saved, with a plain explanation — an OpenRouter key gives access to those models instead
+
 ## v2.3.4
 
 - **Quit is easy to find:** a Quit button (⏻) at the right end of the panel's bottom line, and **⌘Q** works whenever the panel is open (right-clicking the menu bar item → Quit Smart Cal still works too)

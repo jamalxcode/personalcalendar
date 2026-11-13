@@ -257,6 +257,12 @@ type Settings struct {
 	BackupKeyHint    string     `json:"backupKeyHint"` // "sk-or…abcd" for display
 	BackupKey        string     `json:"backupKey"`     // write-only: empty = keep, "-" = remove
 	BackupModel      string     `json:"backupModel"`
+	MainProvider     string     `json:"mainProvider"` // OpenRouter | OpenAI | ""
+	MainUses         string     `json:"mainUses"`     // "gpt-4o-mini via OpenAI" — exactly what's sent
+	BackupProvider   string     `json:"backupProvider"`
+	BackupUses       string     `json:"backupUses"`
+	MainCheck        KeyCheck   `json:"mainCheck"` // what the service said when the key was saved
+	BackupCheck      KeyCheck   `json:"backupCheck"`
 	OpenAIModel      string     `json:"openaiModel"`
 	Use24h           bool       `json:"use24h"`
 	ConfirmBeforeAdd bool       `json:"confirmBeforeAdd"`
@@ -317,7 +323,20 @@ func (s *CalService) GetSettings() Settings {
 	if k := strings.TrimSpace(c.BackupKey); len(k) > 8 {
 		bhint = k[:5] + "…" + k[len(k)-4:]
 	}
-	return Settings{OpenAIKeyHint: hint, BackupKeyHint: bhint, BackupModel: c.BackupModel, OpenAIModel: c.OpenAIModel, Use24h: c.Use24h,
+	uses := func(key, model string) (string, string) {
+		if strings.TrimSpace(key) == "" {
+			return "", ""
+		}
+		p, m := effectiveModel(key, model)
+		return p, m + " via " + p
+	}
+	mp, mu := uses(c.OpenAIKey, c.OpenAIModel)
+	bp, bu := uses(c.BackupKey, c.BackupModel)
+	s.a.mu.Lock()
+	mc, bc := s.a.mainCheck, s.a.backupCheck
+	s.a.mu.Unlock()
+	return Settings{OpenAIKeyHint: hint, BackupKeyHint: bhint, BackupModel: c.BackupModel, OpenAIModel: c.OpenAIModel,
+		MainProvider: mp, MainUses: mu, BackupProvider: bp, BackupUses: bu, MainCheck: mc, BackupCheck: bc, Use24h: c.Use24h,
 		ConfirmBeforeAdd: c.ConfirmBeforeAdd, DaysAhead: c.DaysAhead,
 		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent,
 		MenuBarStyle: c.MenuBarStyle, BarTitle: c.BarTitle, BarAhead: c.BarAhead, BarEmoji: !c.BarNoEmoji,
@@ -333,7 +352,16 @@ func (s *CalService) GetSettings() Settings {
 func (s *CalService) SaveSettings(in Settings) (State, error) {
 	c := s.a.cfg
 	if k := strings.TrimSpace(in.OpenAIKey); k != "" {
+		if msg := unsupportedKeyErr(k); msg != "" {
+			return s.a.state(), fmt.Errorf("%s", msg) // not saved: it can't work
+		}
 		c.OpenAIKey = k
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		chk := checkKey(ctx, k) // ask the key's own service — the prefix is only a convention
+		cancel()
+		s.a.mu.Lock()
+		s.a.mainCheck = chk
+		s.a.mu.Unlock()
 	}
 	if m := strings.TrimSpace(in.OpenAIModel); m != "" {
 		c.OpenAIModel = m
@@ -341,12 +369,27 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	switch k := strings.TrimSpace(in.BackupKey); {
 	case k == "-":
 		c.BackupKey = ""
+		s.a.mu.Lock()
+		s.a.backupCheck = KeyCheck{}
+		s.a.mu.Unlock()
 	case k != "":
+		if msg := unsupportedKeyErr(k); msg != "" {
+			return s.a.state(), fmt.Errorf("Backup key: %s", msg)
+		}
 		c.BackupKey = k
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		chk := checkKey(ctx, k)
+		cancel()
+		s.a.mu.Lock()
+		s.a.backupCheck = chk
+		s.a.mu.Unlock()
 	}
 	if m := strings.TrimSpace(in.BackupModel); m != "" {
 		c.BackupModel = m
 	}
+	// keep each model one its key's service actually has (an OpenAI key can't use google/gemini-…)
+	c.OpenAIModel = fitModel(c.OpenAIKey, c.OpenAIModel)
+	c.BackupModel = fitModel(c.BackupKey, c.BackupModel)
 	c.ConfirmBeforeAdd = in.ConfirmBeforeAdd
 	if in.DaysAhead > 0 {
 		c.DaysAhead = in.DaysAhead

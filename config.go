@@ -117,6 +117,9 @@ func loadConfig() *Config {
 	if c.OpenAIModel == "" {
 		c.OpenAIModel = "gpt-4o-mini"
 	}
+	// each model must be one its key's service has (an OpenAI key can't use google/gemini-…)
+	c.OpenAIModel = fitModel(c.OpenAIKey, c.OpenAIModel)
+	c.BackupModel = fitModel(c.BackupKey, c.BackupModel)
 	if !c.EmojiBarSet { // v1.8.7: the compact "👥 2h Meet" label becomes the default
 		if c.MenuBarStyle == "" || c.MenuBarStyle == "next" {
 			c.MenuBarStyle = "emoji"

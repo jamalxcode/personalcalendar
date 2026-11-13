@@ -554,24 +554,49 @@ func callRemote(ctx context.Context, cfg *Config, sys, user, imageB64, schemaNam
 	return callProvider(ctx, cfg.OpenAIKey, cfg.OpenAIModel, sys, user, imageB64, schemaName, schema)
 }
 
-// callProvider sends one structured request with the given key (sk-or-… OpenRouter, sk-… OpenAI) and model.
-func callProvider(ctx context.Context, key, model, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
-	key = strings.TrimSpace(key)
+// effectiveModel: which service a key belongs to and the exact model name that will be sent —
+// used for requests and shown in Settings, so the two can never disagree.
+// sk-or-… is OpenRouter (bare names get "openai/"); any other sk-… is OpenAI, which only has its
+// own models, so an OpenRouter-style name like google/gemini-2.5-flash becomes gpt-4o-mini.
+func effectiveModel(key, model string) (provider, sent string) {
+	model = strings.TrimSpace(model)
 	if model == "" {
 		model = "gpt-4o-mini"
 	}
-	base, provider := "https://api.openai.com/v1", "OpenAI"
-	if strings.HasPrefix(key, "sk-or-") {
-		base, provider = "https://openrouter.ai/api/v1", "OpenRouter"
+	if strings.HasPrefix(strings.TrimSpace(key), "sk-or-") {
 		if !strings.Contains(model, "/") {
 			model = "openai/" + model
 		}
-	} else if strings.Contains(model, "/") { // an OpenRouter-style name with an OpenAI key
+		return "OpenRouter", model
+	}
+	if strings.Contains(model, "/") {
 		if strings.HasPrefix(model, "openai/") {
-			model = strings.TrimPrefix(model, "openai/")
-		} else {
-			model = "gpt-4o-mini" // OpenAI only has its own models
+			return "OpenAI", strings.TrimPrefix(model, "openai/")
 		}
+		return "OpenAI", "gpt-4o-mini"
+	}
+	return "OpenAI", model
+}
+
+// fitModel corrects a saved model name to one the key's service actually has (what Settings shows).
+func fitModel(key, model string) string {
+	if strings.TrimSpace(key) == "" {
+		return model
+	}
+	p, sent := effectiveModel(key, model)
+	if p == "OpenAI" {
+		return sent
+	}
+	return strings.TrimSpace(model)
+}
+
+// callProvider sends one structured request with the given key (sk-or-… OpenRouter, sk-… OpenAI) and model.
+func callProvider(ctx context.Context, key, model, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
+	key = strings.TrimSpace(key)
+	provider, model := effectiveModel(key, model)
+	base := "https://api.openai.com/v1"
+	if provider == "OpenRouter" {
+		base = "https://openrouter.ai/api/v1"
 	}
 	body := map[string]any{
 		"model": model,

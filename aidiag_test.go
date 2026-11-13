@@ -38,3 +38,45 @@ func TestExplainAI(t *testing.T) {
 		t.Error("retryable: wrong")
 	}
 }
+
+func TestEffectiveModel(t *testing.T) {
+	cases := []struct{ key, model, provider, sent, fit string }{
+		{"sk-or-v1-abc", "gpt-4o-mini", "OpenRouter", "openai/gpt-4o-mini", "gpt-4o-mini"},
+		{"sk-or-v1-abc", "google/gemini-2.5-flash", "OpenRouter", "google/gemini-2.5-flash", "google/gemini-2.5-flash"},
+		{"sk-proj-abc", "google/gemini-2.5-flash", "OpenAI", "gpt-4o-mini", "gpt-4o-mini"}, // the reported case
+		{"sk-proj-abc", "openai/gpt-4.1-mini", "OpenAI", "gpt-4.1-mini", "gpt-4.1-mini"},
+		{"sk-abc", "", "OpenAI", "gpt-4o-mini", "gpt-4o-mini"},
+	}
+	for _, c := range cases {
+		p, s := effectiveModel(c.key, c.model)
+		if p != c.provider || s != c.sent || fitModel(c.key, c.model) != c.fit {
+			t.Errorf("%s + %q → %s %q (fit %q), want %s %q (fit %q)", c.key, c.model, p, s, fitModel(c.key, c.model), c.provider, c.sent, c.fit)
+		}
+	}
+}
+
+func TestKeyKind(t *testing.T) {
+	cases := []struct {
+		key, svc string
+		ok       bool
+	}{
+		{"sk-or-v1-abc", "OpenRouter", true},
+		{"sk-proj-abc", "OpenAI", true},
+		{"sk-svcacct-abc", "OpenAI", true},
+		{"sk-abc", "OpenAI", true},
+		{"sk-ant-api03-abc", "Anthropic (Claude)", false},
+		{"AIzaSyAbc", "Google (Gemini)", false},
+		{"gsk_abc", "Groq", false},
+		{"xai-abc", "xAI (Grok)", false},
+		{"hello", "an unknown service", false},
+	}
+	for _, c := range cases {
+		svc, ok := keyKind(c.key)
+		if svc != c.svc || ok != c.ok {
+			t.Errorf("%q → %q %v", c.key, svc, ok)
+		}
+	}
+	if unsupportedKeyErr("sk-ant-x") == "" || unsupportedKeyErr("sk-proj-x") != "" {
+		t.Error("unsupportedKeyErr")
+	}
+}

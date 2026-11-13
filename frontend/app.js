@@ -2749,9 +2749,10 @@ function arrangeSettings() {
   const showSaved = S.hasKey && !editingKey;
   $("keySaved").classList.toggle("hidden", !showSaved);
   $("keyField").classList.toggle("hidden", showSaved);
-  $("keyProvider").textContent = (hint.startsWith("sk-or") ? "OpenRouter" : "OpenAI") + " key saved";
+  $("keyProvider").textContent = ((settingsCache && settingsCache.mainProvider) || (hint.startsWith("sk-or") ? "OpenRouter" : "OpenAI")) + " key saved";
+  showModelInfo();
   $("keyMasked").innerHTML = `<code>${esc(hint || "key")}</code> · stored on this Mac`;
-  $("sKey").placeholder = S.hasKey ? "Paste a new key to replace the saved one" : "Paste your OpenRouter key  sk-or-…";
+  $("sKey").placeholder = S.hasKey ? "Paste a new key to replace the saved one" : "Paste an OpenRouter key (sk-or-…) or an OpenAI key (sk-…)";
 }
 
 let openTab = null;
@@ -2874,10 +2875,16 @@ async function saveSettings(silent) {
     if (keyJustSaved) editingKey = false;
     arrangeSettings();
     if (keyJustSaved) { const k = $("keySaved"); k.classList.remove("just"); void k.offsetWidth; k.classList.add("just"); }
-    if (keyJustSaved) toast("Key saved on this Mac ✓ — quick add is ready");
+    try { settingsCache = await go("GetSettings"); showModelInfo(); } catch (_) {}
+    if (keyJustSaved) toast(`${(settingsCache && settingsCache.mainProvider) || "AI"} key saved on this Mac ✓ — quick add is ready`);
     else if (!silent) toast("Saved ✓");
     else flashSaved();
-  } catch (err) { toast(errMsg(err), true); }
+  } catch (err) {
+    toast(errMsg(err), true);
+    // a key that couldn't be saved: say why right where it was pasted, and keep saying it
+    const box = payload.backupKey && payload.backupKey !== "-" ? $("backupCheck") : payload.openaiKey ? $("mainCheck") : null;
+    if (box) { box.classList.remove("hidden"); box.classList.add("bad"); box.textContent = errMsg(err); }
+  }
 }
 
 // ---------- wiring ----------
@@ -3091,6 +3098,40 @@ function loadSettingsBackup() {
   $("backupSaved").classList.toggle("hidden", !bh);
   $("backupField").classList.toggle("hidden", !!bh);
   $("backupMasked").textContent = bh ? `${bh} · stored on this Mac` : "";
+  showModelInfo();
+}
+
+// Each key says which service it is, each model box says exactly what will be sent, and the
+// suggestions only offer models that service has (an OpenAI key can't use google/gemini-…).
+const MODEL_SUGGESTIONS = {
+  OpenRouter: ["openai/gpt-4o-mini", "openai/gpt-4.1-mini", "google/gemini-2.5-flash"],
+  OpenAI: ["gpt-4o-mini", "gpt-4.1-mini"],
+};
+function showModelInfo() {
+  const c = settingsCache || {};
+  const fill = (listId, provider) => {
+    const dl = $(listId);
+    dl.innerHTML = "";
+    for (const m of MODEL_SUGGESTIONS[provider] || [...MODEL_SUGGESTIONS.OpenRouter, ...MODEL_SUGGESTIONS.OpenAI]) { const o = el("option"); o.value = m; dl.append(o); }
+  };
+  fill("modelsMain", c.mainProvider);
+  fill("modelsBackup", c.backupProvider);
+  $("mainUses").textContent = c.mainUses ? `Uses ${c.mainUses}` : "";
+  $("backupUses").textContent = c.backupUses ? `Uses ${c.backupUses}` : "No backup yet — add a key above to have one.";
+  $("backupProvider").textContent = c.backupProvider ? `${c.backupProvider} key saved` : "Backup key saved";
+  // what the service itself said when the key was saved
+  const check = (id, k) => {
+    const n = $(id);
+    if (!k || !k.at || k.at.startsWith("0001")) { n.classList.add("hidden"); return; }
+    n.classList.remove("hidden");
+    n.classList.toggle("bad", !k.ok);
+    n.textContent = k.text;
+  };
+  check("mainCheck", c.openaiKeyHint ? c.mainCheck : null);
+  check("backupCheck", c.backupKeyHint ? c.backupCheck : null);
+  // the saved (corrected) model names, so the boxes never show a model that isn't used
+  if (document.activeElement !== $("sModel") && c.openaiModel) $("sModel").value = c.openaiModel;
+  if (document.activeElement !== $("sBackupModel") && c.backupModel) $("sBackupModel").value = c.backupModel;
 }
 
 // ---------- Settings → AI: the last request's outcome ----------

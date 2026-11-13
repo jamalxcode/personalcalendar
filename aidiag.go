@@ -213,3 +213,89 @@ func openRouterAccount(ctx context.Context, key string) string {
 	}
 	return strings.Join(parts, " · ")
 }
+
+// ---- which company a key belongs to, and checking it with that company ----
+
+// keyKind names the service from the key's prefix ("" when it's empty). supported is false for
+// keys Smart Cal can't use; the prefix is only a convention, so a saved key is also checked with
+// the service itself (checkKey).
+func keyKind(key string) (service string, supported bool) {
+	k := strings.TrimSpace(key)
+	switch {
+	case k == "":
+		return "", true
+	case strings.HasPrefix(k, "sk-or-"):
+		return "OpenRouter", true
+	case strings.HasPrefix(k, "sk-ant-"):
+		return "Anthropic (Claude)", false
+	case strings.HasPrefix(k, "AIza"):
+		return "Google (Gemini)", false
+	case strings.HasPrefix(k, "gsk_"):
+		return "Groq", false
+	case strings.HasPrefix(k, "xai-"):
+		return "xAI (Grok)", false
+	case strings.HasPrefix(k, "sk-"):
+		return "OpenAI", true
+	}
+	return "an unknown service", false
+}
+
+// unsupportedKeyErr explains why a key can't be saved ("" when it can).
+func unsupportedKeyErr(key string) string {
+	svc, ok := keyKind(key)
+	if ok {
+		return ""
+	}
+	if svc == "an unknown service" {
+		return "That doesn't look like an OpenRouter key (sk-or-…) or an OpenAI key (sk-…) — copy the whole key again."
+	}
+	return "That's a " + svc + " key — Smart Cal works with OpenRouter keys (sk-or-…) and OpenAI keys (sk-…). Tip: an OpenRouter key also gives you Claude, Gemini, Grok and others."
+}
+
+// KeyCheck is what the service said about a key when it was saved.
+type KeyCheck struct {
+	At   time.Time `json:"at"`
+	OK   bool      `json:"ok"`
+	Text string    `json:"text"` // "Checked with OpenAI ✓" or the reason it was refused
+}
+
+// checkKey asks the key's own service whether it accepts the key (OpenRouter: /key, OpenAI: /models).
+func checkKey(ctx context.Context, key string) KeyCheck {
+	svc, ok := keyKind(key)
+	res := KeyCheck{At: time.Now()}
+	if !ok || svc == "" {
+		res.Text = unsupportedKeyErr(key)
+		return res
+	}
+	url := "https://api.openai.com/v1/models"
+	if svc == "OpenRouter" {
+		url = "https://openrouter.ai/api/v1/key"
+	}
+	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(key))
+	resp, err := (&http.Client{Timeout: 12 * time.Second}).Do(req)
+	if err != nil {
+		res.Text = "Couldn't reach " + svc + " to check the key — it will be tried when you use the AI."
+		return res
+	}
+	resp.Body.Close()
+	switch {
+	case resp.StatusCode == 200:
+		res.OK, res.Text = true, svc+" accepted the key ✓"
+		if svc == "OpenRouter" {
+			if acct := openRouterAccount(ctx, key); acct != "" {
+				res.Text += " · " + acct
+				if strings.Contains(acct, "no credits left") {
+					// the key is fine but the AI can't answer until there's credit — say so in red, not green
+					res.OK = false
+					res.Text = "OpenRouter accepted the key, but the account has no credits left, so the AI can't answer yet — add some at openrouter.ai/credits. (" + acct + ")"
+				}
+			}
+		}
+	case resp.StatusCode == 401 || resp.StatusCode == 403:
+		res.Text = fmt.Sprintf("%s doesn't accept this key (%d) — it's wrong, deleted or expired. Make a new one at %s.", svc, resp.StatusCode, keysURL(svc))
+	default:
+		res.Text = fmt.Sprintf("%s answered %d when checking the key — it will be tried when you use the AI.", svc, resp.StatusCode)
+	}
+	return res
+}
