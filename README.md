@@ -70,7 +70,7 @@ Drag it into /Applications. Smart Cal asks once whether to start at login (also 
 1. **Allow** — on first launch macOS asks for calendar access. Click Allow.
 2. **Google account** — if your Google account isn't on the Mac yet, click **Add Google…** in the app. It opens System Settings → Internet Accounts; sign in with Google and keep *Calendars* ticked. Your calendars show up in the app by themselves.
 
-**AI:** paste an OpenRouter key (`sk-or-…`, from <https://openrouter.ai/keys>) or an OpenAI key (`sk-…`) in Settings → AI; the app detects which. Without a key, simple lines ("dentist Thursday 3pm") still work offline.
+**AI:** paste an OpenRouter key (`sk-or-…`, from <https://openrouter.ai/keys>) or an OpenAI key (`sk-…`) in Settings → AI; the app detects which. OpenRouter's paid models (the default is GPT-4o mini) need a little credit on the account — Smart Cal uses very little. Optionally add a **backup AI** (a second key and model, ideally from another company) that answers whenever the main one fails. If the AI fails, Smart Cal says why right under the AI box (e.g. "credits have run out (402)"); without a key, simple lines ("dentist Thursday 3pm") still work offline.
 
 Works with every calendar macOS syncs — Google, iCloud, Exchange — and you choose which ones to show and which one new events go to.
 
@@ -99,6 +99,7 @@ The app checks GitHub for a newer release at launch and every 6 hours. When one 
 | `frontend/` | the panel, Settings and quick-add windows (`index.html`, `style.css`, `app.js` — `?settings=1` / `?quick=1` pick the mode), the week window (`week.*`), shared modules (`menu.js` pop-up menus + date picker, `dates.js`, `flights.js`) and Arabic (`i18n.js`); they talk to Go via `/wails/runtime.js` |
 | `eventkit_darwin.m` | Objective-C bridge to Apple EventKit: permission, calendars, events, add, delete, change notifications |
 | `calendar_darwin.go` | Go wrapper over the bridge (+ Meet/Zoom/Teams link detection) |
+| `aidiag.go` (+ `aidiag_test.go`) | why an AI request failed, in plain words (401/402/404/429/5xx/network…), OpenRouter account clues, the last outcome for Settings |
 | `ai.go` (+ `ai_test.go`, `ai_eval_test.go`, `testdata/ai_eval.json`) | structured AI requests (OpenRouter / OpenAI): one call decides add / answer / update / delete / slots / to-do; edit guards (English + Arabic), exact relative dates, trailing minutes; the AI test set |
 | `types.go` | repeats, alarms, to-dos, free-slot and clash helpers |
 | `fun.go` | weather (Open-Meteo), greeting, emoji cache, countdowns |

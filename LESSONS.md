@@ -80,3 +80,5 @@
 - **A guard that refuses to run while busy will swallow a call made from inside the busy section.** `addDrafts()` returned early because the AI request had set `busy`; with "preview before adding" off, typed events silently vanished. Clear the flag (or call an inner function) before chaining.
 - **⌃⌥Space switches keyboard input sources on many Macs** (Arabic ⇄ English) — don't make it a default global shortcut.
 - **Timers that reference a variable from another function fail silently** (`t` vs `box` in `toastAction`): the toast never hid. Prefer one toast helper.
+- **"AI unavailable" is useless to a person.** Keep provider errors structured (status + provider message) and translate them: 402 = no credits, 401 = bad key, 404 = model gone, 429 = rate limit, 5xx = their side. OpenRouter adds the upstream provider's words in `error.metadata.raw`, and `/api/v1/credits` and `/api/v1/key` tell you the balance and whether it's a free-tier key.
+- **A backup should be a different company,** or one outage / one empty account stops both.

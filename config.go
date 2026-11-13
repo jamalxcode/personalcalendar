@@ -13,6 +13,8 @@ import (
 type Config struct {
 	OpenAIKey        string   `json:"openai_key"`
 	OpenAIModel      string   `json:"openai_model"`
+	BackupKey        string   `json:"backup_key"`   // second AI, tried when the main one fails ("" = none)
+	BackupModel      string   `json:"backup_model"` // its model
 	Use24h           bool     `json:"use_24h"`
 	ConfirmBeforeAdd bool     `json:"confirm_before_add"`
 	DaysAhead        int      `json:"days_ahead"`
@@ -108,6 +110,9 @@ func loadConfig() *Config {
 	b, err := os.ReadFile(configPath())
 	if err == nil {
 		_ = json.Unmarshal(b, c)
+	}
+	if c.BackupModel == "" {
+		c.BackupModel = "google/gemini-2.5-flash" // a different company's model, so one outage doesn't take both down
 	}
 	if c.OpenAIModel == "" {
 		c.OpenAIModel = "gpt-4o-mini"

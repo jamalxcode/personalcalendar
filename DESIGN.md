@@ -19,6 +19,14 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.2 — Say why the AI failed; a backup AI (13 Nov 2026)
+
+**Asked:** "ai key for openrouter is there, why is it not working? i need more reasons and clues from smart cal? do i need to pay? is it not accessible? why?" — then, while a *Test AI* button was being built: "i want to know the reason from smart cal, i dont want to do a test button, as soon as it fails, i need to know a reason, also add a second backup ai option so if one fails, the other ai tries to do it".
+**Decided:**
+- AI errors are structured (`aiError`: provider, model, HTTP status, the provider's message, network/timeout) and explained by `explainAI` — a reason and a fix for 401, 402, 403, 404, 408, 429, 400 (structured outputs / too long), 5xx, network and timeouts. On 401/402/403/429 from OpenRouter, Smart Cal also asks OpenRouter about the account (`/credits`, `/key`) and adds what it says ("$0.00 of $5.00 credits left · free tier").
+- The reason appears **immediately**, under the AI box, until dismissed — with the offline-read event's preview, or alone when nothing could be read. No test button. Settings → AI shows "Last AI request failed (time): reason".
+- **Backup AI:** a second key + model; tried at once when the main AI fails (after its one retry); its answer comes with a note saying the main AI failed and why; if both fail, both reasons. The default backup model is from another company (google/gemini-2.5-flash) so one provider's outage or empty account doesn't stop both; with an OpenAI key, OpenRouter-style model names fall back to OpenAI models.
+
 ## v2.3.1 — Pasted notices with full dates (13 Nov 2026)
 
 **Reported:** pasting "Cambridge IGCSE October/November 2026 Results / Date: Thursday, 14 January 2027 / Time: 9:00 AM Kuwait / …" gave a preview for *Thursday 19 Nov, 14:00* with the whole text as the title — "the proper date is supposed to be 14 jan 2027, fix it".

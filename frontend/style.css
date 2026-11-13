@@ -1009,3 +1009,15 @@ body.quick-win .quick textarea { font-size: 16px; }
 
 .draft-note { font-size: 12px; color: #b4561a; background: rgba(240, 128, 46, .12); border-radius: 8px; padding: 6px 9px; margin-bottom: 6px; }
 @media (prefers-color-scheme: dark) { .draft-note { color: #f5a065; } }
+
+
+/* why the AI didn't do what you asked — stays until closed */
+.ai-notice { display: flex; align-items: flex-start; gap: 8px; margin: 0 14px 8px; padding: 8px 8px 8px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.4; }
+.ai-notice .ai-notice-text { flex: 1; min-width: 0; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.ai-notice.warn { color: #8a4a12; background: rgba(240, 128, 46, .13); }
+.ai-notice.bad { color: #a51f25; background: rgba(217, 48, 54, .11); }
+@media (prefers-color-scheme: dark) { .ai-notice.warn { color: #f5a065; } .ai-notice.bad { color: #ff8a8f; } }
+#aiLast { margin-top: 6px; }
+#aiLast.bad { color: #d93036; }
+.backup-ai { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.group-sub { font-weight: 600; font-size: 12.5px; }

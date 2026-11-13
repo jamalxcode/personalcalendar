@@ -2,6 +2,11 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.2
+
+- **Smart Cal tells you why the AI failed, the moment it fails** — in plain words, right under the AI box, until you close it: "OpenRouter says your credits have run out (402) — add credits at openrouter.ai/credits", "OpenRouter doesn't accept this key (401)", "the model isn't available (404)", "too many requests (429)", "couldn't reach OpenRouter — check the connection", "took too long". For credit, limit and key problems it also shows what OpenRouter reports about your account (credits left, free tier). Settings → AI shows the last failure too
+- **Backup AI:** add a second key and model in Settings → AI. If the main AI fails for any reason, the backup answers straight away — and Smart Cal tells you the main one failed and why. If both fail, you see both reasons. Best from a different company (an OpenAI key, or google/gemini-2.5-flash on OpenRouter)
+
 ## v2.3.1
 
 - Fixed: pasting a notice like *"Cambridge IGCSE Results · Date: Thursday, 14 January 2027 · Time: 9:00 AM"* made an event for next Thursday at 14:00 with the whole text as its title. When the AI can't be reached, the offline reader now:

@@ -11,7 +11,6 @@ const errMsg = (e) => (e && (e.message || e.toString())) || "Something went wron
 // ---------- state ----------
 let S = { events: [], calendars: [], use24h: false, connected: false, hasKey: false, hasCreds: false };
 let drafts = [];
-let draftNote = ""; // why the preview is there, e.g. "AI unavailable (…) — understood it offline. Check the date."
 let busy = false;
 let viewMonth = startOfMonth(new Date());
 let selectedDay = null;
@@ -2209,16 +2208,17 @@ async function submitQuick(fromClipboard) {
   const text = $("quick").value.trim();
   if (busy) return;
   if (!text && !attachment && fromClipboard !== true) { if (drafts.length) addDrafts(); else if (aiResult) applyAI(); return; }
+  aiNotice("");
   setBusy(true);
   try {
     const r = fromClipboard === true ? await go("FromClipboard") : attachment ? await go("AskWith", text, attachment) : await go("Ask", text);
     $("quick").value = "";
     clearAttachment();
+    aiNotice(r.note || "", "warn"); // "the backup AI answered", "read without AI — why…", or nothing
     if (r.kind === "add") {
       aiResult = null;
       drafts = r.drafts;
       draftClashes = r.clashes || [];
-      draftNote = r.offline ? r.answer || "Understood without AI." : ""; // shown in the preview, not a passing toast
       // added straight away (with Undo) unless the preview is on, it clashes, it's several events or offline.
       // addDrafts() refuses to run while busy, so clear that first — otherwise the event was silently dropped
       if (!S.confirmBeforeAdd && !r.offline && !draftClashes.some((c) => c && c.length) && drafts.length === 1) { setBusy(false); await addDrafts(); return; }
@@ -2229,7 +2229,7 @@ async function submitQuick(fromClipboard) {
       renderAI();
     }
   } catch (err) {
-    toast(errMsg(err), true);
+    aiNotice(errMsg(err), "bad"); // stays until closed: the reason matters more than a passing toast
   } finally {
     setBusy(false);
     $("quick").focus();
@@ -2408,7 +2408,6 @@ function renderDrafts() {
   const add = el("button", "btn primary", drafts.length > 1 ? `Add ${drafts.length} events ↩` : "Add ↩");
   add.id = "addBtn";
   add.onclick = addDrafts;
-  if (draftNote) box.insertBefore(el("div", "draft-note", draftNote + " Check the date and title before adding."), box.firstChild);
   actions.append(el("span", "draft-hint", "Not added yet"), cancel, add);
   box.append(actions);
 }
@@ -2446,7 +2445,7 @@ async function moveDraftsTo(day) {
   toast(`Moved to ${day.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} — press Add to save it`);
 }
 
-function clearDrafts() { drafts = []; draftClashes = []; draftNote = ""; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
+function clearDrafts() { drafts = []; draftClashes = []; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
 
 async function addDrafts() {
   if (busy || !drafts.length) return;
@@ -2456,7 +2455,6 @@ async function addDrafts() {
     const r = await go("Add", list);
     drafts = [];
     draftClashes = [];
-    draftNote = "";
     renderDrafts();
     applyState(r.state);
     afterChange();
@@ -2691,6 +2689,13 @@ async function loadSettings(tab) {
   $("sTodos").checked = settingsCache.showTodos !== false;
   $("sHotkey").value = settingsCache.hotkey || "Ctrl+Alt+C";
   $("sQuickKey").value = settingsCache.quickHotkey || "off";
+  $("sBackupModel").value = settingsCache.backupModel || "";
+  $("sBackupKey").value = "";
+  const bh = settingsCache.backupKeyHint || "";
+  $("backupSaved").classList.toggle("hidden", !bh);
+  $("backupField").classList.toggle("hidden", !!bh);
+  $("backupMasked").textContent = bh ? `${bh} · stored on this Mac` : "";
+  showAILast();
   $("sBrief").value = settingsCache.briefTime || "off";
   $("sBeta").checked = !!settingsCache.betaUpdates;
   $("sTextSize").value = String(settingsCache.textSize || 100);
@@ -2810,12 +2815,15 @@ function autoSave() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => saveSettings(true), 350);
 }
+let backupKeyPayload = ""; // "-" when Remove was clicked
 async function saveSettings(silent) {
   const hidden = [...document.querySelectorAll("#calList input[type=checkbox]")].filter((c) => !c.checked).map((c) => c.dataset.cal);
   const def = (document.querySelector("#calList input[type=radio]:checked") || {}).value || "";
   const payload = {
     openaiKey: silent ? "" : $("sKey").value.trim(), // the key saves only on Enter/paste, never mid-typing
     openaiModel: $("sModel").value.trim(),
+    backupKey: silent ? "" : backupKeyPayload || $("sBackupKey").value.trim(), // like the main key: saved on Enter/paste only
+    backupModel: $("sBackupModel").value.trim(),
     clockMode: $("sClock").value,
     language: $("sLang").value,
     showInDock: $("sDock").checked,
@@ -2926,6 +2934,9 @@ function wire() {
   $("changeKey").onclick = () => { editingKey = true; arrangeSettings(); $("sKey").focus(); };
   $("showSetup").onclick = (ev) => { ev.preventDefault(); showSetupDetails = !showSetupDetails; arrangeSettings(); $("showSetup").textContent = showSetupDetails ? "hide" : "details"; };
   $("sKey").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); saveSettings(); } });
+  $("sBackupKey").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); saveBackupKey(); } });
+  $("sBackupKey").addEventListener("input", () => { if (/^sk-[A-Za-z0-9_-]{20,}$/.test($("sBackupKey").value.trim())) saveBackupKey(); });
+  $("removeBackup").onclick = async () => { backupKeyPayload = "-"; await saveBackupKey(); };
   // paste the key → it's saved immediately; no need to press Save
   $("sKey").addEventListener("input", () => {
     const v = $("sKey").value.trim();
@@ -3044,6 +3055,47 @@ function wire() {
 
 async function refresh() {
   try { applyState(await go("Refresh")); } catch (err) { toast(errMsg(err), true); }
+}
+
+// ---------- why the AI didn't do what you asked: a note under the AI box, until you close it ----------
+function aiNotice(text, kind) {
+  const box = $("aiNotice");
+  if (!text) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.className = "ai-notice " + (kind || "warn");
+  box.innerHTML = "";
+  box.append(el("div", "ai-notice-text", text));
+  const x = el("button", "icon-btn small", "✕");
+  x.title = "Dismiss";
+  x.setAttribute("aria-label", "Dismiss");
+  x.onclick = () => aiNotice("");
+  box.append(x);
+}
+
+async function saveBackupKey() {
+  await saveSettings();
+  backupKeyPayload = "";
+  $("sBackupKey").value = "";
+  try { settingsCache = await go("GetSettings"); loadSettingsBackup(); } catch (_) {}
+}
+function loadSettingsBackup() {
+  const bh = (settingsCache && settingsCache.backupKeyHint) || "";
+  $("backupSaved").classList.toggle("hidden", !bh);
+  $("backupField").classList.toggle("hidden", !!bh);
+  $("backupMasked").textContent = bh ? `${bh} · stored on this Mac` : "";
+}
+
+// ---------- Settings → AI: the last request's outcome ----------
+async function showAILast() {
+  try {
+    const st = await go("AIStatus");
+    const box = $("aiLast");
+    if (!st || !st.at || st.at.startsWith("0001")) { box.textContent = ""; return; }
+    const when = new Date(st.at);
+    const t = `${sameDay(when, new Date()) ? "today" : when.toLocaleDateString(LOC(), { day: "numeric", month: "short" })} ${fmtTime(when)}`;
+    box.textContent = st.ok ? `Last AI request worked (${t}).` : `Last AI request failed (${t}): ${st.reason}`;
+    box.title = st.fix || "";
+    box.classList.toggle("bad", !st.ok);
+  } catch (_) {}
 }
 
 // quick add: just the AI box; ↩ adds, Esc closes, ⌘↩ opens the full panel

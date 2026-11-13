@@ -35,6 +35,7 @@
           <kbd class="enter-hint">↩</kbd>
         </div>
       </form>
+      <div class="ai-notice hidden" id="aiNotice" role="status" aria-live="polite"></div>
       <div class="attach hidden" id="attach"><img id="attachImg" alt=""><span>Screenshot attached — press ↩</span><button class="icon-btn small" id="attachX" title="Remove">✕</button></div>
       <div id="drafts" class="drafts"></div>
       <div id="setupBanner" class="banner hidden"></div>
@@ -154,6 +155,20 @@
           <label class="field"><span>Model</span>
             <input id="sModel" type="text" spellcheck="false"></label>
           <div class="small muted" id="keyNote">Get a key at <a href="#" data-url="https://openrouter.ai/keys">openrouter.ai/keys</a>. It's saved in a file on this Mac — no Keychain, no password prompts, and you won't be asked again.</div>
+          <div class="small muted" id="aiLast"></div>
+          <div class="backup-ai">
+            <div class="group-sub">Backup AI <span class="muted small">— tried at once if the main one fails</span></div>
+            <div class="key-saved hidden" id="backupSaved">
+              <span class="ok-dot">✓</span>
+              <div class="ks-body"><div class="ks-title">Backup key saved</div><div class="muted small" id="backupMasked"></div></div>
+              <button class="btn" id="removeBackup">Remove</button>
+            </div>
+            <label class="field" id="backupField"><span>Key</span>
+              <input id="sBackupKey" type="password" placeholder="Another key — an OpenAI key (sk-…) or a second OpenRouter key" spellcheck="false"></label>
+            <label class="field"><span>Model</span>
+              <input id="sBackupModel" type="text" spellcheck="false"></label>
+            <div class="small muted">Best from a different company than the main one, so one outage or empty account doesn't stop both — e.g. an OpenAI key, or google/gemini-2.5-flash on OpenRouter.</div>
+          </div>
         </div>
 
         <div data-tab="look" class="group">

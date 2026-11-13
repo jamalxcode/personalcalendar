@@ -254,6 +254,9 @@ func aiProvider(key string) string {
 type Settings struct {
 	OpenAIKeyHint    string     `json:"openaiKeyHint"` // "sk-…abcd" for display
 	OpenAIKey        string     `json:"openaiKey"`     // write-only: empty = keep current
+	BackupKeyHint    string     `json:"backupKeyHint"` // "sk-or…abcd" for display
+	BackupKey        string     `json:"backupKey"`     // write-only: empty = keep, "-" = remove
+	BackupModel      string     `json:"backupModel"`
 	OpenAIModel      string     `json:"openaiModel"`
 	Use24h           bool       `json:"use24h"`
 	ConfirmBeforeAdd bool       `json:"confirmBeforeAdd"`
@@ -310,7 +313,11 @@ func (s *CalService) GetSettings() Settings {
 	if hidden == nil {
 		hidden = []string{}
 	}
-	return Settings{OpenAIKeyHint: hint, OpenAIModel: c.OpenAIModel, Use24h: c.Use24h,
+	bhint := ""
+	if k := strings.TrimSpace(c.BackupKey); len(k) > 8 {
+		bhint = k[:5] + "…" + k[len(k)-4:]
+	}
+	return Settings{OpenAIKeyHint: hint, BackupKeyHint: bhint, BackupModel: c.BackupModel, OpenAIModel: c.OpenAIModel, Use24h: c.Use24h,
 		ConfirmBeforeAdd: c.ConfirmBeforeAdd, DaysAhead: c.DaysAhead,
 		HiddenCalendars: hidden, DefaultCalendar: c.DefaultCalendar, Accent: c.Accent,
 		MenuBarStyle: c.MenuBarStyle, BarTitle: c.BarTitle, BarAhead: c.BarAhead, BarEmoji: !c.BarNoEmoji,
@@ -330,6 +337,15 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	}
 	if m := strings.TrimSpace(in.OpenAIModel); m != "" {
 		c.OpenAIModel = m
+	}
+	switch k := strings.TrimSpace(in.BackupKey); {
+	case k == "-":
+		c.BackupKey = ""
+	case k != "":
+		c.BackupKey = k
+	}
+	if m := strings.TrimSpace(in.BackupModel); m != "" {
+		c.BackupModel = m
 	}
 	c.ConfirmBeforeAdd = in.ConfirmBeforeAdd
 	if in.DaysAhead > 0 {
@@ -532,6 +548,9 @@ func (s *CalService) SetQuickHeight(h int) {
 	s.a.quick.SetSize(600, h)
 }
 
+// AIStatus: how the last AI request went (Settings → AI).
+func (s *CalService) AIStatus() AIStatus { return lastAIStatus() }
+
 // HideQuick closes the quick-add box.
 func (s *CalService) HideQuick() { s.a.quick.Hide() }
 
@@ -562,24 +581,31 @@ func (s *CalService) AskWith(text, imageB64 string) (AskResult, error) {
 	if len(known) > 400 {
 		known = known[:400]
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	// room for the main AI (up to 70 s), one retry, and the backup AI
+	ctx, cancel := context.WithTimeout(context.Background(), 170*time.Second)
 	defer cancel()
+	ctx, info := withCallInfo(ctx)
 	res, err := askAI(ctx, s.a.cfg, text, imageB64, cals, known)
 	if err != nil {
 		if imageB64 != "" && err == errNoKey {
 			return AskResult{}, fmt.Errorf("reading screenshots needs your OpenRouter key (Settings → AI)")
 		}
+		// say why straight away — never just "AI unavailable"
+		why := "No AI key yet — add your OpenRouter key in Settings → AI for smarter results."
+		if err != errNoKey {
+			actx, acancel := context.WithTimeout(context.Background(), 10*time.Second)
+			why = failureText(actx, err, s.a.cfg)
+			acancel()
+		}
 		if d, ok := localParse(text, now); ok && imageB64 == "" {
 			fixTrailingMinutes(&d)
 			res = AskResult{Kind: "add", Drafts: []Draft{d}, Offline: true}
-			if err == errNoKey {
-				res.Answer = "Understood without AI — add your OpenRouter key in Settings for smarter results."
-			} else {
-				res.Answer = "AI unavailable (" + err.Error() + ") — understood it offline."
-			}
+			res.Note = "The AI didn't answer, so Smart Cal read this on its own — check the date and title. Why: " + why
 		} else {
-			return AskResult{}, err
+			return AskResult{}, fmt.Errorf("The AI didn't answer. %s", why)
 		}
+	} else if len(info.notes) > 0 {
+		res.Note = strings.Join(info.notes, " ")
 	}
 	def := s.defaultCal(cals)
 	for i := range res.Drafts {

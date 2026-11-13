@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,6 +52,7 @@ type AskResult struct {
 	Slots     []Draft     `json:"slots"` // slots: free times that can be booked
 	Todos     []TodoDraft `json:"todos"`
 	Offline   bool        `json:"offline"` // parsed without AI
+	Note      string      `json:"note"`    // how it was answered when something went wrong (shown above the result)
 	slotReq   *aiSlot
 }
 
@@ -464,36 +466,111 @@ func callAIWithImage(ctx context.Context, cfg *Config, sys, user, imageB64, sche
 	if !hasAI(cfg) {
 		return nil, errNoKey
 	}
-	out, err := callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
-	if err != nil && retryable(err) && ctx.Err() == nil {
-		// a dropped connection or a busy server: one more try before falling back to the offline parser
-		select {
-		case <-time.After(1500 * time.Millisecond):
-			out, err = callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
-		case <-ctx.Done():
+	// one provider, with one more try on a dropped connection or a busy server
+	try := func(key, model string) ([]byte, error) {
+		out, err := callProvider(ctx, key, model, sys, user, imageB64, schemaName, schema)
+		if err != nil && retryable(err) && ctx.Err() == nil {
+			select {
+			case <-time.After(1500 * time.Millisecond):
+				out, err = callProvider(ctx, key, model, sys, user, imageB64, schemaName, schema)
+			case <-ctx.Done():
+			}
 		}
+		return out, err
 	}
-	return out, err
+	mainKey, backupKey := strings.TrimSpace(cfg.OpenAIKey), strings.TrimSpace(cfg.BackupKey)
+	var mainErr error
+	if mainKey != "" {
+		out, err := try(mainKey, cfg.OpenAIModel)
+		if err == nil {
+			recordAI(nil, cfg.OpenAIModel)
+			return out, nil
+		}
+		mainErr = err
+	}
+	if backupKey == "" {
+		recordAI(mainErr, cfg.OpenAIModel)
+		return nil, mainErr
+	}
+	// the main AI failed (or there is none): the backup tries
+	out, err := try(backupKey, cfg.BackupModel)
+	if err == nil {
+		if mainErr != nil {
+			why, _ := explainAI(mainErr, cfg.OpenAIModel)
+			noteCall(ctx, "The main AI didn't work — "+why+" — so the backup AI answered.")
+			recordAI(mainErr, cfg.OpenAIModel) // still worth seeing in Settings
+		}
+		return out, nil
+	}
+	if mainErr == nil {
+		recordAI(err, cfg.BackupModel)
+		return nil, err
+	}
+	both := &bothFailed{Main: mainErr, Backup: err, MainModel: cfg.OpenAIModel, BackupModel: cfg.BackupModel}
+	recordAI(both, cfg.OpenAIModel)
+	return nil, both
 }
 
-var reRetryStatus = regexp.MustCompile(`\((429|5\d\d)\)`)
+// bothFailed: the main and the backup AI both failed.
+type bothFailed struct {
+	Main, Backup           error
+	MainModel, BackupModel string
+}
+
+func (b *bothFailed) Error() string {
+	return "main AI: " + b.Main.Error() + "; backup AI: " + b.Backup.Error()
+}
+
+// callInfo collects notes about how a request was answered (e.g. "the backup AI answered").
+type callInfo struct{ notes []string }
+type callInfoKey struct{}
+
+func withCallInfo(ctx context.Context) (context.Context, *callInfo) {
+	ci := &callInfo{}
+	return context.WithValue(ctx, callInfoKey{}, ci), ci
+}
+
+func noteCall(ctx context.Context, note string) {
+	if ci, ok := ctx.Value(callInfoKey{}).(*callInfo); ok {
+		ci.notes = append(ci.notes, note)
+	}
+}
 
 // retryable: network trouble or a "try again" status (429, 5xx) — not a bad key or a bad request.
 func retryable(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "unreachable") || reRetryStatus.MatchString(msg)
+	var ae *aiError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	return ae.Network || ae.Timeout || ae.Status == 429 || ae.Status >= 500
 }
 
-// hasAI: an OpenRouter/OpenAI key is set.
-func hasAI(cfg *Config) bool { return strings.TrimSpace(cfg.OpenAIKey) != "" }
+// hasAI: a main or backup OpenRouter/OpenAI key is set.
+func hasAI(cfg *Config) bool {
+	return strings.TrimSpace(cfg.OpenAIKey) != "" || strings.TrimSpace(cfg.BackupKey) != ""
+}
 
 func callRemote(ctx context.Context, cfg *Config, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
-	key := strings.TrimSpace(cfg.OpenAIKey)
-	base, model, provider := "https://api.openai.com/v1", cfg.OpenAIModel, "OpenAI"
+	return callProvider(ctx, cfg.OpenAIKey, cfg.OpenAIModel, sys, user, imageB64, schemaName, schema)
+}
+
+// callProvider sends one structured request with the given key (sk-or-… OpenRouter, sk-… OpenAI) and model.
+func callProvider(ctx context.Context, key, model, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
+	key = strings.TrimSpace(key)
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+	base, provider := "https://api.openai.com/v1", "OpenAI"
 	if strings.HasPrefix(key, "sk-or-") {
 		base, provider = "https://openrouter.ai/api/v1", "OpenRouter"
 		if !strings.Contains(model, "/") {
 			model = "openai/" + model
+		}
+	} else if strings.Contains(model, "/") { // an OpenRouter-style name with an OpenAI key
+		if strings.HasPrefix(model, "openai/") {
+			model = strings.TrimPrefix(model, "openai/")
+		} else {
+			model = "gpt-4o-mini" // OpenAI only has its own models
 		}
 	}
 	body := map[string]any{
@@ -515,19 +592,30 @@ func callRemote(ctx context.Context, cfg *Config, sys, user, imageB64, schemaNam
 	req.Header.Set("HTTP-Referer", "https://go.sala.company")
 	resp, err := (&http.Client{Timeout: 70 * time.Second}).Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s unreachable: %w", provider, err)
+		var ne interface{ Timeout() bool }
+		timeout := errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout())
+		return nil, &aiError{Provider: provider, Model: model, Network: !timeout, Timeout: timeout, Msg: err.Error()}
 	}
 	defer resp.Body.Close()
 	rb, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
 		var e struct {
-			Error struct{ Message string } `json:"error"`
+			Error struct {
+				Message  string `json:"message"`
+				Metadata struct {
+					Raw string `json:"raw"`
+				} `json:"metadata"`
+			} `json:"error"`
 		}
 		_ = json.Unmarshal(rb, &e)
-		if e.Error.Message == "" {
-			e.Error.Message = string(rb)
+		msg := e.Error.Message
+		if e.Error.Metadata.Raw != "" && !strings.Contains(msg, e.Error.Metadata.Raw) {
+			msg += " — " + truncate(e.Error.Metadata.Raw, 200) // OpenRouter passes the model provider's own words here
 		}
-		return nil, fmt.Errorf("%s (%d): %s", provider, resp.StatusCode, e.Error.Message)
+		if msg == "" {
+			msg = truncate(strings.TrimSpace(string(rb)), 300)
+		}
+		return nil, &aiError{Provider: provider, Model: model, Status: resp.StatusCode, Msg: msg}
 	}
 	var cr struct {
 		Choices []struct {
@@ -538,10 +626,10 @@ func callRemote(ctx context.Context, cfg *Config, sys, user, imageB64, schemaNam
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(rb, &cr); err != nil || len(cr.Choices) == 0 {
-		return nil, fmt.Errorf("unexpected %s response", provider)
+		return nil, &aiError{Provider: provider, Model: model, Msg: "an answer Smart Cal couldn't read: " + truncate(strings.TrimSpace(string(rb)), 200)}
 	}
 	if r := cr.Choices[0].Message.Refusal; r != "" {
-		return nil, fmt.Errorf("%s", r)
+		return nil, &aiError{Provider: provider, Model: model, Msg: "the model declined: " + r}
 	}
 	c := strings.TrimSpace(cr.Choices[0].Message.Content)
 	c = strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(c, "```json"), "```"), "```")
