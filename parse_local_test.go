@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -127,5 +128,51 @@ func TestEditGuards(t *testing.T) {
 	g := guardChanges(ev, aiEvent{Title: "DEWA call", Repeat: aiRepeat{Freq: "weekly"}}, nil, "rename it to DEWA call and repeat every week")
 	if g.Title != "DEWA call" || g.Repeat.Freq != "weekly" {
 		t.Errorf("explicit changes dropped: %+v", g)
+	}
+}
+
+func TestLocalParsePastedAndFullDates(t *testing.T) {
+	kw := time.FixedZone("AST", 3*3600)
+	now := time.Date(2026, 11, 13, 9, 0, 0, 0, kw) // Friday
+	// the reported case: an exam-results notice pasted into the AI box
+	notice := "Cambridge IGCSE October/November 2026 Results\n\nDate: Thursday, 14 January 2027\nTime: 9:00 AM Kuwait\n\n" +
+		"Yousef's British Council IGCSE retake results for Mathematics (0980 Extended), Economics (0987), and ICT (0983).\n\n" +
+		"Results: https://myresults.cie.org.uk"
+	d, ok := localParse(notice, now)
+	if !ok {
+		t.Fatal("notice not understood")
+	}
+	if got := d.Start.Format("2006-01-02 15:04"); got != "2027-01-14 09:00" {
+		t.Errorf("notice start %s, want 2027-01-14 09:00", got)
+	}
+	if d.Title != "Cambridge IGCSE October/November 2026 Results" {
+		t.Errorf("notice title %q", d.Title)
+	}
+	if !strings.Contains(d.Notes, "myresults.cie.org.uk") || !strings.Contains(d.Notes, "Yousef") {
+		t.Errorf("notice notes %q", d.Notes)
+	}
+	cases := []struct{ in, start string }{
+		{"exam results thursday 14 january 2027 9am", "2027-01-14 09:00"},
+		{"exam results January 14, 2027 at 9:00", "2027-01-14 09:00"},
+		{"renew visa 14/01/2027", "2027-01-14 00:00"},
+		{"renew visa 2027-01-14 10:30", "2027-01-14 10:30"},
+		{"Ali's birthday 12 dec", "2026-12-12 00:00"},   // no year: the next 12 December
+		{"party 3 jan", "2027-01-03 00:00"},             // already past this year → next year
+		{"dentist thursday 4:30pm", "2026-11-19 16:30"}, // a weekday alone still works
+	}
+	for _, c := range cases {
+		d, ok := localParse(c.in, now)
+		if !ok {
+			t.Errorf("%q: not understood", c.in)
+			continue
+		}
+		if got := d.Start.Format("2006-01-02 15:04"); got != c.start {
+			t.Errorf("%q: start %s, want %s", c.in, got, c.start)
+		}
+	}
+	// pasted text without "Date:" lines still finds a written-out date, and ignores code numbers
+	d, ok = localParse("Flight booking confirmed\nKU 101 on 3 December 2026 departs 08:15\nRef ABC123", now)
+	if !ok || d.Start.Format("2006-01-02 15:04") != "2026-12-03 08:15" || d.Title != "Flight booking confirmed" {
+		t.Errorf("booking: %v %q %v", d.Start, d.Title, ok)
 	}
 }

@@ -1,38 +1,283 @@
 {
   "_about": "Sentences people really type into Smart Cal, with what should come out. Run with SMARTCAL_EVAL_KEY=sk-or-… go test -run TestAIEval -v (on a Mac). Add your own lines — every miss is a test case. day: +N days from today or a weekday (sat…fri, the next one); time: HH:MM; minutes: length; title_has / title_not: words that must / mustn't be in the title.",
   "cases": [
-    {"text": "lunch with Ali tomorrow 1pm", "kind": "add", "day": "+1", "time": "13:00", "minutes": 60, "title_has": ["Lunch", "Ali"]},
-    {"text": "Meet miteb to catch up 60 saturday 10am at starbucks", "kind": "add", "day": "sat", "time": "10:00", "minutes": 60, "title_has": ["Miteb"], "title_not": ["60"], "location_has": "starbucks"},
-    {"text": "gym 90 tomorrow 7am", "kind": "add", "day": "+1", "time": "07:00", "minutes": 90, "title_has": ["Gym"], "title_not": ["90"]},
-    {"text": "dentist thursday 4:30pm", "kind": "add", "day": "thu", "time": "16:30", "minutes": 60, "title_has": ["Dentist"]},
-    {"text": "team sync next tue 10:00 for 30m", "kind": "add", "day": "tue", "time": "10:00", "minutes": 30, "title_has": ["sync"]},
-    {"text": "dinner with Sara Thursday 8pm at Mais Alghanim", "kind": "add", "day": "thu", "time": "20:00", "title_has": ["Dinner", "Sara"], "location_has": "Mais Alghanim"},
-    {"text": "call mum tonight 9", "kind": "add", "day": "+0", "time": "21:00", "title_has": ["mum"]},
-    {"text": "review nov 20 at 3pm for 2 hours", "kind": "add", "time": "15:00", "minutes": 120, "title_has": ["Review"]},
-    {"text": "pay rent saturday", "kind": "add", "day": "sat", "all_day": true, "title_has": ["rent"]},
-    {"text": "Ali's birthday 12 dec", "kind": "add", "all_day": true, "title_has": ["birthday"]},
-    {"text": "standup every weekday 9am", "kind": "add", "time": "09:00", "repeats": true, "title_has": ["Standup"]},
-    {"text": "football every friday 5pm until june", "kind": "add", "day": "fri", "time": "17:00", "repeats": true, "title_has": ["ootball"]},
-    {"text": "coffee with Bader in 2 hours", "kind": "add", "title_has": ["Bader"]},
-    {"text": "1:1 with Noura monday 11 for 45 min", "kind": "add", "day": "mon", "time": "11:00", "minutes": 45, "title_has": ["Noura"]},
-    {"text": "pick up Ali from school tomorrow 1:15pm", "kind": "add", "day": "+1", "time": "13:15", "title_has": ["Ali"]},
-    {"text": "flight KU 101 to Dubai sunday 8am", "kind": "add", "day": "sun", "time": "08:00", "title_has": ["101"]},
-    {"text": "haircut sat 6pm 30", "kind": "add", "day": "sat", "time": "18:00", "minutes": 30, "title_has": ["aircut"], "title_not": ["30"]},
-    {"text": "board meeting 3pm Dubai time tomorrow", "kind": "add", "day": "+1", "title_has": ["meeting"]},
-    {"text": "renew car registration by friday", "kind": "todo", "title_has": ["registration"]},
-    {"text": "remind me to call the bank tomorrow", "kind": "todo", "title_has": ["bank"]},
-    {"text": "buy milk", "kind": "todo", "title_has": ["milk"]},
-    {"text": "what's on tomorrow?", "kind": "answer"},
-    {"text": "am I free saturday afternoon?", "kind": "answer"},
-    {"text": "when is my dentist?", "kind": "answer"},
-    {"text": "find an hour for the gym this week", "kind": "slots"},
-    {"text": "when can I fit a 2h meeting tomorrow?", "kind": "slots"},
-    {"text": "غداء مع علي بكرة الساعة ١", "kind": "add", "day": "+1", "time": "13:00", "title_has": ["علي"]},
-    {"text": "موعد الأسنان الخميس ٤:٣٠ العصر", "kind": "add", "day": "thu", "time": "16:30"},
-    {"text": "عشاء مع العائلة الجمعة ٨ بالليل", "kind": "add", "day": "fri", "time": "20:00"},
-    {"text": "اجتماع كل أحد الساعة ٩ الصبح", "kind": "add", "time": "09:00", "repeats": true},
-    {"text": "ذكرني أدفع الإيجار السبت", "kind": "todo"},
-    {"text": "شنو عندي بكرة؟", "kind": "answer"},
-    {"text": "رياضة ٦٠ بكرة ٧ الصبح", "kind": "add", "day": "+1", "time": "07:00", "minutes": 60, "title_not": ["٦٠", "60"]}
+    {
+      "text": "lunch with Ali tomorrow 1pm",
+      "kind": "add",
+      "day": "+1",
+      "time": "13:00",
+      "minutes": 60,
+      "title_has": [
+        "Lunch",
+        "Ali"
+      ]
+    },
+    {
+      "text": "Meet miteb to catch up 60 saturday 10am at starbucks",
+      "kind": "add",
+      "day": "sat",
+      "time": "10:00",
+      "minutes": 60,
+      "title_has": [
+        "Miteb"
+      ],
+      "title_not": [
+        "60"
+      ],
+      "location_has": "starbucks"
+    },
+    {
+      "text": "Cambridge IGCSE October/November 2026 Results\n\nDate: Thursday, 14 January 2027\nTime: 9:00 AM Kuwait\n\nYousef's British Council IGCSE retake results for Mathematics (0980 Extended), Economics (0987), and ICT (0983).\n\nResults: https://myresults.cie.org.uk",
+      "kind": "add",
+      "time": "09:00",
+      "title_has": [
+        "IGCSE"
+      ],
+      "title_not": [
+        "https://",
+        "Date:"
+      ]
+    },
+    {
+      "text": "gym 90 tomorrow 7am",
+      "kind": "add",
+      "day": "+1",
+      "time": "07:00",
+      "minutes": 90,
+      "title_has": [
+        "Gym"
+      ],
+      "title_not": [
+        "90"
+      ]
+    },
+    {
+      "text": "dentist thursday 4:30pm",
+      "kind": "add",
+      "day": "thu",
+      "time": "16:30",
+      "minutes": 60,
+      "title_has": [
+        "Dentist"
+      ]
+    },
+    {
+      "text": "team sync next tue 10:00 for 30m",
+      "kind": "add",
+      "day": "tue",
+      "time": "10:00",
+      "minutes": 30,
+      "title_has": [
+        "sync"
+      ]
+    },
+    {
+      "text": "dinner with Sara Thursday 8pm at Mais Alghanim",
+      "kind": "add",
+      "day": "thu",
+      "time": "20:00",
+      "title_has": [
+        "Dinner",
+        "Sara"
+      ],
+      "location_has": "Mais Alghanim"
+    },
+    {
+      "text": "call mum tonight 9",
+      "kind": "add",
+      "day": "+0",
+      "time": "21:00",
+      "title_has": [
+        "mum"
+      ]
+    },
+    {
+      "text": "review nov 20 at 3pm for 2 hours",
+      "kind": "add",
+      "time": "15:00",
+      "minutes": 120,
+      "title_has": [
+        "Review"
+      ]
+    },
+    {
+      "text": "pay rent saturday",
+      "kind": "add",
+      "day": "sat",
+      "all_day": true,
+      "title_has": [
+        "rent"
+      ]
+    },
+    {
+      "text": "Ali's birthday 12 dec",
+      "kind": "add",
+      "all_day": true,
+      "title_has": [
+        "birthday"
+      ]
+    },
+    {
+      "text": "standup every weekday 9am",
+      "kind": "add",
+      "time": "09:00",
+      "repeats": true,
+      "title_has": [
+        "Standup"
+      ]
+    },
+    {
+      "text": "football every friday 5pm until june",
+      "kind": "add",
+      "day": "fri",
+      "time": "17:00",
+      "repeats": true,
+      "title_has": [
+        "ootball"
+      ]
+    },
+    {
+      "text": "coffee with Bader in 2 hours",
+      "kind": "add",
+      "title_has": [
+        "Bader"
+      ]
+    },
+    {
+      "text": "1:1 with Noura monday 11 for 45 min",
+      "kind": "add",
+      "day": "mon",
+      "time": "11:00",
+      "minutes": 45,
+      "title_has": [
+        "Noura"
+      ]
+    },
+    {
+      "text": "pick up Ali from school tomorrow 1:15pm",
+      "kind": "add",
+      "day": "+1",
+      "time": "13:15",
+      "title_has": [
+        "Ali"
+      ]
+    },
+    {
+      "text": "flight KU 101 to Dubai sunday 8am",
+      "kind": "add",
+      "day": "sun",
+      "time": "08:00",
+      "title_has": [
+        "101"
+      ]
+    },
+    {
+      "text": "haircut sat 6pm 30",
+      "kind": "add",
+      "day": "sat",
+      "time": "18:00",
+      "minutes": 30,
+      "title_has": [
+        "aircut"
+      ],
+      "title_not": [
+        "30"
+      ]
+    },
+    {
+      "text": "board meeting 3pm Dubai time tomorrow",
+      "kind": "add",
+      "day": "+1",
+      "title_has": [
+        "meeting"
+      ]
+    },
+    {
+      "text": "renew car registration by friday",
+      "kind": "todo",
+      "title_has": [
+        "registration"
+      ]
+    },
+    {
+      "text": "remind me to call the bank tomorrow",
+      "kind": "todo",
+      "title_has": [
+        "bank"
+      ]
+    },
+    {
+      "text": "buy milk",
+      "kind": "todo",
+      "title_has": [
+        "milk"
+      ]
+    },
+    {
+      "text": "what's on tomorrow?",
+      "kind": "answer"
+    },
+    {
+      "text": "am I free saturday afternoon?",
+      "kind": "answer"
+    },
+    {
+      "text": "when is my dentist?",
+      "kind": "answer"
+    },
+    {
+      "text": "find an hour for the gym this week",
+      "kind": "slots"
+    },
+    {
+      "text": "when can I fit a 2h meeting tomorrow?",
+      "kind": "slots"
+    },
+    {
+      "text": "غداء مع علي بكرة الساعة ١",
+      "kind": "add",
+      "day": "+1",
+      "time": "13:00",
+      "title_has": [
+        "علي"
+      ]
+    },
+    {
+      "text": "موعد الأسنان الخميس ٤:٣٠ العصر",
+      "kind": "add",
+      "day": "thu",
+      "time": "16:30"
+    },
+    {
+      "text": "عشاء مع العائلة الجمعة ٨ بالليل",
+      "kind": "add",
+      "day": "fri",
+      "time": "20:00"
+    },
+    {
+      "text": "اجتماع كل أحد الساعة ٩ الصبح",
+      "kind": "add",
+      "time": "09:00",
+      "repeats": true
+    },
+    {
+      "text": "ذكرني أدفع الإيجار السبت",
+      "kind": "todo"
+    },
+    {
+      "text": "شنو عندي بكرة؟",
+      "kind": "answer"
+    },
+    {
+      "text": "رياضة ٦٠ بكرة ٧ الصبح",
+      "kind": "add",
+      "day": "+1",
+      "time": "07:00",
+      "minutes": 60,
+      "title_not": [
+        "٦٠",
+        "60"
+      ]
+    }
   ]
 }

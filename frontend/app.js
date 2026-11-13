@@ -11,6 +11,7 @@ const errMsg = (e) => (e && (e.message || e.toString())) || "Something went wron
 // ---------- state ----------
 let S = { events: [], calendars: [], use24h: false, connected: false, hasKey: false, hasCreds: false };
 let drafts = [];
+let draftNote = ""; // why the preview is there, e.g. "AI unavailable (…) — understood it offline. Check the date."
 let busy = false;
 let viewMonth = startOfMonth(new Date());
 let selectedDay = null;
@@ -2217,7 +2218,7 @@ async function submitQuick(fromClipboard) {
       aiResult = null;
       drafts = r.drafts;
       draftClashes = r.clashes || [];
-      if (r.offline && r.answer) toast(r.answer);
+      draftNote = r.offline ? r.answer || "Understood without AI." : ""; // shown in the preview, not a passing toast
       // added straight away (with Undo) unless the preview is on, it clashes, it's several events or offline.
       // addDrafts() refuses to run while busy, so clear that first — otherwise the event was silently dropped
       if (!S.confirmBeforeAdd && !r.offline && !draftClashes.some((c) => c && c.length) && drafts.length === 1) { setBusy(false); await addDrafts(); return; }
@@ -2407,6 +2408,7 @@ function renderDrafts() {
   const add = el("button", "btn primary", drafts.length > 1 ? `Add ${drafts.length} events ↩` : "Add ↩");
   add.id = "addBtn";
   add.onclick = addDrafts;
+  if (draftNote) box.insertBefore(el("div", "draft-note", draftNote + " Check the date and title before adding."), box.firstChild);
   actions.append(el("span", "draft-hint", "Not added yet"), cancel, add);
   box.append(actions);
 }
@@ -2444,7 +2446,7 @@ async function moveDraftsTo(day) {
   toast(`Moved to ${day.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} — press Add to save it`);
 }
 
-function clearDrafts() { drafts = []; draftClashes = []; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
+function clearDrafts() { drafts = []; draftClashes = []; draftNote = ""; aiResult = null; renderDrafts(); $("drafts").innerHTML = ""; $("quick").focus(); }
 
 async function addDrafts() {
   if (busy || !drafts.length) return;
@@ -2454,6 +2456,7 @@ async function addDrafts() {
     const r = await go("Add", list);
     drafts = [];
     draftClashes = [];
+    draftNote = "";
     renderDrafts();
     applyState(r.state);
     afterChange();

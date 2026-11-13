@@ -464,7 +464,24 @@ func callAIWithImage(ctx context.Context, cfg *Config, sys, user, imageB64, sche
 	if !hasAI(cfg) {
 		return nil, errNoKey
 	}
-	return callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
+	out, err := callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
+	if err != nil && retryable(err) && ctx.Err() == nil {
+		// a dropped connection or a busy server: one more try before falling back to the offline parser
+		select {
+		case <-time.After(1500 * time.Millisecond):
+			out, err = callRemote(ctx, cfg, sys, user, imageB64, schemaName, schema)
+		case <-ctx.Done():
+		}
+	}
+	return out, err
+}
+
+var reRetryStatus = regexp.MustCompile(`\((429|5\d\d)\)`)
+
+// retryable: network trouble or a "try again" status (429, 5xx) — not a bad key or a bad request.
+func retryable(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "unreachable") || reRetryStatus.MatchString(msg)
 }
 
 // hasAI: an OpenRouter/OpenAI key is set.

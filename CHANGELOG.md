@@ -2,6 +2,13 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.1
+
+- Fixed: pasting a notice like *"Cambridge IGCSE Results · Date: Thursday, 14 January 2027 · Time: 9:00 AM"* made an event for next Thursday at 14:00 with the whole text as its title. When the AI can't be reached, the offline reader now:
+  - understands full dates — "14 January 2027", "January 14, 2027", "14/01/2027", "2027-01-14" — and a date beats a weekday name
+  - reads "Date:" and "Time:" lines in pasted text, uses the first line as the title and keeps the whole text (with its links) in the notes, and doesn't mistake numbers like "14" for times
+- When the AI is unavailable, the preview now says so (and why) instead of a message that disappears in two seconds — and the AI is tried once more on a dropped connection or a busy server before giving up
+
 ## v2.3.0
 
 - **Typed events are added straight away**, with Undo — no more waiting in a preview you can forget. (The preview still appears when something clashes, for several events at once, or offline; turn it back on in Settings → Look → *Preview before adding*.) This also fixes a bug where, with the preview off, a typed event could silently disappear

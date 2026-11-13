@@ -19,6 +19,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.1 — Pasted notices with full dates (13 Nov 2026)
+
+**Reported:** pasting "Cambridge IGCSE October/November 2026 Results / Date: Thursday, 14 January 2027 / Time: 9:00 AM Kuwait / …" gave a preview for *Thursday 19 Nov, 14:00* with the whole text as the title — "the proper date is supposed to be 14 jan 2027, fix it".
+**Found:** the AI request had failed, so the offline parser answered: it took "Thursday" as next Thursday and "14" as 2 PM, didn't know "14 January 2027", and the "AI unavailable" message was a two-second toast.
+**Decided:** the offline parser reads explicit dates first (day-month-year, month-day-year, d/m/y as written in Kuwait, ISO) and respects years; a weekday beside a date is ignored; pasted multi-line text uses "Date:"/"Time:" lines, the first line as title, the full text as notes, and only clear times (colon or am/pm). The preview carries an orange note when the offline parser was used, with the reason. The AI call retries once on network errors, 429 and 5xx. The notice is a test case for both the offline parser and the AI test set.
+
 ## v2.3.0 — From the critique: calmer, quicker, more helpful (12 Nov 2026)
 
 **Asked:** "critique smart cal, how can it be made more useful". The critique, in short: it does a lot well; what holds it back is trust and clutter, not features. The list:
