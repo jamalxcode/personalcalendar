@@ -1,89 +1,128 @@
 # Lessons learned
 
-- **ChatGPT ≠ OpenAI API.** A ChatGPT subscription (and ChatGPT's own Google Calendar connector) can't be called from your own app. Apps need an API key from platform.openai.com.
+Everything building Smart Cal taught us — the hard way, mostly. Grouped by topic; the design log ([DESIGN.md](DESIGN.md)) has the stories behind them.
+
+## The ten that hurt most
+
+1. **A menu-bar-only app can vanish.** No `autosaveName` on the status item → macOS parks it at the far left on every launch, the first spot hidden behind the notch.
+2. **…and its windows can get stuck.** If it shows a window without activating itself, a "hide when focus is lost" panel never had focus to lose.
+3. **EventKit saves every field you hand it.** Build an update from the event *list* and you erase the notes.
+4. **Never let a model do date maths.** "Push it back by a week" went a week *earlier*. Relative dates are computed in code.
+5. **A time and a title is a new event.** Only explicit change words ("move", "reschedule"…) may touch an existing one — and never one that's already over unless you point at it.
+6. **"AI unavailable" helps nobody.** 402 means "no credits", 401 "bad key", 404 "no such model". Say so, immediately.
+7. **A guard that says "busy, go away" will swallow your own call.** That silently dropped typed events for anyone with the preview off.
+8. **Google Calendar notes are HTML.** Convert once, where events are read.
+9. **"You're up to date" can be true.** Work on a branch never reaches the Update button.
+10. **Force Quit only lists apps with a Dock icon.** Give a menu bar app its own visible Quit.
+
+
+## Calendars and EventKit
+
 - **Skip Google OAuth — use EventKit.** Direct Google API access needs your own Google Cloud project, an OAuth client JSON, and (in testing mode) re-login every 7 days. Too much setup. macOS already syncs Google calendars via System Settings → Internet Accounts, and EventKit reads/writes them after one "Allow" prompt. Bonus: iCloud/Exchange for free, offline, and `EKEventStoreChangedNotification` gives instant refresh.
 - **EventKit from Go:** put Objective-C in a `*_darwin.m` file next to the Go code — cgo compiles it automatically. Use `-fobjc-arc`, link `-framework EventKit -framework AppKit`, return `strdup`'d JSON strings and `C.free` them in Go. Call back into Go with an `//export` function (the preamble of that file may only *declare* C functions).
 - **Calendar permission needs** `NSCalendarsFullAccessUsageDescription` in Info.plist and `requestFullAccessToEventsWithCompletion` (macOS 14+). If the user once said no, macOS never asks again — open `x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars` instead.
 - **Ad-hoc signed rebuilds may re-ask for calendar access** (TCC ties the grant to the code signature).
 - **All-day events in EventKit** end at 23:59:59 of the last day (or next midnight, depending on source) — normalise to `[midnight, next midnight)`.
 - **Recurring events share one `eventIdentifier`** — to delete one occurrence, search a window around its start date and pick the closest match.
-- **OpenRouter is a drop-in** for OpenAI chat completions: base `https://openrouter.ai/api/v1`, keys start with `sk-or-`, model names are vendor-prefixed (`openai/gpt-4o-mini`).
+- **List upcoming events with `timeMin = now`** — Google filters by *end* time, so in-progress meetings and today's all-day events are still returned.
+- **ObjC → JSON booleans:** `@(a && b)` boxes an *int*, so NSJSONSerialization writes `1`/`0` and Go's `bool` unmarshal fails. Use `cond ? @YES : @NO`. (Found via the `.diag/status.json` the dev build writes — worth having when you can't see the app.)
+- **"Calendars listed but no events" = expired account login on the Mac.** Apple Calendar shows "Invalid Credentials. Sign in?"; EventKit still lists the calendars but has no new events. Apps can't detect this, so the UI shows a hint linking to Calendar.app.
+- **Holiday calendars**: detect read-only calendars named *Holiday*; show them as day tags. De-duplicate events by title+start+all-day — the same Google holiday often arrives through two subscriptions.
+- **Recurring events in EventKit:** save/remove with `EKSpanThisEvent` or `EKSpanFutureEvents`, and find the occurrence by id + original start (`eventsMatchingPredicate` around that start) — the id alone gives the first occurrence.
+- **EventKit saves overwrite every field you pass.** An update built from the event *list* (no notes) erases the notes; fetch the full event first and carry over notes and time zone.
+- **Google Calendar descriptions are HTML** (`<p>`, `<br>`, `&#x27;`, links, lists) and EventKit returns them as-is. Convert once where events are read (Go's `html.UnescapeString` plus a few regexes), not in each view; leave notes without tags alone.
+
+## Being a good menu bar app
+
 - **Menu-bar-only app** = `LSUIElement` = true in Info.plist (no Dock icon, no app menu).
+- **`tell application id "…" to quit` launches the app if it isn't running** — guard it with `if application id "…" is running then …`.
+- **Notifications from an ad-hoc-signed app** may be refused; fall back to dropping the panel down so the alert is never lost.
+- **Wails `Autostart`** uses SMAppService for a bundled app — the login item follows the bundle path, so self-updates that swap the bundle in place keep it.
+- **Renaming a shipped app:** change only display names (CFBundleName/DisplayName, UI text). Keep the bundle ID, executable name, config folder and repo so permissions, settings and update URLs survive. Old updaters look for the old bundle name inside the zip — keep it there and let the new version rename itself on disk (renaming a running .app is safe), then re-register the login item.
+- **Hiding the status-item icon in Wails v3:** there's no API; find the `NSStatusBarButton` in the app's `NSStatusBarWindow` and set `imagePosition = NSNoImage`. Queue it a few main-queue hops deep so it lands after Wails' own (nested) icon updates.
+- **Template tray icons:** Wails keeps `isTemplate` once set, so switching colour ↔ monochrome is done natively by setting `button.image` with `setTemplate:` ourselves.
+- **Standard About panel:** `orderFrontStandardAboutPanelWithOptions:` with an attributed Credits string; activate the app first (accessory apps are in the background).
+- **Never register common app shortcuts (⌘⇧W, ⌘W, ⌘N…) as global hotkeys** — global registration steals them from every other app. Handle them in your own windows/menu instead.
+- **Wails v3 installs a generic menu bar if you don't set one** (`DefaultApplicationMenu`): its About isn't yours and its Help → "Learn More" loads wails.io *inside your window*. Set your own with `app.Menu.Set(...)`; keep `AddRole(application.EditMenu)` so ⌘X/⌘C/⌘V/⌘A work in text fields — even in an accessory (menu-bar-only) app, where the menu is invisible but its shortcuts still work.
+- **Menu shortcuts and page shortcuts don't double-fire** as long as the page calls `preventDefault()`: WebKit offers the key to the page first and only hands unhandled key equivalents to the menu.
+- **Give the NSStatusItem an `autosaveName`.** Without one (Wails doesn't set it) macOS puts the item at the far left on every launch — the first thing hidden behind the notch when the menu bar is full, so a relaunch or update can make a menu-bar-only app "vanish". Detect it (status window not visible or outside `auxiliaryTopRightArea`/`auxiliaryTopLeftArea`) and show the panel some other way. Menu-bar-only (LSUIElement) apps never appear in Force Quit.
+- **⌃⌥Space switches keyboard input sources on many Macs** (Arabic ⇄ English) — don't make it a default global shortcut.
+- **Force Quit (⌥⌘⎋) only lists apps with a Dock icon.** A menu-bar-only (LSUIElement / accessory) app never appears there — give it a visible Quit in its own UI, and point to a "show in Dock" option for people who want it listed.
+- **An accessory (menu-bar-only) app must activate itself when it shows a window on its own** (`[NSApp activateIgnoringOtherApps:YES]`). Otherwise the window never becomes key: a "hide on focus lost" popover can't lose focus it never had, so it sticks — on top — until the app quits.
+- **Don't judge the menu bar right after login.** Status items are still being placed for several seconds; check repeatedly before concluding an item is hidden, and prefer a notification to a window at login.
+
+## Wails v3 and the webview
+
 - **Fyne → Wails v3.** v1 used Fyne: it can't anchor a window under the menu bar icon and its self-drawn widgets never look like macOS. Wails v3 gives `SystemTray.AttachWindow(win)` (a real dropdown popover that hides on focus loss), `SetLabel` for menu bar text, `SetTemplateIcon` for light/dark, and a WebKit UI styled with plain CSS.
 - **No npm needed with Wails v3.** Serve plain files with `application.AssetFileServerFS(embedFS)` and load `<script type="module" src="/wails/runtime.js">`; call Go with `Call.ByName("main.CalService.Method", ...)` (package `main` binds as `main.`). Go → JS pushes use `app.Event.Emit("state", data)` / `Events.On("state", ev => ev.data)`.
 - **Frosted popover needs `-tags private_mac_apis`.** Without it the webview stays opaque above the translucent backdrop. Fine for a personal app (not App Store).
 - **Wails v3 needs Go 1.26.** An older Go downloads the right toolchain automatically (GOTOOLCHAIN=auto).
 - **No `window.confirm` in the webview** — build a small in-page confirm instead.
 - **The macOS file picker steals focus** and hides a HideOnFocusLost popover; re-show it afterwards.
-- **Structured outputs** (`response_format: json_schema, strict: true`) make the LLM return exactly the fields we need — no regex parsing. Always give the model the current date, weekday and UTC offset, or "next Tuesday" goes wrong.
-- **List upcoming events with `timeMin = now`** — Google filters by *end* time, so in-progress meetings and today's all-day events are still returned.
 - **Native file picker from Go without cgo glue:** `osascript -e 'POSIX path of (choose file …)'`.
-- **Builds happen on the Mac.** Fyne needs cgo + Apple frameworks; cross-compiling from Linux isn't worth it.
-- **ObjC → JSON booleans:** `@(a && b)` boxes an *int*, so NSJSONSerialization writes `1`/`0` and Go's `bool` unmarshal fails. Use `cond ? @YES : @NO`. (Found via the `.diag/status.json` the dev build writes — worth having when you can't see the app.)
-- **"Calendars listed but no events" = expired account login on the Mac.** Apple Calendar shows "Invalid Credentials. Sign in?"; EventKit still lists the calendars but has no new events. Apps can't detect this, so the UI shows a hint linking to Calendar.app.
-- **device_commit_files can lag/silently not land** on the Mac — verify with md5sum via device_bash, and fall back to editing in place with python in device_bash.
-- **Self-update for an unsigned app:** download the release zip with Go's HTTP client (not a browser) so it has no quarantine flag and Gatekeeper doesn't block it; unzip with `ditto -x -k`; a detached `bash` script (`Setsid`) waits for the app's PID to exit, swaps the bundle, and `open`s the new one.
-- **Private repos can't serve release downloads without a token** — that's why the repo is public.
-- **`tell application id "…" to quit` launches the app if it isn't running** — guard it with `if application id "…" is running then …`.
-- **Release on VERSION bump:** a workflow filtered on `paths: [VERSION]` that skips if the tag already exists; release notes come from the matching `## vX.Y.Z` section of CHANGELOG.md.
-- **Secrets for personal Mac apps go in a 0600 file in Application Support, not the Keychain** (the Keychain keeps asking for the password for unsigned/ad-hoc builds). That folder survives app updates, so the key is entered once.
+- **Pop-out windows in Wails v3:** a second hidden window with its own HTML page; closing hides it; share data via `Event.Emit("state")`.
+- **Settings window in Wails v3:** a second window loading the same `index.html?settings=1`; the JS checks the query string and shows only the settings view. All windows receive the same `state` events, so changes show up everywhere.
+- **Wails v3 window methods are no-ops before `Run()`** (no native window yet) — restore saved frames in an `ApplicationStarted` handler.
+
+## The AI
+
+- **ChatGPT ≠ OpenAI API.** A ChatGPT subscription (and ChatGPT's own Google Calendar connector) can't be called from your own app. Apps need an API key from platform.openai.com.
+- **OpenRouter is a drop-in** for OpenAI chat completions: base `https://openrouter.ai/api/v1`, keys start with `sk-or-`, model names are vendor-prefixed (`openai/gpt-4o-mini`).
+- **Structured outputs** (`response_format: json_schema, strict: true`) make the LLM return exactly the fields we need — no regex parsing. Always give the model the current date, weekday and UTC offset, or "next Tuesday" goes wrong.
 - **One AI call, four intents.** A strict JSON schema with `kind: add|answer|update|delete` plus fields that are always present (empty when unused) lets one request route everything. Give the model a numbered list of nearby events and have it answer with the number — never let it invent event IDs.
 - **Always confirm AI edits/deletes** with a before/after card; apply only on the user's click.
 - **Offline fallback** keeps the app useful without a key: a small regex parser for "thing + day/time" lines, with unit tests.
-- **Holiday calendars**: detect read-only calendars named *Holiday*; show them as day tags. De-duplicate events by title+start+all-day — the same Google holiday often arrives through two subscriptions.
-- **Notifications from an ad-hoc-signed app** may be refused; fall back to dropping the panel down so the alert is never lost.
-- **Wails `Autostart`** uses SMAppService for a bundled app — the login item follows the bundle path, so self-updates that swap the bundle in place keep it.
+- **One AI call, six intents** (add/answer/update/delete/slots/todo). Images go in as an `image_url` data URL; shrink screenshots to ~1600px JPEG first.
+- **Free slots are computed in Go, not by the model** — the AI only extracts the duration and window; the code checks real busy times.
+- **Don't trust a model with date arithmetic or with "unchanged" fields.** With a strict schema every field gets filled; keep only the fields the user's words mention, compute relative dates ("1 month from now") in code, and refuse silent moves into the past.
+- **Go's regexp `\b` only knows ASCII letters.** It never matches next to Arabic, so Arabic keywords go in the pattern without `\b`.
+- **"Push back" means later.** Never decide direction from the whole sentence (titles contain words like "back"); look at the verb and the words next to the amount.
+- **"AI unavailable" is useless to a person.** Keep provider errors structured (status + provider message) and translate them: 402 = no credits, 401 = bad key, 404 = model gone, 429 = rate limit, 5xx = their side. OpenRouter adds the upstream provider's words in `error.metadata.raw`, and `/api/v1/credits` and `/api/v1/key` tell you the balance and whether it's a free-tier key.
+- **A backup should be a different company,** or one outage / one empty account stops both.
+- **Key prefixes are conventions, not proof.** sk-or- = OpenRouter, sk-proj-/sk-svcacct-/sk- = OpenAI, sk-ant- = Anthropic (careful: it also starts with "sk-"), AIza = Google, gsk_ = Groq, xai- = xAI. Detect with the specific prefixes first, then confirm with the service (OpenRouter `GET /api/v1/key`, OpenAI `GET /v1/models`).
+- **Show the effective configuration, not the stored one.** If code silently substitutes a model, Settings must show the substitute — compute both from the same function.
+
+## Updates, signing and releases
+
+- **Builds happen on the Mac.** Fyne needs cgo + Apple frameworks; cross-compiling from Linux isn't worth it.
+- **Self-update for an unsigned app:** download the release zip with Go's HTTP client (not a browser) so it has no quarantine flag and Gatekeeper doesn't block it; unzip with `ditto -x -k`; a detached `bash` script (`Setsid`) waits for the app's PID to exit, swaps the bundle, and `open`s the new one.
+- **Private repos can't serve release downloads without a token** — that's why the repo is public.
+- **Release on VERSION bump:** a workflow filtered on `paths: [VERSION]` that skips if the tag already exists; release notes come from the matching `## vX.Y.Z` section of CHANGELOG.md.
+- **Secrets for personal Mac apps go in a 0600 file in Application Support, not the Keychain** (the Keychain keeps asking for the password for unsigned/ad-hoc builds). That folder survives app updates, so the key is entered once.
 - **Iterate on a branch with a macOS CI build check** before bumping VERSION on main — catches compile errors without needing the user's Mac.
+- **Write config atomically** (temp file + rename) when it holds the only copy of a user's API key.
+- **`mv src dst` moves *into* dst if dst is an existing directory** — when swapping app bundles, move any existing target aside first.
+- **Quote paths for bash with single quotes**, not Go's `%q` (which leaves `$` and backticks live and escapes non-ASCII in a way bash doesn't understand).
+- **Ad-hoc signing proves integrity, not identity.** `codesign --verify --strict` plus a published SHA-256 catches damaged downloads; only a Developer ID would stop a swapped release.
+- **"Up to date" can be right.** The updater only sees published releases; branch work reaches it after a merge to `main` with a new `VERSION`.
+
+## Interface and behaviour
+
 - **Fun that stays out of the way:** one "Playful mode" switch plus individual toggles; the greeting is cached per part-of-day + schedule so the AI is called a few times a day at most; AI emoji picks are cached forever in emoji.json (misses too).
 - **Weather without a key:** Open-Meteo forecast + geocoding APIs; cache an hour; keep the last good forecast on errors.
 - **Draw the mascot as inline SVG** (not the raster icon) so its face can change per mood with plain CSS animation (bob, blink, wiggle).
 - **Drag-to-reschedule:** pointer events with `setPointerCapture`, snap to 15 min, update on pointerup, offer Undo; fetch the event's notes first so the update doesn't wipe them.
 - **Week start / weekend are user settings**, never hard-coded — they feed the month grid, the recap, the greeting and the AI prompt.
-- **Playwright won't click animated elements** ("not stable") — use `{force: true}` in preview scripts.
-- **Renaming a shipped app:** change only display names (CFBundleName/DisplayName, UI text). Keep the bundle ID, executable name, config folder and repo so permissions, settings and update URLs survive. Old updaters look for the old bundle name inside the zip — keep it there and let the new version rename itself on disk (renaming a running .app is safe), then re-register the login item.
-- **Recurring events in EventKit:** save/remove with `EKSpanThisEvent` or `EKSpanFutureEvents`, and find the occurrence by id + original start (`eventsMatchingPredicate` around that start) — the id alone gives the first occurrence.
-- **One AI call, six intents** (add/answer/update/delete/slots/todo). Images go in as an `image_url` data URL; shrink screenshots to ~1600px JPEG first.
-- **Free slots are computed in Go, not by the model** — the AI only extracts the duration and window; the code checks real busy times.
-- **Pop-out windows in Wails v3:** a second hidden window with its own HTML page; closing hides it; share data via `Event.Emit("state")`.
-- **Hiding the status-item icon in Wails v3:** there's no API; find the `NSStatusBarButton` in the app's `NSStatusBarWindow` and set `imagePosition = NSNoImage`. Queue it a few main-queue hops deep so it lands after Wails' own (nested) icon updates.
 - **Keep the label logic in Go and mirror it in JS** for the settings live preview; a unit test pins the Go helpers.
-- **Settings window in Wails v3:** a second window loading the same `index.html?settings=1`; the JS checks the query string and shows only the settings view. All windows receive the same `state` events, so changes show up everywhere.
 - **Instant-save settings:** listen for `change` (and clicks on custom controls) inside the settings body and debounce one save; never save while the form is being filled from stored values.
-- **Template tray icons:** Wails keeps `isTemplate` once set, so switching colour ↔ monochrome is done natively by setting `button.image` with `setTemplate:` ourselves.
 - **i18n without rewriting the UI:** an exact-match dictionary plus a few regex patterns, applied by a `MutationObserver` to text nodes and `title`/`placeholder` attributes; guard against observer loops by only writing when the value differs.
-- **Standard About panel:** `orderFrontStandardAboutPanelWithOptions:` with an attributed Credits string; activate the app first (accessory apps are in the background).
-- **Wails v3 window methods are no-ops before `Run()`** (no native window yet) — restore saved frames in an `ApplicationStarted` handler.
 - **Never auto-save a secret field.** Instant-save forms must exclude half-typed keys; save them on an explicit action (Enter/paste).
 - **Re-renders must not steal scroll.** Auto-scroll only when the view's subject (the day) changes, not on every state update.
 - **Keep network waits out of locks.** Do the quick store lookup under the EventKit lock, then geocode/ETA outside it; cache geocodes (Apple rate-limits them).
-- **Write config atomically** (temp file + rename) when it holds the only copy of a user's API key.
-- **Never register common app shortcuts (⌘⇧W, ⌘W, ⌘N…) as global hotkeys** — global registration steals them from every other app. Handle them in your own windows/menu instead.
-- **`mv src dst` moves *into* dst if dst is an existing directory** — when swapping app bundles, move any existing target aside first.
-- **Quote paths for bash with single quotes**, not Go's `%q` (which leaves `$` and backticks live and escapes non-ASCII in a way bash doesn't understand).
 - **Cache failures too** (e.g. a place that can't be geocoded), or the retry loop hammers a rate-limited service.
-- *(v2.1, removed in v2.2 — kept for reference)* **App Intents and Foundation Models are Swift-only.** Keep the Go app as-is and ship a small Swift helper app in `Contents/Helpers`, built by `xcodegen` + `xcodebuild` (which also generates `Metadata.appintents`). Sign the helper with its own identity first, then the outer bundle without `--deep`.
-- *(v2.1)* **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
-- *(v2.1)* **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
-- *(v2.1)* **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.
-- **Don't trust a model with date arithmetic or with "unchanged" fields.** With a strict schema every field gets filled; keep only the fields the user's words mention, compute relative dates ("1 month from now") in code, and refuse silent moves into the past.
-- **Wails v3 installs a generic menu bar if you don't set one** (`DefaultApplicationMenu`): its About isn't yours and its Help → "Learn More" loads wails.io *inside your window*. Set your own with `app.Menu.Set(...)`; keep `AddRole(application.EditMenu)` so ⌘X/⌘C/⌘V/⌘A work in text fields — even in an accessory (menu-bar-only) app, where the menu is invisible but its shortcuts still work.
-- **Menu shortcuts and page shortcuts don't double-fire** as long as the page calls `preventDefault()`: WebKit offers the key to the page first and only hands unhandled key equivalents to the menu.
-- **Go's regexp `\b` only knows ASCII letters.** It never matches next to Arabic, so Arabic keywords go in the pattern without `\b`.
-- **"Push back" means later.** Never decide direction from the whole sentence (titles contain words like "back"); look at the verb and the words next to the amount.
-- **EventKit saves overwrite every field you pass.** An update built from the event *list* (no notes) erases the notes; fetch the full event first and carry over notes and time zone.
-- **Ad-hoc signing proves integrity, not identity.** `codesign --verify --strict` plus a published SHA-256 catches damaged downloads; only a Developer ID would stop a swapped release.
-- **"Up to date" can be right.** The updater only sees published releases; branch work reaches it after a merge to `main` with a new `VERSION`.
-- **Previewing the UI without a Mac:** serve `frontend/` in Playwright and route `/wails/runtime.js` to a small mock module exporting `Call.ByName` (canned `GetState`, `GetSettings`, `GetEvent`…) and `Events.On`. Set `textSize: 100` in the mock state — it's a percentage used as page zoom.
-- **Google Calendar descriptions are HTML** (`<p>`, `<br>`, `&#x27;`, links, lists) and EventKit returns them as-is. Convert once where events are read (Go's `html.UnescapeString` plus a few regexes), not in each view; leave notes without tags alone.
 - **An unsaved preview is invisible state.** If the user can confirm later, show the waiting item where they'll look for it (its day, the calendar) — otherwise "my meeting isn't there" is the first bug report.
-- **Give the NSStatusItem an `autosaveName`.** Without one (Wails doesn't set it) macOS puts the item at the far left on every launch — the first thing hidden behind the notch when the menu bar is full, so a relaunch or update can make a menu-bar-only app "vanish". Detect it (status window not visible or outside `auxiliaryTopRightArea`/`auxiliaryTopLeftArea`) and show the panel some other way. Menu-bar-only (LSUIElement) apps never appear in Force Quit.
 - **A guard that refuses to run while busy will swallow a call made from inside the busy section.** `addDrafts()` returned early because the AI request had set `busy`; with "preview before adding" off, typed events silently vanished. Clear the flag (or call an inner function) before chaining.
-- **⌃⌥Space switches keyboard input sources on many Macs** (Arabic ⇄ English) — don't make it a default global shortcut.
 - **Timers that reference a variable from another function fail silently** (`t` vs `box` in `toastAction`): the toast never hid. Prefer one toast helper.
-- **"AI unavailable" is useless to a person.** Keep provider errors structured (status + provider message) and translate them: 402 = no credits, 401 = bad key, 404 = model gone, 429 = rate limit, 5xx = their side. OpenRouter adds the upstream provider's words in `error.metadata.raw`, and `/api/v1/credits` and `/api/v1/key` tell you the balance and whether it's a free-tier key.
-- **A backup should be a different company,** or one outage / one empty account stops both.
-- **Force Quit (⌥⌘⎋) only lists apps with a Dock icon.** A menu-bar-only (LSUIElement / accessory) app never appears there — give it a visible Quit in its own UI, and point to a "show in Dock" option for people who want it listed.
-- **Key prefixes are conventions, not proof.** sk-or- = OpenRouter, sk-proj-/sk-svcacct-/sk- = OpenAI, sk-ant- = Anthropic (careful: it also starts with "sk-"), AIza = Google, gsk_ = Groq, xai- = xAI. Detect with the specific prefixes first, then confirm with the service (OpenRouter `GET /api/v1/key`, OpenAI `GET /v1/models`).
-- **Show the effective configuration, not the stored one.** If code silently substitutes a model, Settings must show the substitute — compute both from the same function.
-- **An accessory (menu-bar-only) app must activate itself when it shows a window on its own** (`[NSApp activateIgnoringOtherApps:YES]`). Otherwise the window never becomes key: a "hide on focus lost" popover can't lose focus it never had, so it sticks — on top — until the app quits.
-- **Don't judge the menu bar right after login.** Status items are still being placed for several seconds; check repeatedly before concluding an item is hidden, and prefer a notification to a window at login.
+
+## Testing and working without a Mac
+
+- **device_commit_files can lag/silently not land** on the Mac — verify with md5sum via device_bash, and fall back to editing in place with python in device_bash.
+- **Playwright won't click animated elements** ("not stable") — use `{force: true}` in preview scripts.
+- **Previewing the UI without a Mac:** serve `frontend/` in Playwright and route `/wails/runtime.js` to a small mock module exporting `Call.ByName` (canned `GetState`, `GetSettings`, `GetEvent`…) and `Events.On`. Set `textSize: 100` in the mock state — it's a percentage used as page zoom.
+
+## Retired: Apple Intelligence and Siri (v2.1, removed in v2.2)
+
+- **App Intents and Foundation Models are Swift-only.** Keep the Go app as-is and ship a small Swift helper app in `Contents/Helpers`, built by `xcodegen` + `xcodebuild` (which also generates `Metadata.appintents`). Sign the helper with its own identity first, then the outer bundle without `--deep`.
+- **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
+- **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
+- **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.

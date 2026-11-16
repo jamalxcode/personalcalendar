@@ -2,7 +2,8 @@
 
 How the app got its shape: each request from the owner (Jamal, "Mr. boss"), what was decided, and why.
 Newest first. Screenshots are in [docs/design](docs/design). Release notes per version are in [CHANGELOG.md](CHANGELOG.md);
-technical lessons are in [LESSONS.md](LESSONS.md).
+technical lessons are in [LESSONS.md](LESSONS.md). The rules that came out of all this: [business rules](docs/BUSINESS-RULES.md)
+(what the app does) and [interface rules](docs/INTERFACE-RULES.md) (how it looks and behaves); what could come next: [ideas](docs/IDEAS.md).
 
 ## Standing principles
 
@@ -18,6 +19,11 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 - **Only officially released platform features.** Beta or unreleased Apple features (like v2.1's Apple Intelligence and Siri) stay out of the shipped app.
 
 ---
+
+## Docs: rules, ideas and a README worth reading (16 Nov 2026)
+
+**Asked:** "save to repo design ideas, lessons learned, convo and business rules and interface rules and update readme to make it a fun interesting read".
+**Done:** `docs/BUSINESS-RULES.md` (what Smart Cal does, as rules — privacy, adding, changing, rescheduling, to-dos, alerts, AI services, menu bar, updates, region, notes, how it changes), `docs/INTERFACE-RULES.md` (Mac conventions, windows, the panel top to bottom, lists, buttons and menus, feedback, words and dates, colour, keyboard, how UI is checked), `docs/IDEAS.md` (the critique backlog, ideas from along the way, and what was decided against), LESSONS.md regrouped by topic with "the ten that hurt most", and the README rewritten as a tour — same facts, more fun. This log remains the conversation, request by request.
 
 ## v2.3.9 — No stuck window at login (16 Nov 2026)
 
