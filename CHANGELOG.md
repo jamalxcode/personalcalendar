@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.3.9
+
+- Fixed: after starting the Mac, Smart Cal could put a window in the middle of the screen that wouldn't go away. Right after login the menu bar is still being drawn, so Smart Cal thought its menu bar item was hidden and opened the panel — without giving it focus, so clicking elsewhere or pressing Esc couldn't close it. Now:
+  - Smart Cal waits about 20 seconds after launch before deciding the menu bar item is hidden, and then sends a notification ("Smart Cal is running — press ⌃⌥C to open it") instead of opening a window
+  - whenever Smart Cal opens its panel itself, it takes focus, so a click elsewhere or Esc closes it as usual
+
 ## v2.3.8
 
 - **After an update, Smart Cal shows it worked:** the new version opens the panel by itself with a green "✓ Updated to vX — all good" under today's date, and **What's new** shows the release notes. (Before, the panel just closed and it felt like nothing happened.) This works from this update on — even though the previous version didn't announce it, the new one notices it's newer than what last ran

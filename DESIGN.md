@@ -19,6 +19,12 @@ technical lessons are in [LESSONS.md](LESSONS.md).
 
 ---
 
+## v2.3.9 — No stuck window at login (16 Nov 2026)
+
+**Reported:** "smart cal on booting on my mac is showing a window that would not go to background, check what's going on".
+**Found:** the v2.2.7 safety net checked once, ~2 s after launch, whether the menu bar item was visible. At login the menu bar is still being laid out, so the check could say "hidden" and the panel opened centred — always on top, set to hide when it loses focus, but shown without activating the app, so it never had focus to lose: clicks elsewhere and Esc did nothing.
+**Decided:** every panel Smart Cal opens on its own activates the app (so focus-lost and Esc work); at launch the visibility is watched for ~20 s, and only a persistent "hidden" produces a notification (click it to open the panel) — the centred panel is used at launch only if notifications are off.
+
 ## v2.3.8 — "Updated — all good" (13 Nov 2026)
 
 **Asked:** "when an update happens, the update works but then the calendar screen from the menubar gets closed, leaving a feeling that nothing happened, once the update is done, drop down the calendar to show its all good".

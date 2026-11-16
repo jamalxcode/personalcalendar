@@ -308,12 +308,16 @@ func (a *App) showPanel() {
 	go func() {
 		if a.checkTray() {
 			a.tray.ShowWindow()
+			appActivate()
 			return
 		}
 		application.InvokeSync(func() {
 			a.win.Center()
 			a.win.Show().Focus()
 		})
+		// Smart Cal must become the active app, or the panel never gets focus — and a panel that
+		// "hides when it loses focus" but never had it can't be clicked away or closed with Esc
+		appActivate()
 	}()
 }
 
@@ -323,6 +327,52 @@ func (a *App) togglePanel() {
 		return
 	}
 	a.showPanel()
+}
+
+// watchTrayAtLaunch: right after login the menu bar is still being laid out, so one early look can
+// wrongly find the item hidden. Look for ~20 s; only if it's still hidden, say so — with a
+// notification, not a window that appears at login (the panel only if notifications are off).
+func (a *App) watchTrayAtLaunch() {
+	for i := 0; i < 10; i++ {
+		time.Sleep(2 * time.Second)
+		if a.checkTray() {
+			return
+		}
+	}
+	key := "⌃⌥C"
+	if hk := a.cfg.Hotkey; hk != "" && hk != "off" {
+		key = macHotkeyLabel(hk)
+	}
+	if a.notifOK && a.notif.SendNotification(notifications.NotificationOptions{
+		ID: "tray-hidden", Title: "Smart Cal is running",
+		Body: "macOS is hiding its menu bar item because the menu bar is full. Press " + key + " to open it, or click here.",
+	}) == nil {
+		return
+	}
+	a.showPanel()
+}
+
+// macHotkeyLabel: "Ctrl+Alt+C" → "⌃⌥C".
+func macHotkeyLabel(accel string) string {
+	parts := strings.Split(accel, "+")
+	out := ""
+	for _, p := range parts[:len(parts)-1] {
+		switch strings.ToLower(p) {
+		case "ctrl", "control":
+			out += "⌃"
+		case "alt", "option":
+			out += "⌥"
+		case "shift":
+			out += "⇧"
+		case "cmd", "cmdorctrl", "command", "super":
+			out += "⌘"
+		}
+	}
+	k := parts[len(parts)-1]
+	if len(k) == 1 {
+		k = strings.ToUpper(k)
+	}
+	return out + k
 }
 
 // checkTray re-reads whether the menu bar item is visible, tells the panel when that changes,
@@ -452,10 +502,8 @@ func (a *App) loop() {
 	} else if a.justUpdatedInfo() != nil {
 		// just updated: drop the panel down so it's clear the new version is running and all is well
 		a.showPanel()
-	} else if !a.checkTray() {
-		// macOS is hiding the menu bar item (full menu bar / behind the notch): open the panel so
-		// Smart Cal doesn't seem to vanish; it explains how to get the item back
-		a.showPanel()
+	} else {
+		go a.watchTrayAtLaunch()
 	}
 	fetch := time.NewTicker(2 * time.Minute)
 	tick := time.NewTicker(15 * time.Second)
