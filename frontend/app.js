@@ -2,6 +2,7 @@ import { Call, Events } from "/wails/runtime.js";
 import { popMenu, pickDate } from "./menu.js";
 import { pad, startOfMonth, startOfDay, addDays, sameDay, dayKey, dateVal, timeVal, fromInputs } from "./dates.js";
 import { flightOf, flyingSoon } from "./flights.js";
+import { hijriText, occasion, prayerTimes } from "./seasons.js";
 
 // ---------- Go bridge ----------
 const SVC = "main.CalService.";
@@ -179,6 +180,7 @@ function renderMonthGrid() {
       cell.append(w);
     }
     cell.onclick = () => openDay(d);
+    if (!SETTINGS_WIN) { const plus = el("span", "add-plus", "+"); plus.title = "Add something this day"; plus.onclick = (ev) => { ev.stopPropagation(); prefillDay(d); }; cell.append(plus); }
     cell.ondblclick = () => {
       if (drafts.length) { moveDraftsTo(d); return; } // an event is waiting: move it, don't type into the box
       const q = $("quick");
@@ -210,7 +212,7 @@ function renderMiniCal() {
   const mc = document.querySelector(".minical");
   mc.classList.remove("year-mode", "strip-mode");
   if (calView === "year") { mc.classList.add("year-mode"); renderYearGrid(); setTodayDot(viewYear !== now.getFullYear()); return; }
-  if (calView === "week" || calView === "day") { mc.classList.add("strip-mode"); renderWeekStrip(); return; }
+  if ((calView === "week" || calView === "day") && !isWide()) { mc.classList.add("strip-mode"); renderWeekStrip(); return; }
   renderMonthGrid();
   setTodayDot(!sameDay(viewMonth, startOfMonth(now)) || !!selectedDay);
 }
@@ -326,6 +328,16 @@ function setView(v) {
   calView = v;
   lastHourScroll = "";
   try { localStorage.setItem("calView", v); } catch (_) {}
+  if (isWide()) { // the month stays on the left; Week and Day change the right column, Month/Year show the agenda
+    if (v === "week") weekAnchor = weekStartFor(selectedDay || new Date());
+    if (v === "day" && !selectedDay) selectedDay = startOfDay(new Date());
+    if (v === "year") loadYear(viewYear);
+    if (listMode !== "search") { listMode = "upcoming"; dayView = null; weekView = null; }
+    renderMiniCal();
+    renderList();
+    loadSideDay(true);
+    return;
+  }
   if (v === "day") {
     const d = selectedDay || new Date();
     weekAnchor = weekStartFor(d);
@@ -347,6 +359,8 @@ function setView(v) {
 
 function stepPeriod(n) {
   if (calView === "year") { viewYear += n; loadYear(viewYear); renderMiniCal(); return; }
+  if (isWide() && calView === "week") { weekAnchor = addDays(weekAnchor, 7 * n); viewMonth = startOfMonth(weekAnchor); renderMiniCal(); loadSideDay(true); return; }
+  if (isWide() && calView === "day") { selectedDay = addDays(selectedDay || new Date(), n); viewMonth = startOfMonth(selectedDay); renderMiniCal(); loadSideDay(true); return; }
   if (calView === "week") { weekAnchor = addDays(weekAnchor, 7 * n); loadWeekList(); renderMiniCal(); return; }
   if (calView === "day") { const d = addDays(selectedDay || new Date(), n); selectedDay = d; weekAnchor = weekStartFor(d); openDay(d, true); return; }
   viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1);
@@ -362,6 +376,7 @@ function stepPeriod(n) {
 function goToday() {
   const now = new Date();
   viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
+  if (isWide()) { selectedDay = calView === "day" ? startOfDay(now) : null; sideDay = startOfDay(now); renderMiniCal(); loadSideDay(true); return; }
   if (calView === "day") { selectedDay = now; openDay(now, true); return; }
   if (calView === "week") { loadWeekList(); renderMiniCal(); return; }
   closeDay();
@@ -653,7 +668,7 @@ function renderGroups(list, events, { now, showPast, spread, dayOnly, from }) {
     const right = el("span", "count", timed ? `${timed} event${timed > 1 ? "s" : ""}` : "");
     const wxc = weatherChip(g.d);
     if (wxc) right.prepend(wxc);
-    head.append(headTitle(dayHead(g.d)), right);
+    head.append(headTitle(dayHead(g.d)), addDayBtn(g.d), right);
     list.append(head);
     if (g.hols.length) list.append(holidayTags(g.hols));
     for (const e of g.items) list.append(eventRow(e, now));
@@ -1090,15 +1105,17 @@ async function runSearch(q) {
 
 // ---------- keyboard navigation ----------
 let kbIndex = -1;
+// the rows the keyboard moves through: the agenda (wide layout) or the list
+const kbRows = () => [...document.querySelectorAll(isWide() ? "#sideDay .ev" : "#list .ev")];
 function kbMove(delta) {
-  const rows = [...document.querySelectorAll("#list .ev")];
+  const rows = kbRows();
   if (!rows.length) return;
   kbIndex = Math.max(0, Math.min(rows.length - 1, kbIndex + delta));
   rows.forEach((r, i) => r.classList.toggle("kb", i === kbIndex));
   rows[kbIndex].scrollIntoView({ block: "nearest" });
 }
 function kbOpen() {
-  const rows = [...document.querySelectorAll("#list .ev")];
+  const rows = kbRows();
   if (kbIndex >= 0 && rows[kbIndex]) openEvent(rows[kbIndex]._ev);
 }
 
@@ -1132,7 +1149,6 @@ function renderBanner() {
 
 function renderFooter() {
   $("updated").textContent = "";
-  $("refreshBtn").title = S.now ? `Refresh (⌘R) · updated ${fmtTime(new Date(S.now))}` : "Refresh (⌘R)";
   $("hotkeyHint").textContent = S.hotkey && S.hotkey !== "off" ? macKeys(S.hotkey) + " to open" : "";
 }
 
@@ -1158,12 +1174,14 @@ let sideEvents = null;                // events from sideDay to sideTo
 let sideLoading = false;
 let wideOn = null;
 const SIDE_CHUNK = 14, SIDE_MAX = 366;
+let sideRange = null; // Week / Day in the right column: { mode, from, events }
 
 function applyLayout() {
   const wide = isWide();
   if (wide === wideOn) return;
   wideOn = wide;
   document.body.classList.toggle("wide", wide);
+  $("quick").placeholder = wide ? "Add, ask or change anything — “lunch Fri 1pm”, “what’s on today?”" : "Add, ask or change anything…";
   // wide: Up next and the to-dos sit under the month; compact: back in the one-column list
   const up = $("upnext"), sc = $("scroll");
   if (wide) { $("calLeft").append(up, sc); }
@@ -1173,15 +1191,81 @@ function applyLayout() {
 }
 
 function setSideDay(d) {
-  sideDay = startOfDay(d);
-  selectedDay = sameDay(sideDay, new Date()) ? null : sideDay;
+  const day = startOfDay(d);
   if (d.getMonth() !== viewMonth.getMonth() || d.getFullYear() !== viewMonth.getFullYear()) viewMonth = startOfMonth(d);
+  const mode = sideMode();
+  if (mode === "week") { weekAnchor = weekStartFor(day); selectedDay = day; renderMiniCal(); loadSideDay(true); return; }
+  if (mode === "day") { selectedDay = day; renderMiniCal(); loadSideDay(true); return; }
+  selectedDay = sameDay(day, new Date()) ? null : day;
   renderMiniCal();
+  // already in the agenda: scroll to it (keeps your place) instead of starting the agenda over
+  if (sideEvents && sideTo && day >= sideDay && day < sideTo && scrollAgendaTo(day)) return;
+  sideDay = day;
   loadSideDay(true);
+}
+
+// scroll the agenda to a day's heading (or the next day that has one) and flash it; false if not there
+function scrollAgendaTo(day) {
+  const body = document.querySelector("#sideDay .side-body");
+  if (!body) return false;
+  const heads = [...body.querySelectorAll(".day-head[data-day]")];
+  const target = heads.find((h) => { const [y, m, dd] = h.dataset.day.split("-").map(Number); return new Date(y, m, dd) >= day; });
+  if (!target) return false;
+  body.scrollTo({ top: target.offsetTop - body.offsetTop - 4, behavior: "smooth" });
+  target.classList.remove("flash-head"); void target.offsetWidth; target.classList.add("flash-head");
+  return true;
+}
+
+// what the right column shows in the wide layout: the running agenda, one week, or one day
+const sideMode = () => (calView === "week" || calView === "day" ? calView : "agenda");
+
+// Week (one line per day) or Day (hour timeline) in the right column
+function renderSideRange(box, fresh) {
+  const oldBody = box.querySelector(".side-body"), keep = oldBody && !fresh ? oldBody.scrollTop : null;
+  box.innerHTML = "";
+  const mode = sideMode();
+  const bar = el("div", "side-bar");
+  const label = mode === "week" ? `Week of ${weekAnchor.toLocaleDateString(LOC(), { day: "numeric", month: "short" })}`
+    : (selectedDay || new Date()).toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "long" });
+  bar.append(el("span", "side-label", label));
+  const big = el("button", "pill-btn", "⤢ Week window");
+  big.title = "Open the week window (⌘⇧W)";
+  big.onclick = () => go("OpenWeek");
+  if (mode === "week") bar.append(big);
+  const body = el("div", "side-body");
+  box.append(bar, body);
+  if (!sideRange || sideRange.mode !== mode) { body.append(el("div", "side-empty", "Loading…")); return; }
+  if (mode === "week") renderWeekRows(body, sideRange.from, sideRange.events);
+  else {
+    const d = sideRange.from, evsDay = sideRange.events;
+    const waiting = drafts.filter((x) => sameDay(new Date(x.start), d));
+    if (waiting.length) body.append(pendingBox(waiting));
+    renderTimeline(body, d, evsDay);
+    if (keep == null) { // open on now (today) or the first event
+      const nowLine = sameDay(d, new Date()) ? body.querySelector(".tl-now") : null;
+      const target = nowLine || body.querySelector(".tl-ev");
+      if (target) body.scrollTop = Math.max(0, target.getBoundingClientRect().top - body.getBoundingClientRect().top - HOUR);
+    }
+  }
+  if (keep != null) body.scrollTop = keep;
+  renderUpNext();
 }
 
 // fresh = start over at sideDay (scroll to the top); otherwise reload what's loaded and keep the scroll
 async function loadSideDay(fresh) {
+  const mode = sideMode();
+  if (mode !== "agenda") { // one week or one day
+    const from = mode === "week" ? weekAnchor : startOfDay(selectedDay || new Date());
+    const to = addDays(from, mode === "week" ? 7 : 1);
+    if (fresh) { sideRange = null; renderSideDay(true); }
+    try {
+      const list = withDates(await go("EventsBetween", from.toISOString(), to.toISOString()));
+      if (sideMode() !== mode) return;
+      sideRange = { mode, from, events: list };
+      renderSideDay(fresh);
+    } catch (err) { toast(errMsg(err), true); }
+    return;
+  }
   const from = sideDay;
   if (fresh || !sideTo) { sideTo = addDays(from, SIDE_CHUNK); sideEvents = null; renderSideDay(true); }
   const to = sideTo;
@@ -1211,6 +1295,7 @@ async function loadMoreSide() {
 function renderSideDay(fresh) {
   const box = $("sideDay");
   if (!box || !isWide()) return;
+  if (sideMode() !== "agenda") { renderSideRange(box, fresh); return; }
   const oldBody = box.querySelector(".side-body"), keep = oldBody && !fresh ? oldBody.scrollTop : null;
   box.innerHTML = "";
   const d = sideDay, now = new Date(), isToday = sameDay(d, now);
@@ -1232,13 +1317,14 @@ function renderSideDay(fresh) {
     const wx = weatherChip(d), right = el("span", "count", "");
     if (wx) right.prepend(wx);
     head.append(headTitle(dayHead(d)), right);
-    body.append(head, el("div", "side-empty", isToday ? "Nothing else today." : "Nothing planned."));
+    body.append(head, el("div", "side-empty", isToday ? pickLine(FREE_TODAY, d) : pickLine(FREE_DAY, d)));
   }
   renderGroups(body, sideEvents.filter((e) => e.e > d), { now, showPast: true, spread: true, from: d });
   const more = el("div", "side-empty side-more", (sideTo - d) / 864e5 >= SIDE_MAX ? "That's a year ahead." : "Scroll for more…");
   body.append(more);
   if (keep != null) body.scrollTop = keep;
   body.onscroll = () => { if (body.scrollTop + body.clientHeight > body.scrollHeight - 240) loadMoreSide(); };
+  if (isToday) renderRecap(body); // end of the week: the recap card on top of the agenda
   renderUpNext();
   // a short list: fill the column straight away
   if (body.scrollHeight <= body.clientHeight + 40) loadMoreSide();
@@ -1254,6 +1340,17 @@ function renderToday() {
   if ($("todayDate").textContent !== date) $("todayDate").textContent = date;
   const year = now.toLocaleDateString(LOC(), { year: "numeric" });
   if ($("todayYear").textContent !== year) $("todayYear").textContent = year;
+  // (fun) a soft tint for the time of day, today's weather, the Hijri date on hover, local occasions
+  const h = now.getHours();
+  const tod = h >= 5 && h < 8 ? "dawn" : h >= 8 && h < 16 ? "day" : h >= 16 && h < 18 ? "golden" : h >= 18 && h < 21 ? "evening" : "night";
+  const brand = document.querySelector(".brand");
+  ["dawn", "day", "golden", "evening", "night"].forEach((k) => brand.classList.toggle("tod-" + k, k === tod));
+  const w = typeof weatherFor === "function" && S.weather ? weatherFor(now) : null;
+  $("todayWx").textContent = w ? ` ${WX(w.code)} ${Math.round(w.max)}°` : "";
+  const hj = hijriText(now, LANG);
+  const greet = $("greetText") ? $("greetText").textContent : "";
+  $("todayLine").title = [hj, greet].filter(Boolean).join(" — ");
+  renderSeason(now);
   // long dates ("Wednesday 30 September 2026") or a bigger text size: shrink a little rather than cut it off
   const line = $("todayLine");
   line.style.fontSize = "";
@@ -1264,11 +1361,37 @@ function renderToday() {
   todayTimer = setTimeout(renderToday, Math.min(next - now, 36e5));
 }
 
+// National Day, Ramadan (with Iftar and Suhoor times for your weather location), Eid… under the date
+function renderSeason(now) {
+  const box = $("seasonLine");
+  const o = occasion(now);
+  brandKind(o ? o.kind : "");
+  if (!o) { box.classList.add("hidden"); return; }
+  let text = `${o.emoji} ${o.text}`;
+  if (o.kind === "ramadan") {
+    const today = prayerTimes(now, S.lat, S.lon);
+    const tomorrow = prayerTimes(addDays(now, 1), S.lat, S.lon);
+    if (today && today.maghrib) {
+      const suhoor = now < today.fajr ? today.fajr : tomorrow && tomorrow.fajr;
+      if (now < today.maghrib) text += ` · Iftar ${fmtTime(today.maghrib)}`;
+      if (suhoor) text += ` · Suhoor ends ${fmtTime(suhoor)}`;
+    }
+  }
+  box.textContent = text;
+  box.title = hijriText(now, LANG) + (o.kind === "ramadan" ? " — times are calculated for " + (S.weatherCity || "your weather location") + " and can differ by a minute or two" : "");
+  box.className = "season-line s-" + o.kind;
+}
+function brandKind(kind) {
+  const brand = document.querySelector(".brand");
+  ["kw", "ramadan", "eid", "arafah", "newyear"].forEach((k) => brand.classList.toggle("occ-" + k, k === kind));
+}
+
 function applyState(st) {
   if (!st) return;
   S = st;
   applyLayout();
   showJustUpdated();
+  document.body.classList.toggle("dense", !!S.denseRows);
   const sig = (S.events || []).map((e) => e.id + e.start + e.end + e.title).join("|");
   if (eventsSig && sig !== eventsSig) {
     // something changed (here or in another app): drop cached ranges and reload what's open
@@ -1439,8 +1562,11 @@ let celebratingUntil = 0;
 
 function renderMascot() {
   const box = $("greet");
-  box.classList.toggle("hidden", !playful());
-  if (!playful()) return;
+  const hr = new Date().getHours();
+  const show = playful() && ((hr >= 5 && hr < 12) || Date.now() < celebratingUntil);
+  box.classList.toggle("hidden", !show);
+  if (playful() && $("greetText").textContent) $("todayLine").title = $("greetText").textContent;
+  if (!show) return;
   const mood = mascotMood();
   const m = $("mascot");
   if (m.dataset.mood !== mood) { m.innerHTML = mascotSVG(mood); m.dataset.mood = mood; }
@@ -1489,7 +1615,9 @@ function renderCountdowns() {
     const n = daysUntil(new Date(c.start));
     const chip = el("button", "cd-chip" + (c.birthday ? " bday" : ""));
     const em = c.birthday ? "🎂" : (emojiFor({ title: c.title }) || "📌");
-    chip.innerHTML = `<span class="cd-em">${em}</span><span class="cd-t">${esc(c.title)}</span><span class="cd-n">${n === 0 ? "today!" : n === 1 ? "tomorrow" : n + " days"}</span>`;
+    const frac = Math.max(0, Math.min(1, 1 - n / 30)), C = 2 * Math.PI * 10;
+    const ring = `<svg class="cd-ring" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" class="cd-track"/><circle cx="12" cy="12" r="10" class="cd-fill" stroke-dasharray="${(frac * C).toFixed(1)} ${C.toFixed(1)}"/></svg>`;
+    chip.innerHTML = `<span class="cd-em-wrap">${ring}<span class="cd-em">${em}</span></span><span class="cd-t">${esc(c.title)}</span><span class="cd-n">${n === 0 ? "today!" : n === 1 ? "tomorrow" : n + " days"}</span>`;
     chip.title = whenText(c.start, c.start, true);
     chip.onclick = () => openEvent({ id: c.id, title: c.title, start: c.start, end: c.start, color: "", s: new Date(c.start), e: new Date(c.start) });
     box.append(chip);
@@ -1502,7 +1630,6 @@ function weekStartOf(d) {
   return addDays(startOfDay(d), -((d.getDay() - ws + 7) % 7));
 }
 function recapDue() {
-  if (!playful()) return false;
   const now = new Date(), wk = new Set(S.weekendDays ?? [5, 6]);
   const firstWeekendDay = wk.has(now.getDay()) && !wk.has(addDays(now, -1).getDay());
   const lastWorkdayEvening = !wk.has(now.getDay()) && wk.has(addDays(now, 1).getDay()) && now.getHours() >= 16;
@@ -1511,8 +1638,16 @@ function recapDue() {
   return (firstWeekendDay || lastWorkdayEvening) && dismissed !== dateVal(weekStartOf(now));
 }
 
+let recapCache = null; // { key, r } — one calculation per week
 async function buildRecap() {
   const ws = weekStartOf(new Date());
+  const key = dateVal(ws) + "|" + (eventsSig || "").length;
+  if (recapCache && recapCache.key === key) return recapCache.r;
+  const r = await buildRecapFresh(ws);
+  recapCache = { key, r };
+  return r;
+}
+async function buildRecapFresh(ws) {
   const list = withDates(await go("EventsBetween", ws.toISOString(), addDays(ws, 7).toISOString())).filter((e) => !e.holiday);
   const wk = new Set(S.weekendDays ?? [5, 6]);
   const timed = list.filter((e) => !e.allDay);
@@ -1541,7 +1676,13 @@ async function buildRecap() {
     : n <= 12 ? "A solid, balanced week. Well played. 👏"
     : n <= 20 ? "That was a busy one — you earned this weekend. 🛋️"
     : "Wow. That's a lot of meetings. Treat yourself. 🍰";
-  return { n, hours: mins / 60, busiest, free: free / 60, longest, quip, ws };
+  // last week, to compare
+  let prevHours = null;
+  try {
+    const prev = withDates(await go("EventsBetween", addDays(ws, -7).toISOString(), ws.toISOString())).filter((e) => !e.holiday && !e.allDay);
+    prevHours = prev.reduce((a, e) => a + (e.e - e.s) / 36e5, 0);
+  } catch (_) {}
+  return { n, hours: mins / 60, busiest, free: free / 60, longest, quip, ws, prevHours };
 }
 
 async function renderRecap(container, force = false) {
@@ -1565,6 +1706,7 @@ async function renderRecap(container, force = false) {
         <div><b>${r.hours.toFixed(r.hours < 10 ? 1 : 0)}h</b><span>scheduled</span></div>
         <div><b>${Math.round(r.free)}h</b><span>free (8–18)</span></div>
       </div>
+      ${r.prevHours != null ? `<div class="recap-line">⚖️ ${Math.abs(r.hours - r.prevHours) < 0.5 ? "About the same time in meetings as last week" : `${dur(Math.abs(r.hours - r.prevHours) * 36e5)} ${r.hours < r.prevHours ? "less" : "more"} than last week`}</div>` : ""}
       ${r.busiest ? `<div class="recap-line">📈 Busiest: <b>${r.busiest.d.toLocaleDateString(LOC(), { weekday: "long" })}</b> (${r.busiest.n})</div>` : ""}
       ${r.longest.d ? `<div class="recap-line">🌿 Longest free stretch: <b>${dur(r.longest.m * 6e4)}</b> on ${r.longest.d.toLocaleDateString(LOC(), { weekday: "long" })} from ${fmtTime(r.longest.from)}</div>` : ""}
       <div class="recap-quip">${r.quip}</div>`;
@@ -2042,8 +2184,10 @@ function todoRow(t, sod) {
   cb.onclick = async () => {
     r.classList.add("done");
     sound("pop");
+    const before = todosDueToday();
     try {
       applyState(await go("CompleteTodo", t.id, true));
+      if (before > 0 && todosDueToday() === 0) allTodosDone();
       toastAction(`Done: ${t.title}`, "Undo", async () => { applyState(await go("CompleteTodo", t.id, false)); });
     } catch (err) { r.classList.remove("done"); toast(errMsg(err), true); }
   };
@@ -2209,6 +2353,14 @@ function slotLabel(s) {
 // ---------- AI box ----------
 // While the AI works: a busy cursor, a moving bar in the AI box and a line saying what's going on,
 // so the 2–3 seconds (or longer, for pasted text) never look like nothing is happening.
+// the AI box grows with what's typed (one line when empty, up to five)
+function growQuick() {
+  const q = $("quick");
+  q.style.height = "20px";
+  const h = Math.min(96, Math.max(20, q.scrollHeight));
+  q.style.height = h + "px";
+  $("quickForm").classList.toggle("tall", h > 24);
+}
 let busyTimers = [];
 function setBusy(b) {
   busy = b;
@@ -2229,8 +2381,17 @@ function setBusy(b) {
 let aiResult = null;
 let draftClashes = [];
 
+let aiHist = (() => { try { return JSON.parse(localStorage.getItem("aiHistory") || "[]"); } catch (_) { return []; } })();
+let aiHistPos = -1;
+function rememberAI(text) {
+  if (!text) return;
+  aiHist = [text, ...aiHist.filter((t) => t !== text)].slice(0, 30);
+  aiHistPos = -1;
+  try { localStorage.setItem("aiHistory", JSON.stringify(aiHist)); } catch (_) {}
+}
 async function submitQuick(fromClipboard) {
   const text = $("quick").value.trim();
+  if (text && fromClipboard !== true) rememberAI(text);
   if (busy) return;
   if (!text && !attachment && fromClipboard !== true) { if (drafts.length) addDrafts(); else if (aiResult) applyAI(); return; }
   aiNotice("");
@@ -2238,6 +2399,7 @@ async function submitQuick(fromClipboard) {
   try {
     const r = fromClipboard === true ? await go("FromClipboard") : attachment ? await go("AskWith", text, attachment) : await go("Ask", text);
     $("quick").value = "";
+    growQuick();
     clearAttachment();
     aiNotice(r.note || "", "warn"); // "the backup AI answered", "read without AI — why…", or nothing
     if (r.kind === "add") {
@@ -2435,6 +2597,75 @@ function renderDrafts() {
   add.onclick = addDrafts;
   actions.append(el("span", "draft-hint", "Not added yet"), cancel, add);
   box.append(actions);
+}
+
+// ---------- small wins ----------
+// to-dos due today or overdue, still open
+function todosDueToday() {
+  const end = addDays(startOfDay(new Date()), 1);
+  return (S.todos || []).filter((t) => !t.done && t.due && new Date(t.due) < end).length;
+}
+// the last one is ticked off: a cheer, confetti if you like it, and a streak of "all done" days
+function allTodosDone() {
+  let days = [];
+  try { days = JSON.parse(localStorage.getItem("allDoneDays") || "[]"); } catch (_) {}
+  const today = dateVal(new Date());
+  if (!days.includes(today)) days.push(today);
+  days = days.slice(-60);
+  try { localStorage.setItem("allDoneDays", JSON.stringify(days)); } catch (_) {}
+  let streak = 0;
+  for (let d = startOfDay(new Date()); days.includes(dateVal(d)); d = addDays(d, -1)) streak++;
+  setTimeout(() => toast(streak > 1 ? `All done for today 🎉 · ${streak} days in a row` : "All done for today 🎉"), 900);
+  if (playful()) {
+    celebratingUntil = Date.now() + 8000;
+    confetti(1);
+    sound("chime");
+    renderMascot();
+    setGreet(streak > 1 ? `Every to-do done — ${streak} days running! 🏆` : MASCOT_LINES.ecstatic[1] || "All done! 🙌");
+    setTimeout(() => { renderMascot(); refreshGreeting(); }, 8200);
+  }
+}
+// an empty day deserves a friendly word
+const FREE_TODAY = ["Nothing else today — the rest is yours ☀️", "All clear. Maybe a walk? 🚶", "Free from here on. Enjoy it 🌿", "Nothing planned — a good day to think 💭"];
+const FREE_DAY = ["Nothing planned ☀️", "A free day 🌿", "Wide open 🌤️"];
+const pickLine = (list, d) => list[(d.getDate() + d.getMonth()) % list.length];
+
+// ---------- tips: one per panel opening, each shown once ----------
+const TIPS = [
+  "Right-click any event or to-do to move it to tomorrow, next week or any day.",
+  "Press ⌃⌥N in any app to add something without opening the panel.",
+  "Made a mistake? ⌘Z undoes anything you just did.",
+  "Select text in Mail or Safari, right-click → Services → Add to Smart Cal.",
+  "Pick an event with ↑↓, then T moves it to tomorrow, E edits it, Space opens it.",
+  "In the AI box, ↑ brings back what you typed before.",
+];
+function showTip() {
+  if (SETTINGS_WIN || QUICK_WIN) return;
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem("tipsSeen") || "[]"); } catch (_) {}
+  const i = TIPS.findIndex((_, k) => !seen.includes(k));
+  if (i < 0) { $("tipBar").classList.add("hidden"); return; }
+  $("tipText").textContent = "Tip: " + TIPS[i];
+  $("tipBar").classList.remove("hidden");
+  seen.push(i);
+  try { localStorage.setItem("tipsSeen", JSON.stringify(seen)); } catch (_) {}
+}
+
+// "+" next to a day: start an event on that day (or move a waiting one there)
+function addDayBtn(d) {
+  const b = el("button", "add-day", "+");
+  b.title = `Add something on ${d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "short" })}`;
+  b.setAttribute("aria-label", b.title);
+  b.onclick = (ev) => { ev.stopPropagation(); prefillDay(d); };
+  return b;
+}
+function prefillDay(d) {
+  if (drafts.length) { moveDraftsTo(d); return; }
+  const q = $("quick");
+  q.value = `on ${d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" })} `;
+  growQuick();
+  q.focus();
+  q.setSelectionRange(q.value.length, q.value.length);
 }
 
 // events typed into the AI box but not added yet (Confirm before adding is on)
@@ -2721,6 +2952,7 @@ async function loadSettings(tab) {
   $("sHotkey").value = settingsCache.hotkey || "Ctrl+Alt+C";
   $("sQuickKey").value = settingsCache.quickHotkey || "off";
   $("sBackupModel").value = settingsCache.backupModel || "";
+  $("sDense").checked = !!settingsCache.denseRows;
   $("sBackupKey").value = "";
   const bh = settingsCache.backupKeyHint || "";
   $("backupSaved").classList.toggle("hidden", !bh);
@@ -2856,6 +3088,7 @@ async function saveSettings(silent) {
     openaiModel: $("sModel").value.trim(),
     backupKey: silent ? "" : backupKeyPayload || $("sBackupKey").value.trim(), // like the main key: saved on Enter/paste only
     backupModel: $("sBackupModel").value.trim(),
+    denseRows: $("sDense").checked,
     clockMode: $("sClock").value,
     language: $("sLang").value,
     showInDock: $("sDock").checked,
@@ -2981,7 +3214,6 @@ function wire() {
     if (/^sk-[A-Za-z0-9_-]{20,}$/.test(v)) saveSettings();
   });
   $("saveSettings").onclick = () => saveSettings();
-  $("refreshBtn").onclick = refresh;
   $("quitBtn").onclick = () => go("Quit");
   $("allowBtn").onclick = allowAccess;
   $("addGoogleBtn").onclick = () => go("AddGoogleAccount");
@@ -3000,7 +3232,7 @@ function wire() {
       if (inSettings) { closeSettings(); return; }
       if (drafts.length || aiResult) { clearDrafts(); return; }
       if (attachment) { clearAttachment(); return; }
-      if ($("quick").value) { $("quick").value = ""; return; }
+      if ($("quick").value) { $("quick").value = ""; growQuick(); return; }
       if (!$("searchBar").classList.contains("hidden")) { closeSearch(); return; }
       if (listMode === "day") { closeDay(); return; }
       QUICK_WIN ? go("HideQuick") : go("Hide");
@@ -3016,8 +3248,16 @@ function wire() {
       }
       if (ev.key === "Enter" && !typing && kbIndex >= 0) { ev.preventDefault(); kbOpen(); }
       if ((ev.key === "Backspace" || ev.key === "Delete") && !typing && kbIndex >= 0) {
-        const rows = [...document.querySelectorAll("#list .ev")];
+        const rows = kbRows();
         if (rows[kbIndex] && rows[kbIndex]._ev.writable !== false) { ev.preventDefault(); deleteEvent(rows[kbIndex]._ev); }
+      }
+      // on the selected row: T moves it to tomorrow, E edits it, Space opens a quick look
+      const sel = !typing && kbIndex >= 0 && !ev.metaKey && !ev.ctrlKey && !ev.altKey ? kbRows()[kbIndex] : null;
+      if (sel && sel._ev) {
+        const e = sel._ev;
+        if (ev.key.toLowerCase() === "t" && e.writable !== false && !e.holiday) { ev.preventDefault(); moveEventToDay(e, addDays(startOfDay(new Date()), 1)); }
+        if (ev.key.toLowerCase() === "e" && e.writable !== false) { ev.preventDefault(); go("GetEvent", e.id, e.start).then((d) => { $("sheet").classList.remove("hidden"); renderEdit(d, "edit"); }).catch(() => openEvent(e)); }
+        if (ev.key === " ") { ev.preventDefault(); openEvent(e); }
       }
       if (!typing && ev.key === "/") { ev.preventDefault(); openSearch(); }
       if (!typing && ev.key === "ArrowLeft" && !ev.metaKey) { ev.preventDefault(); calView === "month" ? openDay(addDays(selectedDay || new Date(), -1)) : stepPeriod(-1); }
@@ -3046,11 +3286,26 @@ function wire() {
   Events.On("ui:new", () => { if (!SETTINGS_WIN && !QUICK_WIN) newEventNow(); });
   Events.On("ui:help", () => { if (!SETTINGS_WIN && !QUICK_WIN) showHelp(); });
   Events.On("ui:view", (ev) => { if (!SETTINGS_WIN && !QUICK_WIN && ["year", "month", "week", "day"].includes(ev.data)) setView(ev.data); });
+  // text sent from another app (Services → Add to Smart Cal): put it in the AI box and send it
+  Events.On("ui:ask", (ev) => { if (SETTINGS_WIN || QUICK_WIN || !ev.data) return; $("quick").value = String(ev.data); growQuick(); submitQuick(); });
   Events.On("ui:today", () => { if (!SETTINGS_WIN && !QUICK_WIN) $("todayBtn").click(); });
   $("checkUpdBtn").onclick = checkUpdate;
   $("installUpdBtn").onclick = installUpdate;
   $("updateBanner").onclick = () => installUpdate();
   $("footQuit").onclick = () => go("Quit");
+  $("tipOk").onclick = () => $("tipBar").classList.add("hidden");
+  $("quick").addEventListener("input", () => { growQuick(); aiHistPos = -1; });
+  $("quick").addEventListener("keydown", (ev) => {
+    const q = $("quick");
+    const atStart = q.selectionStart === 0 && q.selectionEnd === 0;
+    if (ev.key === "ArrowUp" && aiHist.length && (q.value === "" || aiHistPos >= 0 || atStart) && aiHistPos < aiHist.length - 1) {
+      ev.preventDefault(); ev.stopPropagation();
+      aiHistPos++; q.value = aiHist[aiHistPos]; growQuick();
+    } else if (ev.key === "ArrowDown" && aiHistPos >= 0) {
+      ev.preventDefault(); ev.stopPropagation();
+      aiHistPos--; q.value = aiHistPos >= 0 ? aiHist[aiHistPos] : ""; growQuick();
+    }
+  });
   $("updatedClose").onclick = () => $("updatedBanner").classList.add("hidden");
   $("updatedNotesBtn").onclick = () => {
     const ul = $("updatedNotes");
@@ -3084,6 +3339,7 @@ function wire() {
     if (SETTINGS_WIN || QUICK_WIN) return;
     renderToday();
     if (isWide()) { sideDay = startOfDay(new Date()); loadSideDay(true); }
+    showTip();
     lastHourScroll = "";
     const now = new Date();
     viewMonth = startOfMonth(now); viewYear = now.getFullYear(); weekAnchor = weekStartFor(now);
@@ -3099,7 +3355,9 @@ function wire() {
   });
   $("mascot").onclick = mascotPoke;
   $("greetText").onclick = () => $("greetText").classList.toggle("open");
-  $("recapBtn").onclick = () => { if (listMode !== "upcoming") closeDay(); const l = $("list"); l.querySelectorAll(".recap").forEach((x) => x.remove()); renderRecap(l, true); $("scroll").scrollTo({ top: 0, behavior: "smooth" }); };
+  $("recapBtn").onclick = () => {
+    if (isWide()) { const b = document.querySelector("#sideDay .side-body"); if (b) { b.querySelectorAll(".recap").forEach((x) => x.remove()); renderRecap(b, true); b.scrollTo({ top: 0, behavior: "smooth" }); } return; }
+    if (listMode !== "upcoming") closeDay(); const l = $("list"); l.querySelectorAll(".recap").forEach((x) => x.remove()); renderRecap(l, true); $("scroll").scrollTo({ top: 0, behavior: "smooth" }); };
   window.addEventListener("focus", () => { if ($("settings").classList.contains("hidden")) $("quick").focus(); });
 
   // keep countdowns fresh while open
@@ -3380,7 +3638,8 @@ function flashSaved() {
 
 // Help & keyboard shortcuts (menu: Smart Cal Help, or ?)
 const HELP_KEYS = [
-  ["⌃⌥C", "Open or close Smart Cal (anywhere)"], ["⌘N", "New event"], ["⌘F  or  /", "Search"], ["⌘1 – ⌘4", "Year · Month · Week · Day view"],
+  ["⌃⌥C", "Open or close Smart Cal (anywhere)"], ["⌃⌥N", "Quick add (anywhere)"], ["⌥-click the menu bar item", "Quick add"],
+  ["T · E · Space", "On a selected event: tomorrow · edit · open"], ["↑ in the AI box", "What you typed before"], ["⌘N", "New event"], ["⌘F  or  /", "Search"], ["⌘1 – ⌘4", "Year · Month · Week · Day view"],
   ["← →", "Previous / next day (or period)"], ["↑ ↓  ↩", "Move through events · open"], ["⌫", "Delete the selected event"],
   ["⌘Z  ·  ⌘⇧Z", "Undo · redo"], ["⌘T", "Back to today"], ["⌘R", "Refresh"], ["⌘⇧W", "Big week window"], ["⌘,", "Settings"],
   ["?", "This help"], ["Esc", "Back / close"], ["⌘Q", "Quit Smart Cal"],
@@ -3402,7 +3661,10 @@ function showHelp() {
     <li>Type naturally in the AI box: “dentist Tue 4pm”, “what's on Friday?”, “move lunch to 3”.</li>
     <li>Paste or drop a screenshot of a booking or invite to turn it into events.</li>
     <li>Click a flight's ✈︎ to follow it live on Flightradar24.</li>
-    <li>Drag events in the Day view to move them; drag the bottom edge to resize.</li></ul>`;
+    <li>Drag events in the Day view to move them; drag the bottom edge to resize.</li>
+    <li>Right-click any event or to-do to reschedule it — Tomorrow, In 3 days, Next week…</li>
+    <li>Hover a day and click + to add something on it.</li>
+    <li>Select text in any app → right-click → Services → Add to Smart Cal.</li></ul>`;
   body.append(tips);
   const more = el("button", "btn", "Online guide · go.sala.company");
   more.onclick = () => go("OpenURL", "https://go.sala.company");

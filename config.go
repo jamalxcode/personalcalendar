@@ -81,6 +81,7 @@ type Config struct {
 	BetaUpdates bool   `json:"beta_updates"` // also offer pre-release (beta) versions
 	V23Set      bool   `json:"v23_set"`      // v2.3 defaults applied once
 	LastVersion string `json:"last_version"` // the version that last ran here — a different one means an update just happened
+	DenseRows   bool   `json:"dense_rows"`   // compact one-line event rows
 }
 
 // Pin is an event pinned as a countdown.

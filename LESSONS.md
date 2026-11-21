@@ -126,3 +126,9 @@ Everything building Smart Cal taught us — the hard way, mostly. Grouped by top
 - **Reuse one JSON Schema for every model:** convert it to `DynamicGenerationSchema` in Swift and return `GeneratedContent.jsonString` — the Go side parses Apple's and OpenRouter's answers identically.
 - **CI can't run Apple Intelligence (VMs are "device-not-eligible")**, but it can build each `GenerationSchema` and exercise the CLI round trip — catch schema problems there.
 - **Helper ↔ app:** a Unix socket (mode 0600) with one JSON line each way is simpler than XPC for a Go app; the helper starts the main app if the socket isn't there.
+
+## Added in v2.4
+
+- **The Services menu is a cheap superpower for a menu bar app:** an `NSServices` entry in Info.plist plus `[NSApp setServicesProvider:]` (and `NSUpdateDynamicServices()`) puts "Add to Smart Cal" in every app's right-click menu. macOS may need a moment (or a log-out) to list a new service.
+- **Hijri dates need no library:** `Intl.DateTimeFormat("en-u-ca-islamic-umalqura")` in WebKit gives the Umm al-Qura date; Fajr and Maghrib come from the standard sun-position formula (declination + equation of time) to within a minute or two — say so next to the times.
+- **Wails' tray click can be taken over** with `OnClick` (it replaces the default toggle) — call `ToggleWindow()` yourself and check `NSEvent.modifierFlags` for ⌥.

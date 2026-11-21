@@ -43,11 +43,18 @@ What Smart Cal does, as rules. If the code and this page disagree, one of them i
 - **To-dos keep their time** if they have one; only the date is saved, so notes and list stay; Undo; Remove date is available.
 - **Read-only and holiday events** offer only Open and Duplicate.
 
+## 4b. Adding faster
+
+- **+ on a day** (agenda heading or month day) starts an event on that day; if an event is waiting to be added, it moves there instead.
+- **Add to Smart Cal** (Services menu in any app) sends the selected text to the AI box, exactly as if it were typed.
+- **⌥-click** the menu bar item opens quick add; **↑** in the AI box recalls the last 30 entries (kept on this Mac only).
+
 ## 5. To-dos
 
 - **From Apple Reminders**, shown under the month (wide layout) or above the list.
 - **Due line:** "Today 21:00 · in 4 hours", "Tomorrow 09:00 · in 10 hours", "Wed 18 Nov, 09:00 · in 6 days", "Overdue by 2 days"; just the date from two weeks away. A weekday alone is never used for a date more than a few days off.
 - **Added from the AI box** when your words are a task, not a meeting ("remind me to…", "buy milk").
+- **Clearing every to-do due today** earns a cheer and counts toward a streak of "all done" days (kept on this Mac).
 
 ## 6. Alerts and the morning brief
 
@@ -79,6 +86,11 @@ What Smart Cal does, as rules. If the code and this page disagree, one of them i
 - **Installing:** download (with progress), check the SHA-256 published with the release and the app's signature, swap the app, restart. The menu bar shows "⬇︎ Updating 40%". Failures say what went wrong and that nothing changed.
 - **After an update** the new version opens the panel with "✓ Updated to vX — all good" (once), with What's new.
 - **A release** is made when `VERSION` changes on `main`: tests and vet run first; `X.Y.Z-beta.N` is published as a pre-release. Pushes that don't change `VERSION` publish nothing.
+
+## 9b. Recap and occasions
+
+- **Weekly recap** on the first weekend day and the last workday evening (once a week, dismissible; any time from "This week"): events, hours scheduled, free hours 8–18 on workdays, the busiest day, the longest free stretch, and the change from last week.
+- **Occasions** under the date: National Day (25 Feb), Liberation Day (26 Feb), Ramadan (with today's Iftar and when Suhoor ends), Eid al-Fitr (1–3 Shawwal), the Day of Arafah, Eid al-Adha (10–13 Dhu al-Hijjah), the Islamic New Year — Hijri dates from the Umm al-Qura calendar. Prayer times are calculated on the Mac for the weather location (Fajr at 18°, Maghrib at sunset) and can differ from the official timetable by a minute or two.
 
 ## 10. Week, region and language
 

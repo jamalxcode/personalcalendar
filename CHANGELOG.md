@@ -2,6 +2,31 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.4.0 — easier, quicker, more fun
+
+**Easier**
+- The top of the panel is shorter: the AI box is one line until you type more, and the greeting appears only in the morning (the rest of the day it's in the date's tooltip)
+- Wide layout: the month stays on the left, and **Week** and **Day** now change the right column (a week list or the day's timeline); Month and Year show the agenda
+- Clicking a day **scrolls the agenda to it** (it flashes) instead of starting over from that day
+- **+ to add**: hover a day heading in the agenda, or a day in the month, and click + to start an event on it
+- **Tips**: one short tip each time you open the panel, until you've seen them all; more in Help (?)
+- Settings → AI: the model boxes are under "Advanced"
+
+**Quicker**
+- **The keyboard reaches the agenda**: ↑↓ to pick an event, ↩ open, ⌫ delete — and **T** moves it to tomorrow, **E** edits it, **Space** opens it
+- **Compact event rows** (Settings → Look): one line each, about twice as many days on screen
+- **↑ in the AI box** brings back what you typed before
+- **Add to Smart Cal from any app**: select text in Mail, Safari, WhatsApp…, right-click → Services → Add to Smart Cal
+- **⌥-click** the menu bar item for quick add
+- The refresh button is gone from the bottom line — Smart Cal refreshes by itself (⌘R still works)
+
+**More fun**
+- The date line follows the day — a soft dawn, daytime, golden-hour, evening or night tint — with today's weather next to it, and the Hijri date when you point at it
+- **Local occasions**: National Day and Liberation Day, Ramadan (with today's Iftar and Suhoor times for your location), Eid al-Fitr, the Day of Arafah, Eid al-Adha and the Islamic New Year
+- **Small wins**: tick off the last to-do due today and Smart Cal cheers (with a streak — "3 days in a row"); empty days get a friendly line
+- **The weekly recap** now comes without Playful mode, shows in the wide layout too, and compares with last week ("2h less than last week")
+- **Countdowns** have a ring that fills as the day gets closer
+
 ## v2.3.9
 
 - Fixed: after starting the Mac, Smart Cal could put a window in the middle of the screen that wouldn't go away. Right after login the menu bar is still being drawn, so Smart Cal thought its menu bar item was hidden and opened the panel — without giving it focus, so clicking elsewhere or pressing Esc couldn't close it. Now:

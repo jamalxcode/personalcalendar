@@ -58,6 +58,14 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
   <key>NSRemindersUsageDescription</key><string>Smart Cal shows your to-dos next to your events and adds the ones you type.</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSServices</key>
+  <array><dict>
+    <key>NSMenuItem</key><dict><key>default</key><string>Add to Smart Cal</string></dict>
+    <key>NSMessage</key><string>addToSmartCal</string>
+    <key>NSPortName</key><string>Smart Cal</string>
+    <key>NSSendTypes</key><array><string>NSStringPboardType</string><string>public.utf8-plain-text</string></array>
+    <key>NSRequiredContext</key><dict/>
+  </dict></array>
 </dict></plist>
 PLIST
 

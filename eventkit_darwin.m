@@ -11,6 +11,7 @@
 #include <math.h>
 
 extern void goStoreChanged(void);
+extern void goServiceText(char *text);
 
 static EKEventStore *store;
 
@@ -758,4 +759,35 @@ char *sys_prefs(void) {
     };
     if ([NSThread isMainThread]) work(); else dispatch_sync(dispatch_get_main_queue(), work);
     return strdup([out UTF8String]);
+}
+
+
+// ---- "Add to Smart Cal" in the Services menu (select text in any app → right-click → Services) ----
+@interface SCServices : NSObject
+@end
+@implementation SCServices
+- (void)addToSmartCal:(NSPasteboard *)pb userData:(NSString *)userData error:(NSString **)error {
+    NSString *s = [pb stringForType:NSPasteboardTypeString];
+    if (s.length == 0) {
+        if (error) *error = @"Select some text first.";
+        return;
+    }
+    goServiceText((char *)s.UTF8String);
+}
+@end
+
+static SCServices *scServices;
+
+void register_services(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!scServices) scServices = [SCServices new];
+        [NSApp setServicesProvider:scServices];
+        NSRegisterServicesProvider(scServices, @"Smart Cal");
+        NSUpdateDynamicServices();
+    });
+}
+
+// is ⌥ held right now (for ⌥-click on the menu bar item)
+int option_down(void) {
+    return ([NSEvent modifierFlags] & NSEventModifierFlagOption) ? 1 : 0;
 }

@@ -142,6 +142,26 @@ func main() {
 	a.tray.SetMenu(a.buildMenu())
 	a.wa.Menu.Set(a.buildAppMenu()) // the menu bar while Smart Cal is active (shows with "Show in Dock")
 	a.tray.AttachWindow(a.win).WindowOffset(6)
+	// click: the panel; ⌥-click: quick add
+	a.tray.OnClick(func() {
+		if optionDown() {
+			a.toggleQuick()
+			return
+		}
+		a.tray.ToggleWindow()
+	})
+	// "Add to Smart Cal" from any app: open the panel and send the text to the AI box
+	serviceText = func(t string) {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			return
+		}
+		a.showPanel()
+		go func() {
+			time.Sleep(400 * time.Millisecond) // let the panel show first
+			a.wa.Event.Emit("ui:ask", t)
+		}()
+	}
 
 	if err := a.setHotkey(a.cfg.Hotkey); err != nil {
 		log.Printf("hotkey %s not registered: %v", a.cfg.Hotkey, err)
@@ -215,6 +235,7 @@ func main() {
 		e.Cancel()
 	})
 	// window frames: restore once the native windows exist (before Run they're no-ops), then track changes
+	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { registerServices() })
 	// clicking Smart Cal in Finder/Launchpad while it runs: show the panel
 	a.wa.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) { a.showPanel() })
 	a.wa.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {

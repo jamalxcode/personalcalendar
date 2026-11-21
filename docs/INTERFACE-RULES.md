@@ -25,13 +25,14 @@ How Smart Cal looks and behaves. New UI follows these; when a rule changes, chan
 
 ## 3. The panel, top to bottom
 
-1. **Today's date**, 22 pt bold, full width: weekday in the highlight colour, day and month, the year muted — "**Friday** 13 November 2026". Shrinks (to 15 pt at most) rather than being cut off.
+1. **Today's date**, 22 pt bold, full width: weekday in the highlight colour, day and month, the year muted, today's weather small at the end — "**Friday** 13 November 2026 ☀️ 24°". A soft tint behind it follows the time of day (dawn, day, golden hour, evening, night; none with Increase Contrast). The Hijri date and the greeting are in its tooltip. Shrinks (to 15 pt at most) rather than being cut off. On occasions a line under it: "🇰🇼 Happy National Day!", "🌙 Ramadan Kareem · day 12 · Iftar 17:47 · Suhoor ends 4:54".
 2. **Update banner** when a newer version exists ("Smart Cal vX is available · Update now"), or the green **"✓ Updated to vX — all good"** once after an update.
-3. **The AI box**, with the "working" line and, when the AI couldn't do it, the **reason** — both under the box.
+3. **The AI box** — one line when empty, growing up to five lines with what you type — with the "working" line and, when the AI couldn't do it, the **reason**, both under the box.
 4. **The preview** of what the AI understood (when there is one), with "Not added yet · Cancel · Add".
-5. **A one-line greeting** (Playful mode; click to read it all).
-6. **Wide layout:** left — the month (or Year / Week / Day) and the to-dos; right — the agenda. **Compact:** the month, to-dos and the upcoming list in one column.
-7. **The bottom line:** shortcut hint · This week · version (or "· Update to vX", clickable) · refresh · ⚙ settings · ⏻ quit. Never wraps: in the narrow layout the shortcut hint gives way.
+5. **A one-line greeting** — Playful mode, 5:00–12:00 only (click to read it all).
+6. **Wide layout:** left — the month (or Year), countdowns and the to-dos; right — the agenda (Month/Year), the week as lines (Week) or the day's timeline (Day). **Compact:** the month or a week strip, to-dos and the upcoming list in one column.
+7. **A tip** (one per opening, each shown once) just above the bottom line.
+8. **The bottom line:** shortcut hint · This week · version (or "· Update to vX", clickable) · ⚙ settings · ⏻ quit. No refresh button (it refreshes itself; ⌘R). Never wraps: in the narrow layout the shortcut hint gives way.
 
 ## 4. Lists and the agenda
 
@@ -41,6 +42,10 @@ How Smart Cal looks and behaves. New UI follows these; when a rule changes, chan
 - **The now line** (red, "Now · 10:42") sits between today's finished events (dimmed) and what's left.
 - **Events waiting to be added** show in their day with a dashed outline and an Add button, and their day gets a dashed ring in the month.
 - **Holidays** are small tags under the day heading, not rows (unless you choose rows).
+- **+** appears on a day heading (and a month day) on hover. Clicking a day already in the agenda scrolls to it and flashes its heading.
+- **Compact rows** (setting): one line per event — time and title; place, end time and calendar hidden.
+- **Countdowns** are chips with a ring that fills over the last 30 days.
+- **Empty days** get a friendly line, not just "Nothing planned".
 
 ## 5. Buttons, menus and cards
 
@@ -72,7 +77,8 @@ How Smart Cal looks and behaves. New UI follows these; when a rule changes, chan
 ## 9. Keyboard
 
 - **Global shortcuts only for opening Smart Cal:** ⌃⌥C (panel) and ⌃⌥N (quick add), both changeable. Never steal common app shortcuts (⌘W, ⌘N, ⌘⇧W…) globally, and avoid ⌃⌥Space (it switches keyboard languages).
-- **In the panel:** ⌘N new · ⌘Z / ⌘⇧Z undo/redo · ⌘1–4 views · ⌘F or / search · ⌘R refresh · ⌘T today · ⌘, settings · ⌘W close · ⌘Q quit · ? help · ↑↓ ↩ ⌫ in lists · ← → days.
+- **In the panel:** ⌘N new · ⌘Z / ⌘⇧Z undo/redo · ⌘1–4 views · ⌘F or / search · ⌘R refresh · ⌘T today · ⌘, settings · ⌘W close · ⌘Q quit · ? help · ↑↓ ↩ ⌫ in the agenda or list, then T tomorrow · E edit · Space open · ← → days · ↑ in the AI box = what you typed before.
+- **The mouse:** ⌥-click the menu bar item = quick add; right-click any event or to-do = reschedule menu.
 - **Esc steps back** one level at a time: menu → confirm → event card → settings → preview → typed text → search → day → close the panel.
 
 ## 10. Checking the interface

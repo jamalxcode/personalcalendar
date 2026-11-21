@@ -20,6 +20,14 @@ technical lessons are in [LESSONS.md](LESSONS.md). The rules that came out of al
 
 ---
 
+## v2.4.0 — The UI critique: easier, quicker, more fun (21 Nov 2026)
+
+**Asked:** "critique smart cal ui, how can it be made easier, more efficient and fun to use" → a 17-point list → "do it all".
+**Decided:**
+- **Easier:** (1) a one-line AI box that grows with the text, and the greeting only 5:00–12:00 (otherwise the date's tooltip); (2) in the wide layout Week/Day drive the right column (week list / hour timeline) while the month stays left; (3) clicking a loaded day scrolls the agenda to it and flashes the heading; (4) "+" on agenda day headings and month days pre-fills "on Sat 21 Nov"; (5) six one-time tips, one per panel opening, plus Help additions; (6) model boxes under "Advanced" in Settings → AI.
+- **Quicker:** (7) keyboard selection in the agenda, with T (tomorrow), E (edit), Space (open); (8) a compact-rows setting; (9) AI box history on ↑/↓ (last 30, on this Mac); (10) a Services provider — "Add to Smart Cal" in every app's Services menu (NSServices in the bundle, `addToSmartCal:` → the panel's AI box); (11) the refresh button removed; (12) ⌥-click on the menu bar item opens quick add.
+- **More fun:** (13) a time-of-day tint behind the date line and today's weather beside it; (14) a cheer and an "all done" streak when today's to-dos are cleared, and friendly empty-day lines; (15) the recap without Playful mode, in the agenda on the first weekend day / last workday evening, compared with last week, calculated once per week; (16) occasions from the Umm al-Qura calendar and the Gregorian date (National/Liberation Day, Ramadan with Iftar and Suhoor computed from the sun's position for the weather location — Fajr at 18°, Maghrib at sunset — Eid al-Fitr, Arafah, Eid al-Adha, Islamic New Year), Hijri date on hover; (17) countdown rings filling over the last 30 days.
+
 ## Docs: rules, ideas and a README worth reading (16 Nov 2026)
 
 **Asked:** "save to repo design ideas, lessons learned, convo and business rules and interface rules and update readme to make it a fun interesting read".

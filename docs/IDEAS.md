@@ -12,6 +12,10 @@ Things worth doing that haven't been done yet. Pick by number, like the critique
 13. **Birthdays from Contacts**, and **event templates** ("Gym" → 1 hour, a set calendar, 30-minute alert).
 14. **A second time zone** in the day view when you're travelling or have a flight coming up.
 
+## Done from the UI critique (v2.4.0, 21 Nov 2026)
+
+All 17: shorter top, Week/Day in the right column, scroll-to-day, + to add, tips, Advanced models · agenda keyboard, compact rows, AI history, Services menu, no refresh button, ⌥-click quick add · time-of-day tint, small wins, weekly recap vs last week, local occasions with Ramadan times, countdown rings. (Idea 10 below — Hijri dates and occasions — is partly done: occasions and the Hijri date on hover.)
+
 ## Ideas that came up along the way
 
 - **Drag to move in the agenda** (the wide layout's right column) — right-click covers it today; dragging an event onto another day in the month would be natural.

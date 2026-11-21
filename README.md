@@ -30,7 +30,9 @@ It's a free, Fantastical-style calendar written in Go with Wails v3 — and it w
 
 **Alerts with buttons.** Join the meeting, Snooze 10 minutes, or "Running late…", which drafts an email to everyone else. And at 8:00, a one-line morning brief: *"3 events · first 9:00 Dentist · leave by 8:35 · 1 to-do overdue."*
 
-**Quick add from anywhere.** Press ⌃⌥N in any app, type, press ↩. Done — the box closes itself.
+**Quick add from anywhere.** Press ⌃⌥N in any app (or ⌥-click the menu bar item), type, press ↩. Done — the box closes itself. Or select text in Mail or Safari, right-click → **Services → Add to Smart Cal**.
+
+**Local colour.** The date line glows with the time of day and shows the weather. On National Day it says so; in Ramadan it shows today's Iftar and when Suhoor ends; on Eid it wishes you Eid Mubarak. Clear today's to-dos and it cheers — and keeps a streak.
 
 **When something goes wrong, it says why.** Not "AI unavailable" but *"OpenRouter says your credits have run out (402) — add credits at openrouter.ai/credits."* And if you add a backup AI, it takes over when the main one fails.
 
@@ -55,12 +57,14 @@ It's a free, Fantastical-style calendar written in Go with Wails v3 — and it w
 | | |
 |---|---|
 | `⌃⌥C` | open / close Smart Cal (from anywhere) |
-| `⌃⌥N` | quick add (from anywhere) |
+| `⌃⌥N` · ⌥-click the menu bar item | quick add (from anywhere) |
 | `⌘N` · `⌘Z` / `⌘⇧Z` | new event · undo / redo |
 | `⌘1`–`⌘4` · `⌘T` | Year / Month / Week / Day · today |
 | `⌘F` or `/` · `⌘R` | search · refresh |
 | `⌘⇧W` · `⌘,` | week window · settings |
-| `↑↓` `↩` `⌫` · `← →` | move, open, delete in lists · previous / next day |
+| `↑↓` `↩` `⌫` · `← →` | move, open, delete in the agenda or list · previous / next day |
+| `T` · `E` · `Space` | on a selected event: move to tomorrow · edit · open |
+| `↑` in the AI box | what you typed before |
 | `?` · `Esc` · `⌘W` · `⌘Q` | help · back / close · close · quit |
 
 ## Get it (Apple silicon, macOS 14+)
@@ -115,7 +119,7 @@ cd personalcalendar
 | `calendar_darwin.go`, `eventkit_darwin.m` | EventKit and AppKit bridge: calendars, events, reminders, menu bar tricks |
 | `updater.go` | finding, downloading, checking and installing updates (stable or beta) |
 | `types.go`, `fun.go`, `config.go`, `icons.go` | repeats, free slots and clashes · weather, greeting, emojis, countdowns · settings · icons |
-| `frontend/` | `index.html` + `app.js` + `style.css` (panel, Settings, quick add), `week.*` (week window), `menu.js` · `dates.js` · `flights.js` (shared), `i18n.js` (Arabic) |
+| `frontend/` | `index.html` + `app.js` + `style.css` (panel, Settings, quick add), `week.*` (week window), `menu.js` · `dates.js` · `flights.js` · `seasons.js` (Hijri dates, occasions, prayer times) (shared), `i18n.js` (Arabic) |
 | `.github/workflows/` | `release.yml` (vet, test, build, publish on a `VERSION` change) · `ci.yml` (the same checks on other branches) |
 | `build.sh` | compile, bundle as a menu-bar-only `.app`, sign ad hoc, package |
 

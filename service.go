@@ -22,6 +22,9 @@ type State struct {
 	HasAI            bool           `json:"hasAI"`       // an OpenRouter/OpenAI key is set
 	TrayHidden       bool           `json:"trayHidden"`  // macOS is hiding the menu bar item (full menu bar / notch)
 	JustUpdated      *UpdatedInfo   `json:"justUpdated"` // first launch after an update: the panel says "✓ Updated to vX"
+	DenseRows        bool           `json:"denseRows"`   // compact one-line event rows
+	Lat              float64        `json:"lat"`         // the weather location, also used for Ramadan prayer times
+	Lon              float64        `json:"lon"`
 	Use24h           bool           `json:"use24h"`
 	ConfirmBeforeAdd bool           `json:"confirmBeforeAdd"`
 	DaysAhead        int            `json:"daysAhead"`
@@ -132,6 +135,8 @@ func (a *App) state() State {
 	a.mu.Lock()
 	st.TrayHidden = a.trayHidden
 	st.JustUpdated = a.justUpdated
+	st.DenseRows = a.cfg.DenseRows
+	st.Lat, st.Lon = a.cfg.WeatherLat, a.cfg.WeatherLon
 	a.mu.Unlock()
 	return st
 }
@@ -304,6 +309,7 @@ type Settings struct {
 	QuickHotkey      string     `json:"quickHotkey"`
 	BriefTime        string     `json:"briefTime"`
 	BetaUpdates      bool       `json:"betaUpdates"`
+	DenseRows        bool       `json:"denseRows"`
 	ClockMode        string     `json:"clockMode"`
 	TrayIcon         string     `json:"trayIcon"`
 	ShowInDock       bool       `json:"showInDock"`
@@ -347,7 +353,7 @@ func (s *CalService) GetSettings() Settings {
 		Playful: !c.NoPlayful, Confetti: !c.NoConfetti, Sounds: c.Sounds, Voice: c.Voice, Name: c.Name,
 		Weather: !c.NoWeather, WeatherCity: c.WeatherCity, DefaultAlarm: c.DefaultAlarm, AllDayAlarm: c.AllDayAlarm,
 		TravelFrom: c.TravelFrom, ShowTodos: !c.NoTodos, TodoList: c.TodoList, TodoLists: s.a.cal.ReminderLists(),
-		Hotkey: c.Hotkey, TextSize: c.TextSize, Layout: c.Layout, QuickHotkey: c.QuickHotkey, BriefTime: c.BriefTime, BetaUpdates: c.BetaUpdates, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
+		Hotkey: c.Hotkey, TextSize: c.TextSize, Layout: c.Layout, QuickHotkey: c.QuickHotkey, BriefTime: c.BriefTime, BetaUpdates: c.BetaUpdates, DenseRows: c.DenseRows, ClockMode: c.ClockMode, TrayIcon: c.TrayIcon,
 		ShowInDock: c.ShowInDock, Language: c.Language, SystemAccent: sysCache.Accent}
 }
 
@@ -484,6 +490,7 @@ func (s *CalService) SaveSettings(in Settings) (State, error) {
 	} else if _, err := time.Parse("15:04", in.BriefTime); err == nil {
 		c.BriefTime = in.BriefTime
 	}
+	c.DenseRows = in.DenseRows
 	if in.BetaUpdates != c.BetaUpdates {
 		c.BetaUpdates = in.BetaUpdates
 		go s.a.checkForUpdate() // switching channels: look again straight away

@@ -23,6 +23,8 @@ char *ek_rem_delete(const char *rid);
 char *clip_read(void);
 void tray_show_image(int show);
 void tray_autosave(void);
+void register_services(void);
+int  option_down(void);
 int  tray_visible(void);
 void tray_set_image(const void *data, int len, int tmpl);
 void show_about(const char *version, const char *credits);
@@ -107,6 +109,22 @@ var errNoAccess = errors.New("calendar access not allowed yet — open Settings"
 
 // storeChanged is called (from any thread) when macOS reports calendar changes.
 var storeChanged func()
+
+// serviceText is called with the text from "Add to Smart Cal" in the Services menu.
+var serviceText func(string)
+
+//export goServiceText
+func goServiceText(t *C.char) {
+	if serviceText != nil {
+		serviceText(C.GoString(t))
+	}
+}
+
+// registerServices offers "Add to Smart Cal" in every app's Services menu.
+func registerServices() { C.register_services() }
+
+// optionDown: is ⌥ held right now?
+func optionDown() bool { return C.option_down() == 1 }
 
 //export goStoreChanged
 func goStoreChanged() {

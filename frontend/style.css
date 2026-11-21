@@ -137,8 +137,11 @@ a:hover { text-decoration: underline; }
 .quick:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .18); }
 .quick textarea {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; resize: none;
-  font-size: 13.5px; line-height: 1.4; height: 38px; padding: 0; margin-top: 1px;
+  font-size: 13.5px; line-height: 1.4; height: 20px; max-height: 96px; padding: 0; margin-top: 7px; overflow-y: auto;
 }
+.quick { align-items: center; }
+.quick.tall { align-items: flex-start; }
+.quick.tall textarea { margin-top: 1px; }
 .quick textarea::placeholder { color: var(--muted); }
 .spark {
   flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
@@ -1078,3 +1081,44 @@ body.ai-busy, body.ai-busy * { cursor: progress !important; }
 .ud-x:hover { opacity: 1; background: rgba(47, 163, 107, .18); }
 .ud-notes { margin: 6px 0 2px 26px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--fg); }
 @media (prefers-color-scheme: dark) { .updated-banner { color: #6fe0a8; } }
+
+/* v2.4: + to add on a day, tips, compact rows, Advanced in settings, flashing day heading */
+.add-day { flex: none; width: 22px; height: 22px; border-radius: 6px; font-size: 16px; line-height: 1; color: var(--muted); opacity: 0; transition: opacity .12s; }
+.day-head:hover .add-day, .add-day:focus { opacity: 1; }
+.add-day:hover { background: var(--accent-soft); color: var(--accent); }
+.day .add-plus { position: absolute; top: -3px; right: -1px; width: 14px; height: 14px; border-radius: 50%; display: none; place-items: center; font-size: 11px; line-height: 1; font-weight: 700; background: var(--accent); color: #fff; }
+.day:hover .add-plus { display: grid; }
+.tip-bar { display: flex; align-items: center; gap: 8px; margin: 0 12px 6px; padding: 6px 10px; border-radius: 8px; font-size: 12px; background: var(--accent-soft); }
+.tip-text { flex: 1; min-width: 0; }
+body.dense .ev { padding-top: 5px; padding-bottom: 5px; }
+body.dense .ev .when .end, body.dense .ev .meta { display: none; }
+body.dense .ev .body .title { font-size: 12.5px; }
+details.adv { margin-top: 2px; }
+details.adv summary { cursor: default; font-size: 12px; color: var(--muted); padding: 2px; }
+details.adv[open] summary { margin-bottom: 6px; }
+.day-head.flash-head .head-title { animation: flash-head 1.2s ease-out; }
+@keyframes flash-head { 0% { background: var(--accent-soft); } 100% { background: transparent; } }
+.reduce-motion .day-head.flash-head .head-title { animation: none; }
+
+/* v2.4 fun: the date line follows the day; occasions; countdown rings */
+.brand { border-radius: 12px 12px 0 0; transition: background .6s; }
+.brand.tod-dawn { background: linear-gradient(100deg, rgba(255, 176, 128, .22), transparent 70%); }
+.brand.tod-day { background: linear-gradient(100deg, rgba(120, 190, 255, .16), transparent 70%); }
+.brand.tod-golden { background: linear-gradient(100deg, rgba(255, 196, 90, .24), transparent 70%); }
+.brand.tod-evening { background: linear-gradient(100deg, rgba(150, 115, 235, .2), transparent 70%); }
+.brand.tod-night { background: linear-gradient(100deg, rgba(60, 85, 170, .22), transparent 70%); }
+.brand.occ-kw { background: linear-gradient(100deg, rgba(0, 122, 61, .16), rgba(206, 17, 38, .1) 60%, transparent 85%); }
+.brand.occ-ramadan, .brand.occ-eid, .brand.occ-newyear { background: linear-gradient(100deg, rgba(212, 175, 55, .2), rgba(20, 60, 120, .12) 60%, transparent 85%); }
+.more-contrast .brand { background: none !important; }
+.today-wx { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; vertical-align: 3px; letter-spacing: 0; }
+.season-line { font-size: 12.5px; font-weight: 600; margin-top: 2px; color: var(--fg); }
+.season-line.s-kw { color: #007a3d; }
+.season-line.s-ramadan, .season-line.s-eid, .season-line.s-newyear, .season-line.s-arafah { color: #a07a12; }
+@media (prefers-color-scheme: dark) { .season-line.s-kw { color: #4cd38a; } .season-line.s-ramadan, .season-line.s-eid, .season-line.s-newyear, .season-line.s-arafah { color: #e8c45c; } }
+.cd-em-wrap { position: relative; display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; }
+.cd-em-wrap .cd-em { font-size: 12px; line-height: 1; }
+.cd-ring { position: absolute; inset: 0; width: 22px; height: 22px; transform: rotate(-90deg); }
+.cd-ring circle { fill: none; stroke-width: 2.4; }
+.cd-ring .cd-track { stroke: var(--faint); }
+.cd-ring .cd-fill { stroke: var(--accent); stroke-linecap: round; }
+.cd-chip.bday .cd-ring .cd-fill { stroke: #e5484d; }
