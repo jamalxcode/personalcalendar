@@ -14,7 +14,7 @@ Things worth doing that haven't been done yet. Pick by number, like the critique
 
 ## Done from the UI critique (v2.4.0, 21 Nov 2026)
 
-All 17: shorter top, Week/Day in the right column, scroll-to-day, + to add, tips, Advanced models · agenda keyboard, compact rows, AI history, Services menu, no refresh button, ⌥-click quick add · time-of-day tint, small wins, weekly recap vs last week, local occasions with Ramadan times, countdown rings. (Idea 10 below — Hijri dates and occasions — is partly done: occasions and the Hijri date on hover.)
+All 17: shorter top, Week/Day in the right column, scroll-to-day, + to add, tips, Advanced models · agenda keyboard, compact rows, AI history, Services menu, no refresh button, ⌥-click quick add · time-of-day tint, small wins, weekly recap vs last week, local occasions with Ramadan times, countdown rings. (Idea 10 above — Hijri dates and occasions — is partly done: occasions and the Hijri date on hover.)
 
 ## Ideas that came up along the way
 
