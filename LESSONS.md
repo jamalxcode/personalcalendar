@@ -130,6 +130,7 @@ Everything building Smart Cal taught us — the hard way, mostly. Grouped by top
 ## Added in v2.4
 
 - **Don't reject a structured answer over a technicality.** A schema with `kind` plus several lists lets a model choose the "wrong" list ("remind me 30 days before" → todos under kind "add"). Check the other lists before calling it a failure — and when you do fail, don't tell the user the AI "didn't answer" when it did.
+- **Structured output guarantees the shape, not the content.** `strict` JSON schema means every field is there, not that the right one is filled. An empty "add" is a model mistake worth one corrective retry (say exactly what was missing) before giving up. Make the AI endpoint overridable so that path can be tested offline.
 - **Hide the year and a correct date looks wrong:** 26 Nov 2029 is a Monday, so "Monday 26 Nov" read as this week. Show the year whenever it isn't this year.
 - **An alert "N days before" an all-day event is relative to midnight** — add 9 hours or it goes off in the middle of the night.
 

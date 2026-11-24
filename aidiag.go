@@ -55,7 +55,11 @@ func explainAI(err error, model string) (reason, fix string) {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return "The AI took too long to answer", "Try again — long pasted text takes longer. If it keeps happening, try a faster model."
 		}
-		return "The AI answered, but Smart Cal couldn't use its answer (" + err.Error() + ")", "Try again or rephrase it, or try another model in Settings → AI."
+		who := "The AI"
+		if model != "" {
+			who = "The AI (" + model + ")"
+		}
+		return who + " answered, but Smart Cal couldn't use its answer (" + err.Error() + ")", "Try again or rephrase it, or pick a stronger model in Settings → AI (e.g. openai/gpt-4o-mini or google/gemini-2.5-flash)."
 	}
 	p := ae.Provider
 	low := strings.ToLower(ae.Msg)
@@ -145,7 +149,8 @@ func lastAIStatus() AIStatus {
 // failureText: the reason and the fix in one sentence, plus what OpenRouter says about the account when the
 // problem is credits, limits or the key (it's only looked up after a failure, so it costs nothing normally).
 func failureText(ctx context.Context, err error, cfg *Config) string {
-	why, fix := explainAI(err, cfg.OpenAIModel)
+	_, sent := effectiveModel(cfg.OpenAIKey, cfg.OpenAIModel)
+	why, fix := explainAI(err, sent)
 	text := why + ". " + fix
 	var ae *aiError
 	var both *bothFailed

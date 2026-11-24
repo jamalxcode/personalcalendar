@@ -246,6 +246,25 @@ The user's events (past week to next two months):
 	if err := json.Unmarshal(content, &r); err != nil {
 		return AskResult{}, fmt.Errorf("couldn't read the AI reply: %v", err)
 	}
+	if emptyReply(r) {
+		// It said "add" (or "todo") but filled nothing in. Tell it what was missing and ask once more.
+		fix := user + "\n\n(Your previous reply had kind \"" + r.Kind + "\" but no items. Put each event in \"events\" with its start date — all-day YYYY-MM-DD if there's no time — or each task in \"todos\".)"
+		if again, err2 := callAIWithImage(ctx, cfg, sys, fix, imageB64, "calendar_action", askSchema); err2 == nil {
+			var r2 aiReply
+			if json.Unmarshal(again, &r2) == nil && !emptyReply(r2) {
+				r = r2
+			}
+		}
+		if emptyReply(r) && strings.TrimSpace(cfg.BackupKey) != "" { // still nothing: the backup AI tries
+			if out, err2 := callProvider(ctx, strings.TrimSpace(cfg.BackupKey), cfg.BackupModel, sys, user, imageB64, "calendar_action", askSchema); err2 == nil {
+				var r3 aiReply
+				if json.Unmarshal(out, &r3) == nil && !emptyReply(r3) {
+					r = r3
+					noteCall(ctx, "The main AI's answer was empty, so the backup AI answered.")
+				}
+			}
+		}
+	}
 	res := AskResult{Kind: r.Kind, Answer: r.Answer, AllFuture: r.Scope == "future"}
 	pick := func(i int) *Event {
 		if i >= 0 && i < len(known) {
@@ -260,6 +279,14 @@ The user's events (past week to next two months):
 		if err != nil {
 			return res, err
 		}
+		if len(ds) == 0 && r.Changes.Start != "" {
+			// some models put a single new event in "changes" instead of "events"
+			c := r.Changes
+			if c.Title == "" {
+				c.Title = r.Answer
+			}
+			ds, _ = aiToDrafts([]aiEvent{c}, cals)
+		}
 		if len(ds) == 0 {
 			// "…expires on 26 Nov 2029, remind me 30 days before" — some models file it under todos
 			// instead of events. Use what they gave rather than throwing the answer away.
@@ -270,7 +297,7 @@ The user's events (past week to next two months):
 				res.Kind, res.Todos = "todo", td
 				return res, nil
 			}
-			return res, fmt.Errorf("couldn't find an event in that — try e.g. “Lunch with Ali tomorrow 1pm”")
+			return res, fmt.Errorf("it said “add” but listed no event, even when asked again%s", saidText(r.Answer))
 		}
 		res.Drafts = ds
 	case "answer":
@@ -414,6 +441,26 @@ func fixTrailingMinutes(d *Draft) {
 	}
 }
 
+// emptyReply: kind add/todo with nothing usable anywhere in the reply.
+func emptyReply(r aiReply) bool {
+	if r.Kind != "add" && r.Kind != "todo" {
+		return false
+	}
+	return len(r.Events) == 0 && r.Changes.Start == "" && len(aiTodos(r.Todos)) == 0
+}
+
+// saidText quotes the AI's own summary in an error, as a clue.
+func saidText(a string) string {
+	a = strings.TrimSpace(a)
+	if a == "" {
+		return ""
+	}
+	if r := []rune(a); len(r) > 120 {
+		a = string(r[:120]) + "…"
+	}
+	return " — it said: “" + a + "”"
+}
+
 func aiTodos(ts []aiTodo) []TodoDraft {
 	var out []TodoDraft
 	for _, t := range ts {
@@ -465,6 +512,9 @@ func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {
 			if e.Calendar != "" && strings.EqualFold(c.Name, e.Calendar) && c.Writable {
 				d.CalendarID = c.ID
 			}
+		}
+		if !d.AllDay && len(strings.TrimSpace(e.Start)) == 10 { // "2029-11-26" with no time: an all-day event
+			d.AllDay = true
 		}
 		if d.AllDay {
 			s, err := parseDay(e.Start)
@@ -647,12 +697,18 @@ func fitModel(key, model string) string {
 }
 
 // callProvider sends one structured request with the given key (sk-or-… OpenRouter, sk-… OpenAI) and model.
+// testAIBase points callProvider at a local test server (tests only).
+var testAIBase string
+
 func callProvider(ctx context.Context, key, model, sys, user, imageB64, schemaName string, schema map[string]any) ([]byte, error) {
 	key = strings.TrimSpace(key)
 	provider, model := effectiveModel(key, model)
 	base := "https://api.openai.com/v1"
 	if provider == "OpenRouter" {
 		base = "https://openrouter.ai/api/v1"
+	}
+	if testAIBase != "" {
+		base = testAIBase
 	}
 	body := map[string]any{
 		"model": model,

@@ -20,6 +20,16 @@ technical lessons are in [LESSONS.md](LESSONS.md). The rules that came out of al
 
 ---
 
+## v2.4.3 — "Why is AI not working?" (24 Nov 2026)
+
+**Asked:** (screenshot after v2.4.2, same residency sentence) "why is ai not working ?"
+**Found:** the AI replied, but with kind "add" and *nothing* in it: no events and no to-dos. v2.4.2's to-do rescue had nothing to rescue. The built-in reader's result was now right (26 Nov 2029, all day, 09:00 30 days before), but the AI still wasn't being used.
+**Decided:**
+- An empty "add" or "todo" reply gets **one corrective retry**: the same question plus "your previous reply had kind add but no items — put each event in events…". If it's still empty and a backup AI is set, the backup is asked. Only then does the built-in reader take over.
+- Look everywhere for the event: a single new event put in `changes` is used; a start with a date and no time is read as all-day instead of failing as a "bad time".
+- The message names the model actually used (the one sent, not the one typed in Settings) and quotes the AI's own summary, so it's clear which model needs changing.
+- Tested against a local fake AI server (`testAIBase`), so the retry path is covered by `go test`.
+
 ## v2.4.2 — "Why did the AI not answer?" (24 Nov 2026)
 
 **Asked:** "why did ai not answer ? the input was "the driver ranoos new residency expiry is on 26 nov 2029, remind me 30 days before and set the date for it" also the input was clear and the parsing could not capture the date, check it".

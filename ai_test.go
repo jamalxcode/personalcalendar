@@ -1,6 +1,11 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -189,5 +194,32 @@ func TestMeantAsChange(t *testing.T) {
 		if got := meantAsChange(c.ev, c.text, now); got != c.want {
 			t.Errorf("%q on %s: %v, want %v", c.text, c.ev.Title, got, c.want)
 		}
+	}
+}
+
+// v2.4.3 report: the AI said "add" but listed no event. Smart Cal asks once more before giving up.
+func TestAskAIRetriesEmptyAdd(t *testing.T) {
+	empty := `{"kind":"add","answer":"Residency expiry added","events":[],"target":-1,"refs":[],"changes":{"title":"","start":"","end":"","all_day":false,"location":"","notes":"","calendar":"","reminder_minutes":0,"repeat":{"freq":"none","interval":1,"weekdays":[],"until":"","count":0},"time_zone":""},"scope":"this","slot":{"title":"","duration_minutes":0,"from_date":"","to_date":"","earliest_hour":8,"latest_hour":20,"include_weekend":false},"todos":[]}`
+	good := strings.Replace(empty, `"events":[]`, `"events":[{"title":"Ranoo residency expiry","start":"2029-11-26","end":"2029-11-27","all_day":true,"location":"","notes":"","calendar":"","reminder_minutes":43200,"repeat":{"freq":"none","interval":1,"weekdays":[],"until":"","count":0},"time_zone":""}]`, 1)
+	inChanges := strings.Replace(empty, `"changes":{"title":"","start":""`, `"changes":{"title":"Ranoo residency expiry","start":"2029-11-26"`, 1)
+	for name, replies := range map[string][]string{"retry": {empty, good}, "changes": {inChanges}} {
+		calls := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			reply := replies[min(calls, len(replies)-1)]
+			calls++
+			b, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": reply}}}})
+			w.Write(b)
+		}))
+		testAIBase = srv.URL
+		res, err := askAI(context.Background(), &Config{OpenAIKey: "sk-or-test", OpenAIModel: "openai/gpt-4o-mini"},
+			"the driver ranoos new residency expiry is on 26 nov 2029, remind me 30 days before and set the date for it", "", nil, nil)
+		srv.Close()
+		testAIBase = ""
+		if err != nil || len(res.Drafts) != 1 || !res.Drafts[0].AllDay || res.Drafts[0].Start.Format("2006-01-02") != "2029-11-26" {
+			t.Errorf("%s: %v %+v (calls %d)", name, err, res.Drafts, calls)
+		}
+	}
+	if !emptyReply(aiReply{Kind: "add"}) || emptyReply(aiReply{Kind: "answer"}) {
+		t.Error("emptyReply wrong")
 	}
 }

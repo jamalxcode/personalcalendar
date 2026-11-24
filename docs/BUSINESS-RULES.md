@@ -18,6 +18,7 @@ What Smart Cal does, as rules. If the code and this page disagree, one of them i
 - **Pasted text** (emails, notices, bookings): one event per real event; flights become "✈ KU 101 KWI→DXB" with departure and arrival times, departure airport as the place, booking reference and seat in the notes. Screenshots need an AI key.
 - **Time zones:** "3pm Dubai time" is converted to your time and the zone is kept on the event.
 - **Deadlines** ("residency expires on 26 Nov 2029", "set the date for it") are all-day events on that date. **"Remind me N minutes / hours / days / weeks before"** sets the event's alert; days or weeks before an all-day event alert at 9:00 that day.
+- **An empty answer gets one more try:** if the AI says "add" but lists nothing, it's asked again with what was missing, then the backup AI. Only after that does the built-in reader step in.
 - **The AI's answer is never wasted:** dated items it lists as to-dos when you asked for an event become events, and the other way round.
 - **Repeats** ("every Monday", "every weekday until June", "for 10 weeks") become real repeat rules.
 - **Without AI** (no key, or the AI failed) a built-in reader handles simple lines and pasted notices:

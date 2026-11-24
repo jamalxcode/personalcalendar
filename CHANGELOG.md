@@ -2,6 +2,12 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.4.3
+
+- **When the AI replies with an empty answer, Smart Cal asks it again.** Some models answer "add" but leave the event out. Now Smart Cal tells the AI what was missing and asks once more, then tries the backup AI (if you have one), before falling back to its own reading
+- An event the AI puts in the wrong part of its answer, or gives with a date but no time, is still used (as an all-day event)
+- The message names the model that answered ("The AI (openai/gpt-4o-mini) answered, but…") and quotes what it said, so you can tell which model to change
+
 ## v2.4.2
 
 - **Deadlines with "remind me … before" work.** "The driver's residency expires on 26 Nov 2029, remind me 30 days before and set the date for it" becomes an all-day event on 26 Nov 2029 with an alert **at 9:00, 30 days before**. Before, the AI filed it as a to-do and Smart Cal threw its answer away
