@@ -176,3 +176,48 @@ func TestLocalParsePastedAndFullDates(t *testing.T) {
 		t.Errorf("booking: %v %q %v", d.Start, d.Title, ok)
 	}
 }
+
+// v2.4.2 report: a deadline with "remind me 30 days before" and an instruction to the app
+func TestLocalParseReminderAndInstructions(t *testing.T) {
+	kw := time.FixedZone("AST", 3*3600)
+	now := time.Date(2026, 11, 24, 10, 0, 0, 0, kw)
+	cases := []struct {
+		in, title, start string
+		remind           int
+	}{
+		{"the driver ranoos new residency expiry is on 26 nov 2029, remind me 30 days before and set the date for it",
+			"The driver ranoos new residency expiry", "2029-11-26", 43200},
+		{"passport expires 3 march 2027, remind me 2 weeks before", "Passport expires", "2027-03-03", 20160},
+		{"car insurance due 12/01/2027 alert me a day before", "Car insurance", "2027-01-12", 1440},
+		{"dentist tomorrow 4pm remind me 1 hour before", "Dentist", "2026-11-25", 60},
+		{"renew license 5 dec, put it in my calendar", "Renew license", "2026-12-05", 0},
+	}
+	for _, c := range cases {
+		d, ok := localParse(c.in, now)
+		if !ok {
+			t.Errorf("%q: not parsed", c.in)
+			continue
+		}
+		if d.Title != c.title || d.Start.Format("2006-01-02") != c.start || d.ReminderMinutes != c.remind {
+			t.Errorf("%q → title=%q start=%s remind=%d", c.in, d.Title, d.Start.Format("2006-01-02 15:04"), d.ReminderMinutes)
+		}
+	}
+}
+
+func TestAllDayReminderAtNine(t *testing.T) {
+	kw := time.FixedZone("AST", 3*3600)
+	d := Draft{AllDay: true, ReminderMinutes: 43200, Start: time.Date(2029, 11, 26, 0, 0, 0, 0, kw)}
+	if js := draftJSON(d, true); !strings.Contains(js, `"alarmSecs":-2559600`) {
+		t.Errorf("30 days before an all-day event should be 09:00: %s", js)
+	}
+	if s, has, _ := alarmOffset("days9:30"); !has || s != -2559600 {
+		t.Errorf("days9:30 → %v", s)
+	}
+}
+
+func TestTodosAsDrafts(t *testing.T) {
+	ds := todosAsDrafts([]aiTodo{{Title: "Ranoo residency expiry", Due: "2029-11-26", Notes: "remind me 30 days before"}, {Title: "no date"}})
+	if len(ds) != 1 || !ds[0].AllDay || ds[0].Start.Format("2006-01-02") != "2029-11-26" || ds[0].ReminderMinutes != 43200 {
+		t.Errorf("got %+v", ds)
+	}
+}

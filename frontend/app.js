@@ -50,7 +50,9 @@ function dayHead(d) {
   const date = d.toLocaleDateString(LOC(), { day: "numeric", month: "short" });
   if (lbl === "Today" || lbl === "Tomorrow") return `${lbl} · ${d.toLocaleDateString(LOC(), { weekday: "short" })} ${date}`;
   if (d - now < 6 * 864e5) return `${lbl} · ${date}`;
-  return d.toLocaleDateString(LOC(), { weekday: "long", day: "numeric", month: "short" });
+  const o = { weekday: "long", day: "numeric", month: "short" };
+  if (d.getFullYear() !== now.getFullYear()) o.year = "numeric"; // "Monday 26 Nov 2029"
+  return d.toLocaleDateString(LOC(), o);
 }
 function whenText(start, end, allDay) {
   const s = new Date(start), e = new Date(end);
@@ -2008,13 +2010,19 @@ function scopeBox(title, verb) {
 function alarmChoice(d) {
   if (!d.hasAlarm) return "none";
   const s = Math.round(d.alarmSecs || 0);
-  if (d.allDay) return s === -54000 ? "dayBefore9" : s === 32400 ? "sameDay9" : "dayBefore9";
+  if (d.allDay) {
+    if (s === -54000) return "dayBefore9";
+    if (s === 32400) return "sameDay9";
+    if (s < 0 && (32400 - s) % 86400 === 0) return `days9:${(32400 - s) / 86400}`; // "30 days before, 09:00"
+    return "dayBefore9";
+  }
   return String(Math.max(0, Math.round(-s / 60)));
 }
 function alarmText(choice, allDay) {
   if (!choice || choice === "none") return "";
   if (choice === "dayBefore9") return "09:00 the day before";
   if (choice === "sameDay9") return "09:00 on the day";
+  if (String(choice).startsWith("days9:")) { const n = +choice.slice(6); return `09:00, ${n} ${n === 1 ? "day" : "days"} before`; }
   const m = +choice;
   if (m === 0) return "At start";
   const unit = (n, one, many) => `${n} ${n === 1 ? one : many} before`;
@@ -2595,7 +2603,10 @@ function renderDrafts() {
     if (d.location) meta.push("📍 " + d.location);
     const tz = tzNote(d);
     if (tz) meta.push("🌍 " + tz);
-    if (d.reminderMinutes > 0) meta.push(`🔔 ${dur(d.reminderMinutes * 60000)} before`);
+    if (d.reminderMinutes > 0) {
+      const m = d.reminderMinutes;
+      meta.push("🔔 " + alarmText(d.allDay && m % 1440 === 0 ? `days9:${m / 1440}` : String(m), d.allDay));
+    }
     if (d.notes) meta.push("📝 " + d.notes);
     if (meta.length) card.append(el("div", "draft-meta", meta.join("   ")));
     const cl = draftClashes[i] || [];

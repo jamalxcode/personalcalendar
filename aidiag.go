@@ -55,7 +55,7 @@ func explainAI(err error, model string) (reason, fix string) {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return "The AI took too long to answer", "Try again — long pasted text takes longer. If it keeps happening, try a faster model."
 		}
-		return "The AI's answer couldn't be used (" + err.Error() + ")", "Try again, or try another model in Settings → AI."
+		return "The AI answered, but Smart Cal couldn't use its answer (" + err.Error() + ")", "Try again or rephrase it, or try another model in Settings → AI."
 	}
 	p := ae.Provider
 	low := strings.ToLower(ae.Msg)
@@ -298,4 +298,13 @@ func checkKey(ctx context.Context, key string) KeyCheck {
 		res.Text = fmt.Sprintf("%s answered %d when checking the key — it will be tried when you use the AI.", svc, resp.StatusCode)
 	}
 	return res
+}
+
+// aiReached: the AI was reached and replied, but the reply couldn't be used — as opposed to no
+// answer at all (no key, network, timeout, an HTTP error).
+func aiReached(err error) bool {
+	var ae *aiError
+	var both *bothFailed
+	return err != nil && !errors.Is(err, errNoKey) && !errors.Is(err, context.DeadlineExceeded) &&
+		!errors.Is(err, context.Canceled) && !errors.As(err, &ae) && !errors.As(err, &both)
 }

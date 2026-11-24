@@ -17,11 +17,14 @@ What Smart Cal does, as rules. If the code and this page disagree, one of them i
 - **A trailing number is minutes:** "catch up with Miteb 60" → 60 minutes, title without "60" (15–240 in usual steps).
 - **Pasted text** (emails, notices, bookings): one event per real event; flights become "✈ KU 101 KWI→DXB" with departure and arrival times, departure airport as the place, booking reference and seat in the notes. Screenshots need an AI key.
 - **Time zones:** "3pm Dubai time" is converted to your time and the zone is kept on the event.
+- **Deadlines** ("residency expires on 26 Nov 2029", "set the date for it") are all-day events on that date. **"Remind me N minutes / hours / days / weeks before"** sets the event's alert; days or weeks before an all-day event alert at 9:00 that day.
+- **The AI's answer is never wasted:** dated items it lists as to-dos when you asked for an event become events, and the other way round.
 - **Repeats** ("every Monday", "every weekday until June", "for 10 weeks") become real repeat rules.
 - **Without AI** (no key, or the AI failed) a built-in reader handles simple lines and pasted notices:
   - explicit dates win over weekday names: "Thursday, 14 January 2027" is 14 Jan 2027;
   - dates as "14 January 2027", "January 14, 2027", "14/01/2027" (day first) or "2027-01-14"; a year is respected, a date without one is the next time it comes round;
   - in pasted text: "Date:" / "Time:" lines are used, the first line is the title, the whole text goes into the notes, and only clear times (with a colon or am/pm) count;
+  - "remind me 30 days before" becomes the alert; instructions to the app ("set the date for it", "put it in my calendar") are left out of the title;
   - it never invents an event: no date or time, no event.
 
 ## 3. Changing events
@@ -71,6 +74,7 @@ What Smart Cal does, as rules. If the code and this page disagree, one of them i
 - **Models must fit the key:** an OpenAI key uses OpenAI models only — anything else becomes gpt-4o-mini, and Settings shows exactly what's sent ("→ Uses gpt-4o-mini via OpenAI").
 - **One retry** on a dropped connection, a timeout, 429 or 5xx. Each request may take up to 70 seconds.
 - **Backup AI:** if the main AI fails, the backup answers; you're told the main one failed and why. If both fail, both reasons. The default backup model is from another company.
+- **"Didn't answer" means it:** no key, no connection, a timeout or an error from the service. When the AI replied but its answer couldn't be used, the message says that instead.
 - **Failures are explained at once**, under the AI box, until dismissed — 401 bad key, 402 no credits, 403 refused, 404 no such model, 429 too many requests, 5xx their side, network, timeout — with what OpenRouter says about the account for credit, limit and key problems.
 
 ## 8. The menu bar

@@ -286,6 +286,19 @@
         "٦٠",
         "60"
       ]
+    },
+    {
+      "text": "the driver ranoos new residency expiry is on 26 nov 2029, remind me 30 days before and set the date for it",
+      "kind": "add",
+      "all_day": true,
+      "title_has": [
+        "residency"
+      ],
+      "title_not": [
+        "remind",
+        "set the date",
+        "2029"
+      ]
     }
   ]
 }

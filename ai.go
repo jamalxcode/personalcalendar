@@ -136,7 +136,7 @@ func eventSchema() map[string]any {
 		"location":         str("Place, or empty string"),
 		"notes":            str("Extra details (booking refs, links), or empty string"),
 		"calendar":         str("Exact name of one of the user's calendars if named or clearly implied, else empty"),
-		"reminder_minutes": integer("Minutes before start for a reminder if asked, else 0"),
+		"reminder_minutes": integer("Minutes before start for a reminder if asked (\"remind me 2 days before\" = 2880), else 0"),
 		"repeat":           repeatSchema,
 		"time_zone":        str("IANA zone if the user named another city/zone for the time (e.g. Asia/Dubai for '3pm Dubai time'), else empty"),
 	})
@@ -213,6 +213,7 @@ Now is %s (%s), timezone %s (UTC%s). Interpret relative dates ("tomorrow", "next
 Decide what the user wants:
 - "add": new event(s). Default duration 1 hour; a bare number after the event words ("catch up with Miteb 60", "gym 90") is its length in minutes — never part of the title; a time with no date = next occurrence; a weekday = the next upcoming one; no time = all-day; "at/@ <place>" = location; several events → several items.
   Repeats: "every Monday", "daily", "every 2 weeks", "on the 1st of every month", "every weekday until June", "for 10 weeks" → fill repeat (weekly + weekdays for specific days). Otherwise repeat.freq = "none".
+  Deadlines and expiry dates ("my residency expires on 26 Nov 2029", "passport renewal due 3 March", "set the date for it") are events: all-day on that date, a short title without the instruction words ("Ranoo residency expiry"). "Remind me N minutes/hours/days/weeks before" → reminder_minutes (30 days = 43200). A reminder request alone doesn't make it a to-do when there is a date to put in the calendar.
   Time zones: "3pm Dubai time" → set time_zone (e.g. Asia/Dubai) and give start/end converted to the user's local offset.
 - If the input is PASTED content (an email, chat message, ticket, invitation, school letter) or a SCREENSHOT/photo: extract every event in it with exact dates, times and places. Flights: one event per flight, title like "✈ KU 101 KWI→DXB", start/end at departure/arrival converted to local offset, time_zone = departure airport's zone, location = departure airport, booking reference and seat in notes. Ignore marketing and boilerplate. If it contains tasks rather than events, use "todo".
 - "answer": a question about their schedule. Answer briefly from the event list below; list items with times; say plainly when something isn't there. Put the [n] of mentioned events in refs.
@@ -260,6 +261,15 @@ The user's events (past week to next two months):
 			return res, err
 		}
 		if len(ds) == 0 {
+			// "…expires on 26 Nov 2029, remind me 30 days before" — some models file it under todos
+			// instead of events. Use what they gave rather than throwing the answer away.
+			ds = todosAsDrafts(r.Todos)
+		}
+		if len(ds) == 0 {
+			if td := aiTodos(r.Todos); len(td) > 0 {
+				res.Kind, res.Todos = "todo", td
+				return res, nil
+			}
 			return res, fmt.Errorf("couldn't find an event in that — try e.g. “Lunch with Ali tomorrow 1pm”")
 		}
 		res.Drafts = ds
@@ -306,22 +316,13 @@ The user's events (past week to next two months):
 		sl := r.Slot
 		res.slotReq = &sl
 	case "todo":
-		for _, t := range r.Todos {
-			if strings.TrimSpace(t.Title) == "" {
-				continue
-			}
-			td := TodoDraft{Title: strings.TrimSpace(t.Title), Notes: t.Notes, HasTime: t.HasTime}
-			if t.Due != "" {
-				if tt, err := time.Parse(time.RFC3339, t.Due); err == nil {
-					l := tt.Local()
-					td.Due = &l
-				} else if dd, err := parseDay(t.Due); err == nil {
-					td.Due, td.HasTime = &dd, false
-				}
-			}
-			res.Todos = append(res.Todos, td)
-		}
+		res.Todos = aiTodos(r.Todos)
 		if len(res.Todos) == 0 {
+			// the other way round: kind "todo" but the model filled events
+			if ds, err := aiToDrafts(r.Events, cals); err == nil && len(ds) > 0 {
+				res.Kind, res.Drafts = "add", ds
+				return res, nil
+			}
 			return res, fmt.Errorf("couldn't find a task in that")
 		}
 	default:
@@ -411,6 +412,47 @@ func fixTrailingMinutes(d *Draft) {
 		n, _ := strconv.Atoi(m[2])
 		d.End = d.Start.Add(time.Duration(n) * time.Minute)
 	}
+}
+
+func aiTodos(ts []aiTodo) []TodoDraft {
+	var out []TodoDraft
+	for _, t := range ts {
+		if strings.TrimSpace(t.Title) == "" {
+			continue
+		}
+		td := TodoDraft{Title: strings.TrimSpace(t.Title), Notes: t.Notes, HasTime: t.HasTime}
+		if t.Due != "" {
+			if tt, err := time.Parse(time.RFC3339, t.Due); err == nil {
+				l := tt.Local()
+				td.Due = &l
+			} else if dd, err := parseDay(t.Due); err == nil {
+				td.Due, td.HasTime = &dd, false
+			}
+		}
+		out = append(out, td)
+	}
+	return out
+}
+
+// todosAsDrafts turns dated to-dos into events (all-day unless a time was given), for an "add"
+// answer whose events landed in the todos list. To-dos without a date are left alone.
+func todosAsDrafts(ts []aiTodo) []Draft {
+	var out []Draft
+	for _, td := range aiTodos(ts) {
+		if td.Due == nil {
+			continue
+		}
+		d := Draft{Title: td.Title, Notes: td.Notes}
+		if td.HasTime {
+			d.Start, d.End = *td.Due, td.Due.Add(time.Hour)
+		} else {
+			s := time.Date(td.Due.Year(), td.Due.Month(), td.Due.Day(), 0, 0, 0, 0, time.Local)
+			d.AllDay, d.Start, d.End = true, s, s.AddDate(0, 0, 1)
+		}
+		d.ReminderMinutes = reminderBefore(td.Title + " " + td.Notes)
+		out = append(out, d)
+	}
+	return out
 }
 
 func aiToDrafts(evs []aiEvent, cals []CalendarInfo) ([]Draft, error) {

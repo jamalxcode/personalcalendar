@@ -129,6 +129,10 @@ Everything building Smart Cal taught us — the hard way, mostly. Grouped by top
 
 ## Added in v2.4
 
+- **Don't reject a structured answer over a technicality.** A schema with `kind` plus several lists lets a model choose the "wrong" list ("remind me 30 days before" → todos under kind "add"). Check the other lists before calling it a failure — and when you do fail, don't tell the user the AI "didn't answer" when it did.
+- **Hide the year and a correct date looks wrong:** 26 Nov 2029 is a Monday, so "Monday 26 Nov" read as this week. Show the year whenever it isn't this year.
+- **An alert "N days before" an all-day event is relative to midnight** — add 9 hours or it goes off in the middle of the night.
+
 - **The Services menu is a cheap superpower for a menu bar app:** an `NSServices` entry in Info.plist plus `[NSApp setServicesProvider:]` (and `NSUpdateDynamicServices()`) puts "Add to Smart Cal" in every app's right-click menu. macOS may need a moment (or a log-out) to list a new service.
 - **Hijri dates need no library:** `Intl.DateTimeFormat("en-u-ca-islamic-umalqura")` in WebKit gives the Umm al-Qura date; Fajr and Maghrib come from the standard sun-position formula (declination + equation of time) to within a minute or two — say so next to the times.
 - **Wails' tray click can be taken over** with `OnClick` (it replaces the default toggle) — call `ToggleWindow()` yourself and check `NSEvent.modifierFlags` for ⌥.

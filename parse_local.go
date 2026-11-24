@@ -73,6 +73,16 @@ func localParseLine(text string, now time.Time, pasted bool) (Draft, bool) {
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
+	// "remind me 30 days before" → the event's alert; "set the date for it" → nothing (it's what we do)
+	remind := 0
+	if m := reRemindBefore.FindStringSubmatchIndex(lower); m != nil {
+		remind = reminderFrom(lower[m[2]:m[3]], lower[m[4]:m[5]])
+		cut(m[:2])
+	}
+	for _, m := range reverse(reInstruction.FindAllStringIndex(lower, -1)) {
+		cut(m)
+	}
+
 	// repeats: "every monday", "every mon and wed", "daily", "every day", "weekly", "monthly", "every weekday"
 	var rep Repeat
 	if m := reEvery.FindStringIndex(lower); m != nil {
@@ -214,13 +224,12 @@ func localParseLine(text string, now time.Time, pasted bool) (Draft, bool) {
 	if !haveDay && hour < 0 && !rep.Active() {
 		return Draft{}, false
 	}
-	title := strings.Join(strings.Fields(reFiller.ReplaceAllString(" "+s+" ", " ")), " ")
-	title = strings.Trim(title, " ,.-")
+	title := tidyTitle(s)
 	if title == "" {
 		title = "New event"
 	}
 	title = strings.ToUpper(title[:1]) + title[1:]
-	d := Draft{Title: title, Location: location, Repeat: rep}
+	d := Draft{Title: title, Location: location, Repeat: rep, ReminderMinutes: remind}
 	if rep.Active() {
 		d.RepeatText = rep.Text()
 		if !haveDay && len(rep.Weekdays) > 0 { // "gym every mon and wed 7am" → first upcoming of those days
@@ -294,6 +303,60 @@ var (
 	reURL         = regexp.MustCompile(`https?://\S+`)
 	reNoon        = regexp.MustCompile(`\b(?:at )?noon\b`)
 	reFiller      = regexp.MustCompile(`(?i)\s(at|on|@)\s*$`)
-	weekdays      = map[string]time.Weekday{"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
-	months        = map[string]time.Month{"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+	// "remind me 30 days before", "alert me 2 hours ahead", "and remind me a week before it"
+	reRemindBefore = regexp.MustCompile(`(?:,\s*)?\b(?:and |then |please |also )*(?:remind|alert|notify|warn) me (\d+|an?|one|two|three|four|five|six|seven|ten) ?(minutes?|mins?|hours?|hrs?|h|days?|weeks?|months?) (?:before|earlier|ahead|in advance|prior)(?: (?:it|that|this|the date|then|hand))?\b`)
+	// instructions to the app, not part of the event: "set the date for it", "put it in my calendar"
+	reInstruction = regexp.MustCompile(`(?:,\s*)?\b(?:and |then |please |also )*(?:set (?:the |a )?(?:date|reminder|alert|event)(?: for (?:it|this|that))?|(?:put|add|save|set|mark) (?:it|this|that)(?: (?:in|on|to|into) (?:my |the )?calendar| down| up)?|(?:put|add|save) (?:in|on|to|into) (?:my |the )?calendar)\b`)
+	// words left hanging once the date is cut: "expiry is , remind…" → "expiry"
+	reDangling = regexp.MustCompile(`(?i)\s+(?:is|are|was|will be|on|at|and|by|due)\s*(,|$)`)
+	weekdays   = map[string]time.Weekday{"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
+	months     = map[string]time.Month{"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
 )
+
+var numberWords = map[string]int{"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "ten": 10}
+
+// reminderFrom: "30", "days" → minutes before (43200).
+func reminderFrom(n, unit string) int {
+	k, err := strconv.Atoi(n)
+	if err != nil {
+		k = numberWords[n]
+	}
+	switch {
+	case strings.HasPrefix(unit, "mo"):
+		return k * 30 * 1440
+	case strings.HasPrefix(unit, "w"):
+		return k * 7 * 1440
+	case strings.HasPrefix(unit, "d"):
+		return k * 1440
+	case strings.HasPrefix(unit, "h"):
+		return k * 60
+	}
+	return k
+}
+
+// reminderBefore finds "remind me N … before" anywhere in a text (0 if there's none).
+func reminderBefore(text string) int {
+	if m := reRemindBefore.FindStringSubmatch(strings.ToLower(text)); m != nil {
+		return reminderFrom(m[1], m[2])
+	}
+	return 0
+}
+
+func reverse(locs [][]int) [][]int {
+	for i, j := 0, len(locs)-1; i < j; i, j = i+1, j-1 {
+		locs[i], locs[j] = locs[j], locs[i]
+	}
+	return locs
+}
+
+// tidyTitle cleans what's left of the line once dates, times and instructions are cut out.
+func tidyTitle(s string) string {
+	t := strings.Join(strings.Fields(reFiller.ReplaceAllString(" "+s+" ", " ")), " ")
+	t = strings.ReplaceAll(t, " ,", ",")
+	for i := 0; i < 3; i++ {
+		t = reDangling.ReplaceAllString(t, "$1")
+		t = strings.ReplaceAll(t, ",,", ",")
+		t = strings.Trim(t, " ,.-")
+	}
+	return t
+}

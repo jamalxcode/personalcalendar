@@ -65,6 +65,7 @@ How Smart Cal looks and behaves. New UI follows these; when a rule changes, chan
 
 ## 7. Words, dates and times
 
+- **A date in another year shows the year:** "Monday 26 Nov 2029 · all day".
 - **Relative and absolute together:** "Wed 18 Nov, 09:00 · in 6 days", "Today 21:00 · in 4 hours", "Overdue by 13 hours"; just the date from two weeks out. A weekday alone only for the next few days.
 - **Times** follow the Mac's 12/24-hour setting (or your choice); durations are short ("1h", "25m").
 - **Plain English, short sentences**, sentence case for headings. Arabic translations come from the dictionary in `i18n.js`.

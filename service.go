@@ -659,7 +659,13 @@ func (s *CalService) AskWith(text, imageB64 string) (AskResult, error) {
 		if d, ok := localParse(text, now); ok && imageB64 == "" {
 			fixTrailingMinutes(&d)
 			res = AskResult{Kind: "add", Drafts: []Draft{d}, Offline: true}
-			res.Note = "The AI didn't answer, so Smart Cal read this on its own — check the date and title. Why: " + why
+			lead := "The AI didn't answer"
+			if aiReached(err) {
+				lead = "The AI's answer couldn't be used"
+			}
+			res.Note = lead + ", so Smart Cal read this on its own — check the date and title. Why: " + why
+		} else if aiReached(err) {
+			return AskResult{}, fmt.Errorf("%s", why)
 		} else {
 			return AskResult{}, fmt.Errorf("The AI didn't answer. %s", why)
 		}

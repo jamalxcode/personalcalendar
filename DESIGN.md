@@ -20,6 +20,18 @@ technical lessons are in [LESSONS.md](LESSONS.md). The rules that came out of al
 
 ---
 
+## v2.4.2 — "Why did the AI not answer?" (24 Nov 2026)
+
+**Asked:** "why did ai not answer ? the input was "the driver ranoos new residency expiry is on 26 nov 2029, remind me 30 days before and set the date for it" also the input was clear and the parsing could not capture the date, check it".
+**Found:** the AI *did* answer — it called it an "add" but put the item in its to-do list (because of "remind me"), so the events list was empty and Smart Cal rejected the whole answer, then fell back to the built-in reader under the misleading heading "The AI didn't answer". The reader did get the date right (26 Nov 2029 — a Monday) but the preview hid the year, so it looked like this coming Monday, and the title kept "is , remind me 30 days before and set the date for it".
+**Decided:**
+- Never throw away a usable answer: an "add" with no events but dated to-dos turns them into events (all-day unless a time was given); a "todo" with only events becomes an add. The prompt now says deadlines and expiry dates are all-day events and "remind me N days before" is `reminder_minutes`.
+- Say what really happened: "The AI's answer couldn't be used" when the AI replied, "didn't answer" only for no key, network, timeout or an HTTP error.
+- "N days before" an all-day event alerts at **9:00** that day (not midnight); the event card shows "09:00, 30 days before" and the edit form keeps it.
+- The built-in reader: "remind me / alert me N minutes|hours|days|weeks|months before" → the alert; app instructions ("set the date for it", "put it in my calendar", "add it") are dropped; words left hanging by the cut date ("is", "on", "due") are tidied away.
+- A date outside the current year always shows its year.
+- The sentence is now in the AI test set and the reader's tests.
+
 ## v2.4.1 — "After…" (24 Nov 2026)
 
 **Asked:** "add a right click "after" x (time period, could be days, hours, minutes) for events and to do, to change the next time".

@@ -2,6 +2,14 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.4.2
+
+- **Deadlines with "remind me … before" work.** "The driver's residency expires on 26 Nov 2029, remind me 30 days before and set the date for it" becomes an all-day event on 26 Nov 2029 with an alert **at 9:00, 30 days before**. Before, the AI filed it as a to-do and Smart Cal threw its answer away
+- **The AI's answer is used even when it picks the "wrong" kind:** events listed as to-dos (with a date) become events, and events given for a to-do become events too
+- **Honest wording:** when the AI did reply but its answer couldn't be used, Smart Cal says so — not "The AI didn't answer"
+- **The built-in reader** (when the AI can't help) understands "remind me 30 days / 2 weeks / 1 hour before", drops instructions like "set the date for it" or "put it in my calendar", and no longer leaves "is ," in the title
+- **Dates in another year show the year** in the preview and agenda: "Monday 26 Nov 2029 · all day"
+
 ## v2.4.1
 
 - **Right-click → After…** on any event or to-do (in the panel and the week window): move it later by **15 min, 30 min, 1 hour, 2 hours, 1 day, 3 days, 1 week** — or any number of minutes, hours, days or weeks. It counts from the current time of the event or to-do (10:00 + 1 hour = 11:00); if that would still be in the past — an overdue to-do — it counts from now. Events keep their length, notes and time zone, repeating events ask "this one or all future", and there's Undo. All-day events and date-only to-dos offer days and weeks (minutes or hours give a date-only to-do a time)

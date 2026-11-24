@@ -124,7 +124,7 @@ type EventRef struct {
 }
 
 // alarmOffset turns a Draft.Alarm choice into seconds relative to the start.
-// "" = keep/none, "none", "0","5","15",… minutes before, "dayBefore9", "sameDay9" (all-day).
+// "" = keep/none, "none", "0","5","15",… minutes before, "dayBefore9", "sameDay9", "days9:N" (all-day).
 func alarmOffset(choice string) (secs float64, has, set bool) {
 	switch choice {
 	case "":
@@ -135,6 +135,11 @@ func alarmOffset(choice string) (secs float64, has, set bool) {
 		return -15 * 3600, true, true // 09:00 the day before an all-day event
 	case "sameDay9":
 		return 9 * 3600, true, true
+	}
+	if n, ok := strings.CutPrefix(choice, "days9:"); ok { // all-day: 09:00, N days before
+		if k, err := strconv.Atoi(n); err == nil && k > 0 {
+			return -float64(k)*86400 + 9*3600, true, true
+		}
 	}
 	if m, err := strconv.Atoi(choice); err == nil && m >= 0 {
 		return -float64(m) * 60, true, true
@@ -147,6 +152,9 @@ func draftJSON(d Draft, isNew bool) string {
 	secs, has, set := alarmOffset(d.Alarm)
 	if d.ReminderMinutes > 0 { // an explicit "remind me 1h before" wins
 		secs, has, set = -float64(d.ReminderMinutes)*60, true, true
+		if d.AllDay && d.ReminderMinutes >= 1440 && d.ReminderMinutes%1440 == 0 {
+			secs += 9 * 3600 // "30 days before" an all-day event: at 9:00 that day, not midnight
+		}
 	}
 	m := map[string]any{
 		"title": d.Title, "location": d.Location, "notes": d.Notes, "calendarId": d.CalendarID,
