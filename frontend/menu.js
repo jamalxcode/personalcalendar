@@ -84,3 +84,72 @@ export function pickDate(at, label, initial, onPick, button = "Move") {
   document.addEventListener("mousedown", outside, true);
   inp.focus();
 }
+
+// ---- "After…": move something later by an amount of time ----
+
+const UNIT_LABEL = { minutes: ["minute", "minutes"], hours: ["hour", "hours"], days: ["day", "days"], weeks: ["week", "weeks"] };
+export const durationText = (n, unit) => `${n} ${UNIT_LABEL[unit][n === 1 ? 0 : 1]}`;
+
+// shiftBy: date + n units (days and weeks by calendar days, so daylight saving can't move the clock time)
+export function shiftBy(date, n, unit) {
+  const d = new Date(date);
+  if (unit === "minutes") d.setMinutes(d.getMinutes() + n);
+  else if (unit === "hours") d.setHours(d.getHours() + n);
+  else if (unit === "days") d.setDate(d.getDate() + n);
+  else if (unit === "weeks") d.setDate(d.getDate() + 7 * n);
+  return d;
+}
+
+// laterBy: n units after `base` — or after now, when that would still be in the past
+// (an overdue to-do "after 2 hours" means two hours from now, not two hours after it was due)
+export function laterBy(base, n, unit, now = new Date()) {
+  const t = shiftBy(base, n, unit);
+  if (t > now) return t;
+  if (unit === "days" || unit === "weeks") { // keep the time of day, count from today
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), base.getHours(), base.getMinutes(), 0, 0);
+    return shiftBy(today, n, unit);
+  }
+  const r = shiftBy(now, n, unit);
+  r.setSeconds(0, 0);
+  return r;
+}
+
+// A small box at the pointer: quick choices plus "[n] [unit]"; onPick(n, unit). timeUnits=false → days/weeks only.
+export function pickDuration(at, label, onPick, { timeUnits = true } = {}) {
+  document.querySelectorAll(".pop-menu").forEach((x) => x.remove());
+  const box = el("div", "pop-menu pop-date pop-after");
+  box.append(el("div", "small muted", label));
+  const chips = el("div", "after-chips");
+  const quick = timeUnits
+    ? [[15, "minutes", "15 min"], [30, "minutes", "30 min"], [1, "hours", "1 hour"], [2, "hours", "2 hours"], [1, "days", "1 day"], [3, "days", "3 days"], [1, "weeks", "1 week"]]
+    : [[1, "days", "1 day"], [2, "days", "2 days"], [3, "days", "3 days"], [1, "weeks", "1 week"], [2, "weeks", "2 weeks"]];
+  const close = () => { box.remove(); document.removeEventListener("mousedown", outside, true); };
+  const outside = (ev) => { if (!box.contains(ev.target)) close(); };
+  for (const [n, unit, txt] of quick) {
+    const b = el("button", "btn small-btn", txt);
+    b.onclick = () => { close(); onPick(n, unit); };
+    chips.append(b);
+  }
+  const row = el("div", "after-row");
+  const num = el("input", "after-n");
+  num.type = "number"; num.min = "1"; num.max = "999"; num.value = timeUnits ? "2" : "3";
+  const sel = el("select", "after-unit");
+  for (const u of timeUnits ? ["minutes", "hours", "days", "weeks"] : ["days", "weeks"]) {
+    const o = el("option", "", u); o.value = u; if (u === (timeUnits ? "hours" : "days")) o.selected = true; sel.append(o);
+  }
+  const ok = el("button", "btn primary small-btn", "Move");
+  const go = () => { const n = parseInt(num.value, 10); if (!(n >= 1 && n <= 999)) { num.focus(); return; } close(); onPick(n, sel.value); };
+  ok.onclick = go;
+  row.append(el("span", "small", "After"), num, sel, ok);
+  box.append(chips, row);
+  box.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); go(); }
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
+  });
+  document.body.append(box);
+  const z = zoom(), vw = window.innerWidth / z, vh = window.innerHeight / z;
+  box.style.left = `${Math.max(4, Math.min(at ? at.x / z : 40, vw - box.offsetWidth - 4))}px`;
+  box.style.top = `${Math.max(4, Math.min(at ? at.y / z : 120, vh - box.offsetHeight - 4))}px`;
+  document.addEventListener("mousedown", outside, true);
+  num.focus(); num.select();
+}

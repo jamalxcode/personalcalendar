@@ -1122,3 +1122,11 @@ details.adv[open] summary { margin-bottom: 6px; }
 .cd-ring .cd-track { stroke: var(--faint); }
 .cd-ring .cd-fill { stroke: var(--accent); stroke-linecap: round; }
 .cd-chip.bday .cd-ring .cd-fill { stroke: #e5484d; }
+
+/* "After…" box */
+.pop-after { min-width: 260px; max-width: 300px; }
+.after-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.after-chips .btn { padding: 3px 9px; }
+.after-row { display: flex; align-items: center; gap: 6px; }
+.after-n { width: 58px; font: inherit; font-size: 12.5px; padding: 3px 6px; border-radius: 6px; border: 0; background: var(--input); box-shadow: inset 0 0 0 .5px var(--line); }
+.after-unit { flex: 1; font: inherit; font-size: 12.5px; }

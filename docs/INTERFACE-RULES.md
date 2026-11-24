@@ -51,6 +51,7 @@ How Smart Cal looks and behaves. New UI follows these; when a rule changes, chan
 
 - **Destructive on the far left, the main action on the far right**, the rest in a **⋯** menu — so a row of buttons never wraps.
 - **Pop-up menus look and behave like Mac menus:** right-click opens at the pointer; nothing is highlighted when opened with the mouse, the first item when opened from the keyboard; ↑↓ move, Esc closes. Hints (dates) are grey on the right; destructive items are red, last, after a separator.
+- **The reschedule menu** (events and to-dos): Today · Tomorrow · In 2 days · In 3 days · Next week (each with its date in grey) · After… (a box with quick choices and "After [n] [unit] · Move") · Pick a date… · then Open/Edit/Duplicate or Mark as done, and Delete last.
 - **Confirmations** only for things Undo can't fix; Cancel on the left, the verb on the right ("Delete", not "Yes").
 - **Labels are verbs and plain words:** "Update now", "Pin as Countdown", "Pick a date…" (an ellipsis when more input follows).
 

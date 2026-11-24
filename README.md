@@ -26,7 +26,7 @@ It's a free, Fantastical-style calendar written in Go with Wails v3 — and it w
 
 **Oops? Undo.** Every add, move and delete has Undo. New events are added straight away, so nothing waits in a preview you can forget.
 
-**Right-click to say "not now".** Any event or to-do → Tomorrow, In 2 days, In 3 days, Next week, or Pick a date… — same time, same length, notes kept.
+**Right-click to say "not now".** Any event or to-do → Tomorrow, In 2 days, In 3 days, Next week, **After…** (15 minutes, 2 hours, 3 days — any amount you like) or Pick a date… — same length, notes kept, Undo.
 
 **Alerts with buttons.** Join the meeting, Snooze 10 minutes, or "Running late…", which drafts an email to everyone else. And at 8:00, a one-line morning brief: *"3 events · first 9:00 Dentist · leave by 8:35 · 1 to-do overdue."*
 

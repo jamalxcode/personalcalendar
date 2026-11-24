@@ -39,6 +39,7 @@ What Smart Cal does, as rules. If the code and this page disagree, one of them i
 
 - **Events** (panel and week window) and **to-dos**: Today · Tomorrow · In 2 days · In 3 days · Next week, each showing its date, or Pick a date….
 - **Days count from today**, not from the old date ("not now, in 3 days").
+- **After…** moves later by an amount — minutes, hours, days or weeks (quick choices 15 min to 1 week) — counted from the item's current time; if that's still in the past (overdue), from now. Days and weeks keep the time of day; minutes and hours give a date-only to-do a time; all-day events offer days and weeks only.
 - **Events keep their time of day and length**, moved by whole calendar days (daylight saving can't shift the clock); notes and time zone are kept; repeats ask this/all future; overlaps are warned about; Undo.
 - **To-dos keep their time** if they have one; only the date is saved, so notes and list stay; Undo; Remove date is available.
 - **Read-only and holiday events** offer only Open and Duplicate.

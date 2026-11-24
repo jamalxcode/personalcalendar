@@ -20,6 +20,11 @@ technical lessons are in [LESSONS.md](LESSONS.md). The rules that came out of al
 
 ---
 
+## v2.4.1 — "After…" (24 Nov 2026)
+
+**Asked:** "add a right click "after" x (time period, could be days, hours, minutes) for events and to do, to change the next time".
+**Decided:** an "After…" item in both right-click menus (events in the panel and week window, to-dos) opening a small box — quick choices (15 min · 30 min · 1 hour · 2 hours · 1 day · 3 days · 1 week; days/weeks only for all-day events) and "After [n] [minutes|hours|days|weeks]". The amount is added to the current time of the item; when the result is still in the past (overdue), it's counted from now instead (days keep the time of day). Minutes and hours give a date-only to-do a time. Days and weeks move by calendar days so daylight saving can't shift the clock. Moves go through the same path as every other move (notes, time zone, repeat scope, clash warning, Undo). The maths lives in `menu.js` (`shiftBy`, `laterBy`), shared by both windows.
+
 ## v2.4.0 — The UI critique: easier, quicker, more fun (21 Nov 2026)
 
 **Asked:** "critique smart cal ui, how can it be made easier, more efficient and fun to use" → a 17-point list → "do it all".

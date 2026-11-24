@@ -2,6 +2,10 @@
 
 Release notes shown in the app's Update panel come from the matching section here.
 
+## v2.4.1
+
+- **Right-click → After…** on any event or to-do (in the panel and the week window): move it later by **15 min, 30 min, 1 hour, 2 hours, 1 day, 3 days, 1 week** — or any number of minutes, hours, days or weeks. It counts from the current time of the event or to-do (10:00 + 1 hour = 11:00); if that would still be in the past — an overdue to-do — it counts from now. Events keep their length, notes and time zone, repeating events ask "this one or all future", and there's Undo. All-day events and date-only to-dos offer days and weeks (minutes or hours give a date-only to-do a time)
+
 ## v2.4.0 — easier, quicker, more fun
 
 **Easier**

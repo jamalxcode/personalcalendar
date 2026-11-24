@@ -1,5 +1,5 @@
 import { Call, Events } from "/wails/runtime.js";
-import { popMenu, pickDate } from "./menu.js";
+import { popMenu, pickDate, pickDuration, laterBy } from "./menu.js";
 import { pad, startOfDay, addDays, sameDay, dateVal, timeVal, fromInputs } from "./dates.js";
 import { flightOf, flyingSoon } from "./flights.js";
 
@@ -233,6 +233,13 @@ function eventMenu(e, node, at) {
       if (sameDay(day, e.s)) continue; // already on that day
       items.push({ label, hint: short(day), fn: () => moveToDay(e, day) });
     }
+    items.push({ label: "After…", hint: e.allDay ? "days, weeks" : "min, hours, days", fn: () => pickDuration(at, `Move “${e.title}” later by`, (n, unit) => {
+      const ns = laterBy(e.s, n, unit);
+      let ne;
+      if (e.allDay) { ne = new Date(ns); ne.setDate(ne.getDate() + Math.max(1, Math.round((startOfDay(e.e) - startOfDay(e.s)) / 864e5))); }
+      else ne = new Date(+ns + (e.e - e.s));
+      moveEvent(e, ns, ne);
+    }, { timeUnits: !e.allDay }) });
     items.push({ label: "Pick a date…", fn: () => pickDate(at, `Move “${e.title}” to`, e.s, (day) => moveToDay(e, day)) }, "-");
   }
   items.push({ label: "Open", fn: () => openDrawer(e) });

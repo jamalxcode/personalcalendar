@@ -1,5 +1,5 @@
 import { Call, Events } from "/wails/runtime.js";
-import { popMenu, pickDate } from "./menu.js";
+import { popMenu, pickDate, pickDuration, laterBy } from "./menu.js";
 import { pad, startOfMonth, startOfDay, addDays, sameDay, dayKey, dateVal, timeVal, fromInputs } from "./dates.js";
 import { flightOf, flyingSoon } from "./flights.js";
 import { hijriText, occasion, prayerTimes } from "./seasons.js";
@@ -2230,6 +2230,7 @@ function eventMenu(e, row, at) {
       if (sameDay(day, s)) continue; // already on that day
       items.push({ label, hint: short(day), fn: () => moveEventToDay(e, day) });
     }
+    items.push({ label: "After…", hint: e.allDay ? "days, weeks" : "min, hours, days", fn: () => pickDuration(at, `Move “${e.title}” later by`, (n, unit) => moveEventAfter(e, n, unit), { timeUnits: !e.allDay }) });
     items.push({ label: "Pick a date…", fn: () => pickEventDate(e, at) }, "-");
   }
   items.push({ label: "Open", fn: () => openEvent(e) });
@@ -2246,6 +2247,21 @@ async function moveEventToDay(e, day) {
   if (!shift) return;
   const ns = new Date(s), ne = new Date(en);
   ns.setDate(ns.getDate() + shift); ne.setDate(ne.getDate() + shift); // calendar days, so DST can't shift the time
+  return moveEventTo(e, ns, ne);
+}
+
+// "After…": later by n minutes/hours/days/weeks from its current time (from now if that's still past)
+function moveEventAfter(e, n, unit) {
+  const s = new Date(e.start), en = new Date(e.end);
+  const ns = laterBy(s, n, unit);
+  let ne;
+  if (e.allDay) { ne = new Date(ns); ne.setDate(ne.getDate() + Math.max(1, Math.round((startOfDay(en) - startOfDay(s)) / 864e5))); }
+  else ne = new Date(+ns + (en - s));
+  return moveEventTo(e, ns, ne);
+}
+
+// the one place an event is moved from a menu: keeps notes and time zone, asks about repeats, warns about overlaps, Undo
+async function moveEventTo(e, ns, ne) {
   const draft = { title: e.title, start: ns.toISOString(), end: ne.toISOString(), allDay: !!e.allDay, location: e.location || "", notes: "", calendarId: e.calendarId, reminderMinutes: 0, timeZone: e.timeZone || "" };
   try {
     try { const full = await go("GetEvent", e.id, e.start); draft.notes = full.notes || ""; draft.timeZone = full.timeZone || draft.timeZone; } catch (_) {}
@@ -2281,7 +2297,16 @@ function todoMenu(t, row, at) {
   };
   const short = (d) => d.toLocaleDateString(LOC(), { weekday: "short", day: "numeric", month: "short" });
   const opt = (label, days) => ({ label, hint: short(on(days)), fn: () => rescheduleTodo(t, on(days), t.hasTime && !!due) });
+  // "After…": later by an amount from when it's due (or from now, if that's past / it has no date);
+  // minutes and hours give a date-only to-do a time
+  const after = (n, unit) => {
+    const timeUnit = unit === "minutes" || unit === "hours";
+    let base = due || new Date();
+    if (timeUnit && !(t.hasTime && due)) base = new Date();
+    rescheduleTodo(t, laterBy(base, n, unit), timeUnit || (t.hasTime && !!due));
+  };
   const items = [opt("Today", 0), opt("Tomorrow", 1), opt("In 2 days", 2), opt("In 3 days", 3), opt("Next week", 7),
+    { label: "After…", hint: "min, hours, days", fn: () => pickDuration(at, `Move “${t.title}” later by`, after) },
     { label: "Pick a date…", fn: () => pickTodoDate(t, row) }];
   if (due) items.push({ label: "Remove date", fn: () => rescheduleTodo(t, null, false) });
   items.push("-",
